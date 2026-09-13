@@ -573,6 +573,13 @@ def _encode_message(
         out["reasoning_details"] = message.reasoning_details
     elif message.reasoning:
         out[flags.reasoning_echo_field] = message.reasoning
+    elif message.tool_calls and flags.echo_empty_reasoning_for_tool_calls:
+        # DeepSeek thinking mode: an assistant message carrying ``tool_calls``
+        # must round-trip the reasoning field even when that round produced no
+        # reasoning — omitting the key 400s the follow-up ("The
+        # `reasoning_content` in the thinking mode must be passed back to the
+        # API."). A resumed record can carry such rounds, so send "".
+        out[flags.reasoning_echo_field] = ""
     return out
 
 

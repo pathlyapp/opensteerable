@@ -151,6 +151,7 @@ async def test_compat_describe_serves_the_framework_flag_vocabulary(
         "reasoningDeltaFields",
         "reasoningEchoField",
         "supportsForcedToolChoice",
+        "echoEmptyReasoningForToolCalls",
         "cachedTokensFields",
     }
     for f in flags:

@@ -329,68 +329,55 @@ async def test_models_list_serializes_joined_rows_and_registers_them(
         clear_gateway_cache,
         parse_models_listing,
     )
-    from steerable_agent_runtime.model_info import (
-        _gateway_infos,
-        clear_gateway_models,
-    )
-
     clear_gateway_cache()
-    snapshot = dict(_gateway_infos)
-    clear_gateway_models()
-    try:
 
-        async def _live(base_url, api_key=None, **kwargs):
-            import time
+    async def _live(base_url, api_key=None, **kwargs):
+        import time
 
-            return GatewayListing(
-                entries=tuple(
-                    parse_models_listing(
-                        {
-                            "data": [
-                                {
-                                    "id": "openai/qwen/qwen3.8-27b",
-                                    "name": "Qwen 3.8 27B",
-                                    "context_length": 500_000,
-                                    "pricing": {
-                                        "prompt": "0.0000002",
-                                        "completion": "0.0000008",
-                                    },
+        return GatewayListing(
+            entries=tuple(
+                parse_models_listing(
+                    {
+                        "data": [
+                            {
+                                "id": "openai/qwen/qwen3.8-27b",
+                                "name": "Qwen 3.8 27B",
+                                "context_length": 500_000,
+                                "pricing": {
+                                    "prompt": "0.0000002",
+                                    "completion": "0.0000008",
                                 },
-                                {"id": "acme/internal-9"},
-                            ]
-                        }
-                    )
-                ),
-                fetched_at=time.time(),
-                stale=False,
-            )
+                            },
+                            {"id": "acme/internal-9"},
+                        ]
+                    }
+                )
+            ),
+            fetched_at=time.time(),
+            stale=False,
+        )
 
-        monkeypatch.setattr(
-            "steerable_agent_runtime.gateway_catalog.fetch_gateway_models", _live
-        )
-        response = await _call(sidecar, "models.list", {"baseUrl": "http://gw/v1"})
-        result = response["result"]
-        assert result["catalogStatus"] == "live"
-        qwen, acme = result["models"]
-        # Catalog join: levels from the leaf match, window from the gateway.
-        assert qwen["joinedFrom"].lower().endswith("qwen3.8-27b")
-        assert qwen["reasoningLevels"] == ["low", "medium", "xhigh"]
-        assert qwen["window"] == 500_000
-        assert qwen["pricing"] == {
-            "promptPerMtok": pytest.approx(0.2),
-            "completionPerMtok": pytest.approx(0.8),
-        }
-        assert qwen["capabilities"] == "known"
-        # Unknown id: listed (discovery, not whitelist), marked unknown.
-        assert acme["joinedFrom"] is None
-        assert acme["capabilities"] == "unknown"
-        # The fetch installed the listing into the runtime resolution path.
-        assert (
-            resolve_model_info("openai/qwen/qwen3.8-27b").context_window == 500_000
-        )
-    finally:
-        clear_gateway_models()
-        _gateway_infos.update(snapshot)
+    monkeypatch.setattr(
+        "steerable_agent_runtime.gateway_catalog.fetch_gateway_models", _live
+    )
+    response = await _call(sidecar, "models.list", {"baseUrl": "http://gw/v1"})
+    result = response["result"]
+    assert result["catalogStatus"] == "live"
+    qwen, acme = result["models"]
+    # Catalog join: levels from the leaf match, window from the gateway.
+    assert qwen["joinedFrom"].lower().endswith("qwen3.8-27b")
+    assert qwen["reasoningLevels"] == ["low", "medium", "xhigh"]
+    assert qwen["window"] == 500_000
+    assert qwen["pricing"] == {
+        "promptPerMtok": pytest.approx(0.2),
+        "completionPerMtok": pytest.approx(0.8),
+    }
+    assert qwen["capabilities"] == "known"
+    # Unknown id: listed (discovery, not whitelist), marked unknown.
+    assert acme["joinedFrom"] is None
+    assert acme["capabilities"] == "unknown"
+    # The fetch installed the listing into the runtime resolution path.
+    assert resolve_model_info("openai/qwen/qwen3.8-27b").context_window == 500_000
 
 
 def test_factory_validates_reasoning_effort_strict() -> None:

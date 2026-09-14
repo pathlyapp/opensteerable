@@ -20,6 +20,25 @@ import e2e_harness  # noqa: E402
 from e2e_harness import MockOpenAI, SidecarClient  # noqa: E402  (re-exported for fixtures)
 
 
+@pytest.fixture(autouse=True)
+def _drop_gateway_listing() -> Any:
+    """Uninstall any gateway listing a test left in the runtime resolver.
+
+    ``models.list`` installs its listing into ``model_info``'s process-global
+    resolution path on every successful refresh — that is the point of the
+    call, not a test artifact. But the listing is matched ahead of the bundled
+    catalog, so one leaked row silently rewrites another test's model: a fake
+    ``claude-sonnet-4-6`` with no ``context_length`` shadowed the catalog's
+    1M window with the legacy ``claude`` table's 200k, and only a later test
+    in another package that read that window ever complained. Per-test
+    cleanup belongs here rather than in each test that happens to refresh.
+    """
+    from steerable_agent_runtime.model_info import clear_gateway_models
+
+    yield
+    clear_gateway_models()
+
+
 @pytest.fixture
 def e2e_gate() -> None:
     """The environment gate every real-process e2e test passes through."""

@@ -61,12 +61,15 @@ except ImportError:
 
 from evals.harbor_dsh import (  # noqa: E402
     DshHarborAgent,
+    PIN_PROXY_SOURCE,
     context_window_for,
     dsh_settings_yaml,
     gateway_dsh_model,
     openrouter_routing,
+    pin_proxy_listen_url,
     resolve_api_key_env,
     resolve_base_url,
+    thinking_format_for,
 )
 
 
@@ -91,27 +94,45 @@ def test_settings_yaml_is_a_headless_eval_document() -> None:
         model_id=_MODEL_ID,
         api_key_env="OPENROUTER_API_KEY",
         effort="high",
-        provider_order=["z-ai"],
         context_window=1_048_576,
     )
     parsed = yaml.safe_load(raw)
-    assert parsed["agent-default-model"]["provider"] == "gateway"
+    assert parsed["agent-default-model"]["provider"] == "openrouter"
     assert parsed["agent-default-model"]["model"] == _MODEL_ID
     assert parsed["agent-default-model"]["reasoningEffort"] == "high"
     assert parsed["permission"]["defaultPreset"] == "danger-full-access"
-    provider = parsed["llm-pi-ai"]["providers"]["gateway"]
+    provider = parsed["llm-pi-ai"]["providers"]["openrouter"]
     assert provider["api"] == "openai-completions"
     assert provider["baseURL"] == _GATEWAY
     assert provider["apiKeyEnv"] == "OPENROUTER_API_KEY"
     assert provider["compat"]["supportsDeveloperRole"] is False
     assert provider["compat"]["maxTokensField"] == "max_tokens"
-    assert provider["compat"]["openRouterRouting"] == {
-        "order": ["z-ai"],
-        "allow_fallbacks": False,
-    }
+    assert provider["compat"]["thinkingFormat"] == "openai"
+    assert "openRouterRouting" not in provider["compat"]
+    assert "openRouterRouting" not in raw
     assert provider["models"][0]["id"] == _MODEL_ID
-    assert provider["models"][0]["reasoning"] is True
+    assert provider["models"][0]["reasoningEfforts"]["off"] is None
+    assert provider["models"][0]["reasoningEfforts"]["high"] == "high"
     assert provider["models"][0]["maxTokens"] == 65_536
+
+
+def test_qwen_settings_use_qwen_thinking_format() -> None:
+    raw = dsh_settings_yaml(
+        base_url=_GATEWAY,
+        model_id="qwen/qwen3.8-27b",
+        api_key_env="OPENROUTER_API_KEY",
+        effort="medium",
+        context_window=262_144,
+    )
+    parsed = yaml.safe_load(raw)
+    assert parsed["llm-pi-ai"]["providers"]["openrouter"]["compat"]["thinkingFormat"] == "qwen"
+    assert thinking_format_for("qwen/qwen3.8-27b") == "qwen"
+
+
+def test_pin_is_a_loopback_proxy_not_compat() -> None:
+    assert "allow_fallbacks" in PIN_PROXY_SOURCE
+    assert pin_proxy_listen_url() == "http://127.0.0.1:8787/v1"
+    compile(PIN_PROXY_SOURCE, "or-pin-proxy.py", "exec")
 
 
 def test_key_env_prefers_openrouter(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import sys
 import types
+from pathlib import Path
 
 import pytest
 import yaml
@@ -67,6 +68,7 @@ from evals.harbor_dsh import (  # noqa: E402
     gateway_dsh_model,
     openrouter_routing,
     pin_proxy_listen_url,
+    pin_proxy_target,
     resolve_api_key_env,
     resolve_base_url,
     thinking_format_for,
@@ -133,6 +135,27 @@ def test_pin_is_a_loopback_proxy_not_compat() -> None:
     assert "allow_fallbacks" in PIN_PROXY_SOURCE
     assert pin_proxy_listen_url() == "http://127.0.0.1:8787/v1"
     compile(PIN_PROXY_SOURCE, "or-pin-proxy.py", "exec")
+    assert "urljoin" not in PIN_PROXY_SOURCE
+    adapter = Path(__file__).resolve().parents[1] / "harbor_dsh.py"
+    text = adapter.read_text(encoding="utf-8")
+    assert "command -v python3" in text
+    assert "nohup" in text
+
+
+def test_pin_proxy_target_keeps_openrouter_api_prefix() -> None:
+    upstream = "https://openrouter.ai/api/v1"
+    assert (
+        pin_proxy_target(upstream, "/v1/chat/completions")
+        == "https://openrouter.ai/api/v1/chat/completions"
+    )
+    assert (
+        pin_proxy_target(upstream, "/chat/completions")
+        == "https://openrouter.ai/api/v1/chat/completions"
+    )
+    assert (
+        pin_proxy_target(upstream, "/v1/models?foo=1")
+        == "https://openrouter.ai/api/v1/models?foo=1"
+    )
 
 
 def test_key_env_prefers_openrouter(monkeypatch: pytest.MonkeyPatch) -> None:

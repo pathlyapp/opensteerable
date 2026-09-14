@@ -70,6 +70,12 @@ _FLAG_WIRE_SPEC: tuple[tuple[str, str, str, str], ...] = (
         "Accept tool_choice=required; disable to downgrade it to auto",
     ),
     (
+        "echoEmptyReasoningForToolCalls",
+        "echo_empty_reasoning_for_tool_calls",
+        "bool",
+        'Echo the reasoning field as "" on tool-call turns that produced no reasoning',
+    ),
+    (
         "cachedTokensFields",
         "cached_tokens_fields",
         "string-list",
@@ -138,6 +144,14 @@ class OpenAICompatFlags:
     #: ("The `reasoning_content` in the thinking mode must be passed back to
     #: the API.", live-verified 2026-09-08 with deepseek-v4-flash).
     reasoning_echo_field: str = "reasoning"
+    #: Whether an assistant message carrying ``tool_calls`` but *no* reasoning
+    #: must still echo the field (as ``""``). DeepSeek thinking mode 400s the
+    #: follow-up when ``reasoning_content`` is absent from a tool-call
+    #: assistant message, even for rounds where the model produced no
+    #: reasoning at all (live-verified 2026-09-13: a budget-wall auto-continue
+    #: resumed a record whose early rounds had no reasoning and the very first
+    #: resumed request 400'd). Reference vendors omit the field instead.
+    echo_empty_reasoning_for_tool_calls: bool = False
     #: Usage locations read for cached prompt tokens, in preference order.
     #: Dotted paths resolve nested objects. OpenAI nests under
     #: ``prompt_tokens_details.cached_tokens``; DeepSeek reports top-level
@@ -204,6 +218,12 @@ PROVIDER_COMPAT_HOSTS: list[tuple[str, OpenAICompatFlags]] = [
             # does not support this tool_choice", live-verified 2026-09-08
             # with deepseek-v4-flash); ``auto`` and omission both work.
             supports_forced_tool_choice=False,
+            # Thinking mode also 400s a tool-call assistant message whose
+            # ``reasoning_content`` key is missing, even when that round
+            # produced no reasoning at all (live-verified 2026-09-13 on a
+            # resumed record: "The `reasoning_content` in the thinking mode
+            # must be passed back to the API."). Echo an empty string.
+            echo_empty_reasoning_for_tool_calls=True,
             cached_tokens_fields=(
                 "prompt_cache_hit_tokens",
                 "prompt_tokens_details.cached_tokens",

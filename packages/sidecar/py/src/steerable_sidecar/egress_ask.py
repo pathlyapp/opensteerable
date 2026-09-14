@@ -94,8 +94,16 @@ class EgressApprovalAsker:
     async def _relay_allow(self, host: str, port: int) -> bool:
         import httpx  # local import — sidecar stays importable without it
 
+        # `trust_env=False`: the control endpoint is the proxy's own loopback
+        # port, never a proxied destination. Broker mode points `HTTP_PROXY` at
+        # the proxy (so a rewritten plain-http provider baseUrl gets its
+        # credential injected) and sets no `NO_PROXY`, so a trusting client
+        # would post this grant *through* the proxy, which denies its own
+        # control port for want of an allow-list entry — every approval would
+        # fail closed right after the user allowed it. An ambient system proxy
+        # does the same to an unconfined sidecar, answering 502 for loopback.
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=10.0, trust_env=False) as client:
                 response = await client.post(
                     f"http://127.0.0.1:{self._control_port}/allow",
                     headers={"Authorization": f"Bearer {self._control_token}"},

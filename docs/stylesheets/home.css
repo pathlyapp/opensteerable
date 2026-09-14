@@ -179,12 +179,12 @@
 
 .sf-scatter .tick {
   fill: var(--md-default-fg-color--light);
-  font-size: 8.5px;
+  font-size: 11px;
 }
 
 .sf-scatter .axisTitle {
   fill: var(--md-default-fg-color--light);
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -207,7 +207,7 @@
 
 .sf-scatter .lbl {
   fill: var(--md-default-fg-color);
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -221,7 +221,7 @@
 
 .sf-scatter .sub {
   fill: var(--md-default-fg-color--light);
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .sf-scatter .pt--ref {
@@ -232,7 +232,114 @@
 
 .sf-scatter .legend {
   fill: var(--md-default-fg-color--light);
-  font-size: 7.5px;
+  font-size: 11px;
+}
+
+.sf-scatter .pt--steer,
+.sf-scatter .pt--ours {
+  fill: rgba(92, 107, 192, 0.72);
+  stroke: #5c6bc0;
+  stroke-width: 1.4;
+}
+
+.sf-scatter .pt--pi {
+  fill: rgba(14, 116, 144, 0.55);
+  stroke: #0e7490;
+  stroke-width: 1.1;
+}
+
+.sf-scatter .pt--cc {
+  fill: rgba(194, 65, 12, 0.5);
+  stroke: #c2410c;
+  stroke-width: 1.1;
+}
+
+.sf-scatter .pt--codex {
+  fill: rgba(127, 127, 140, 0.35);
+  stroke: var(--md-default-fg-color--light);
+  stroke-width: 1;
+}
+
+[data-md-color-scheme="slate"] .sf-scatter .pt--steer,
+[data-md-color-scheme="slate"] .sf-scatter .pt--ours {
+  fill: rgba(129, 140, 248, 0.72);
+  stroke: #818cf8;
+}
+
+[data-md-color-scheme="slate"] .sf-scatter .pt--pi {
+  fill: rgba(34, 211, 238, 0.45);
+  stroke: #22d3ee;
+}
+
+[data-md-color-scheme="slate"] .sf-scatter .pt--cc {
+  fill: rgba(251, 146, 60, 0.5);
+  stroke: #fb923c;
+}
+
+.sf-bars {
+  display: block;
+  width: 100%;
+  height: auto;
+  padding: 0.15rem 0.6rem 0.2rem;
+}
+
+.sf-bars .grid {
+  stroke: var(--md-default-fg-color--lightest);
+  stroke-width: 0.5;
+}
+
+.sf-bars .axis {
+  stroke: var(--md-default-fg-color--light);
+  stroke-width: 0.8;
+}
+
+.sf-bars .tick {
+  fill: var(--md-default-fg-color--light);
+  font-size: 9px;
+}
+
+.sf-bars .axisTitle {
+  fill: var(--md-default-fg-color--light);
+  font-size: 9.5px;
+  font-weight: 600;
+}
+
+.sf-bars .barVal {
+  fill: var(--md-default-fg-color);
+  font-size: 8px;
+  font-weight: 650;
+}
+
+.sf-bars .bar--steer {
+  fill: #5c6bc0;
+}
+
+.sf-bars .bar--pi {
+  fill: #0e7490;
+}
+
+.sf-bars .bar--cc {
+  fill: #c2410c;
+}
+
+.sf-bars .bar--codex {
+  fill: rgba(127, 127, 140, 0.55);
+}
+
+[data-md-color-scheme="slate"] .sf-bars .bar--steer {
+  fill: #818cf8;
+}
+
+[data-md-color-scheme="slate"] .sf-bars .bar--pi {
+  fill: #22d3ee;
+}
+
+[data-md-color-scheme="slate"] .sf-bars .bar--cc {
+  fill: #fb923c;
+}
+
+[data-md-color-scheme="slate"] .sf-bars .bar--codex {
+  fill: rgba(161, 161, 170, 0.7);
 }
 
 .sf-bench-group {

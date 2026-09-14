@@ -133,6 +133,63 @@ def test_registry_deepseek_disables_forced_tool_choice() -> None:
     entry = compat_for_base_url("https://api.deepseek.com")
     assert entry is not None
     assert entry.supports_forced_tool_choice is False
+    # Thinking mode also 400s a tool-call assistant message whose
+    # reasoning_content key is absent (even with empty reasoning), so the
+    # entry pins the empty-string echo on.
+    assert entry.echo_empty_reasoning_for_tool_calls is True
+    assert entry.reasoning_echo_field == "reasoning_content"
+
+
+def test_deepseek_build_body_echoes_empty_reasoning_on_tool_calls() -> None:
+    """A resumed record can carry tool-call rounds that produced no reasoning
+    at all; the DeepSeek request body must still include ``reasoning_content``
+    (empty string) or the follow-up 400s (live-verified 2026-09-13)."""
+    from steerable_agent_protocol.generated import ToolCall
+
+    from steerable_agent_runtime.llm import LLMMessage
+
+    entry = compat_for_base_url("https://api.deepseek.com")
+    provider = _provider(
+        model="deepseek-v4-flash", base_url="https://api.deepseek.com", compat=entry
+    )
+    body = provider._build_body(
+        messages=[
+            LLMMessage.text_of("user", "go"),
+            LLMMessage.text_of(
+                "assistant",
+                "reading",
+                tool_calls=[ToolCall(id="c1", name="bash", arguments={"command": "ls"})],
+            ),
+            LLMMessage.text_of("tool", "ok", name="bash", tool_call_id="c1"),
+        ],
+        tools=None,
+        temperature=None,
+        max_tokens=64,
+        stream=True,
+        extra={},
+    )
+    assistant = next(m for m in body["messages"] if m["role"] == "assistant")
+    assert assistant["reasoning_content"] == ""
+    assert assistant["tool_calls"][0]["id"] == "c1"
+
+    # Reference provider (no vendor flags) keeps the key out entirely.
+    reference = _provider(model="m", base_url="http://localhost/v1")
+    ref_body = reference._build_body(
+        messages=[
+            LLMMessage.text_of(
+                "assistant",
+                "reading",
+                tool_calls=[ToolCall(id="c1", name="bash", arguments={"command": "ls"})],
+            ),
+        ],
+        tools=None,
+        temperature=None,
+        max_tokens=64,
+        stream=True,
+        extra={},
+    )
+    assert "reasoning" not in ref_body["messages"][0]
+    assert "reasoning_content" not in ref_body["messages"][0]
 
 
 # ---------------------------------------------------------------------------

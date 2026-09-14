@@ -262,5 +262,23 @@ async def test_fetch_serves_stale_on_refresh_failure(fake_httpx) -> None:
 
 async def test_fetch_raises_without_cache(fake_httpx) -> None:
     fake_httpx.payload = ConnectionError("gateway down")
-    with pytest.raises(GatewayCatalogError, match="gateway down"):
+    with pytest.raises(GatewayCatalogError) as excinfo:
         await fetch_gateway_models("http://gw.test/v1")
+    assert excinfo.value.reason == "ConnectionError: gateway down"
+
+
+async def test_fetch_reason_names_the_type_when_the_message_is_empty(
+    fake_httpx,
+) -> None:
+    # httpx leaves the message empty for every transport failure that produced
+    # no HTTP response, so the type is all that separates "nothing answered"
+    # from "the endpoint hung up" in the error a settings screen shows.
+    import httpx
+
+    fake_httpx.payload = httpx.ConnectTimeout("")
+    with pytest.raises(GatewayCatalogError) as excinfo:
+        await fetch_gateway_models("http://gw.test/v1")
+    assert excinfo.value.reason == "ConnectTimeout"
+    assert str(excinfo.value) == (
+        "gateway catalog fetch failed for 'http://gw.test/v1': ConnectTimeout"
+    )

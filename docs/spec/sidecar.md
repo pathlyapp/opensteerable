@@ -180,7 +180,10 @@ OpenAI-compatible vendor divergences are data, not provider branches
 `params` overrides request/response handling for the OpenAI-compatible
 path; keys are camelCase (`supportsUsageInStreaming`, `maxTokensField`,
 `supportsReasoningEffort`, `supportsTemperature`, `reasoningDeltaFields`,
-`cachedTokensFields`) and unknown keys are rejected. Without `compat`,
+`reasoningEchoField`, `supportsForcedToolChoice`,
+`echoEmptyReasoningForToolCalls`, `cachedTokensFields`) and unknown keys
+are rejected; `compat.describe` serves the live vocabulary to host
+settings UIs. Without `compat`,
 the sidecar auto-detects known vendors from the `baseUrl` host
 (`PROVIDER_COMPAT_HOSTS`); anything unmatched runs on reference OpenAI
 behavior.

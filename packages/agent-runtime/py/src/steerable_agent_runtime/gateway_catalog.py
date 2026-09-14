@@ -329,6 +329,21 @@ def listing_request(
     return f"{base}/models", headers
 
 
+def _failure_reason(exc: BaseException) -> str:
+    """Exception text that still names the failure when the message is empty.
+
+    httpx reports a bare ``''`` for every transport failure that produced no
+    HTTP response: httpcore maps anyio's ``TimeoutError``,
+    ``BrokenResourceError``, and ``EndOfStream`` by type alone, so a connect
+    timeout, a read timeout, and a connection reset mid-TLS-handshake all
+    reach ``str(exc)`` empty. The class name is then the only thing that
+    separates "nothing answered at this endpoint" from "the endpoint hung
+    up", which are different problems for whoever reads the settings screen.
+    """
+    text = str(exc).strip()
+    return f"{type(exc).__name__}: {text}" if text else type(exc).__name__
+
+
 async def fetch_gateway_models(
     base_url: str,
     api_key: str | None = None,
@@ -364,12 +379,18 @@ async def fetch_gateway_models(
             response.raise_for_status()
             entries = tuple(parse_models_listing(response.json()))
     except Exception as exc:
+        reason = _failure_reason(exc)
         if cached is not None:
-            _log.info("gateway listing refresh failed (%s); serving stale", exc)
+            _log.info("gateway listing refresh failed (%s); serving stale", reason)
             return GatewayListing(
                 entries=cached[1].entries, fetched_at=cached[1].fetched_at, stale=True
             )
-        raise GatewayCatalogError(base_url, str(exc)) from exc
+        # The raised error reaches a UI; the log is the only place the
+        # resolved listing URL appears, and a wrong URL and an unreachable
+        # host look identical without it. Headers stay out of it (the API
+        # key travels there).
+        _log.warning("gateway listing fetch failed: GET %s: %s", url, reason)
+        raise GatewayCatalogError(base_url, reason) from exc
 
     listing = GatewayListing(entries=entries, fetched_at=time.time(), stale=False)
     _cache[key] = (time.monotonic(), listing)

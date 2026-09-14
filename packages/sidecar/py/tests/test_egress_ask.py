@@ -98,6 +98,48 @@ class TestAsker:
             task.cancel()
 
     @pytest.mark.asyncio
+    async def test_relay_ignores_proxy_environment(self, monkeypatch) -> None:
+        """The grant must reach the loopback control port even while the
+        environment declares a proxy for plain http.
+
+        Broker mode is exactly this environment: it points ``HTTP_PROXY`` at
+        the egress proxy and sets no ``NO_PROXY``, so a client that trusts the
+        environment posts the grant through the proxy — which denies its own
+        control port for want of an allow-list entry, failing every approval
+        closed just after the user allowed it. An ambient system proxy does the
+        same to an unconfined sidecar. The stand-in below answers like both.
+        """
+        captured: list[bytes] = []
+
+        async def refuse_everything(reader: asyncio.StreamReader, writer) -> None:
+            captured.append(await reader.readuntil(b"\r\n"))
+            writer.write(b"HTTP/1.1 502 Bad Gateway\r\ncontent-length: 0\r\n\r\n")
+            await writer.drain()
+            writer.close()
+
+        interceptor = await asyncio.start_server(refuse_everything, "127.0.0.1", 0)
+        interceptor_port = interceptor.sockets[0].getsockname()[1]
+        for name in ("HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"):
+            monkeypatch.setenv(name, f"http://127.0.0.1:{interceptor_port}")
+        monkeypatch.delenv("NO_PROXY", raising=False)
+        monkeypatch.delenv("no_proxy", raising=False)
+
+        proxy, task, control_port, allow = await _start_control_plane()
+        try:
+            stub = _StubServer("allow_for_session")
+            asker = EgressApprovalAsker(
+                stub, control_port=control_port, control_token="tok-test"  # type: ignore[arg-type]
+            )
+            assert await asker.ask_and_allow("example.com", 443, "https://example.com/") is True
+            assert allow.allows("example.com", 443)
+            assert captured == []  # the declared proxy was never dialed
+        finally:
+            await proxy.close()
+            task.cancel()
+            interceptor.close()
+            await interceptor.wait_closed()
+
+    @pytest.mark.asyncio
     async def test_denial_is_cached_for_the_session(self) -> None:
         proxy, task, control_port, allow = await _start_control_plane()
         try:

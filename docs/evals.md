@@ -65,6 +65,30 @@ Codex CLI completed the full 89-task catalog after a fill-in run for the 7 tasks
 
 The Pi result is our own Harbor run rather than a vendor-submitted leaderboard score. Its model request parameters match the Steerable leg, subject to the protocol differences documented below.
 
+## Flash matrix · n=1 @high/medium
+
+**Not the score of record.** This is a separate single-run catalog-89 matrix at cheaper effort. Do not mix these Means with the 80.7% ±2.9 @max six-run.
+
+Protocol: Harbor catalog-89, n=1, timeout / error / missing = fail, Mean = pass/89. GLM-5.3-Flash and DeepSeek-V4-Flash **0731** (`deepseek/deepseek-v4-flash-0731`) at `high`; Qwen3.8-27B at `medium` (Pi CLI maps medium to `--thinking high`). Pins: GLM `z-ai`, DeepSeek and Qwen `alibaba`. No Terminus, no DSH. Seven cells at SHA `6f70bf5`; fill cells (Claude Code × DeepSeek, Pi × Qwen, Codex × three models) at SHA `19213d7`.
+
+| Model | Steerable | Pi | Claude Code | Codex |
+| ----- | --------- | -- | ----------- | ----- |
+| GLM @high | **71/89 = 79.8%** | 65/89 = 73.0% | 69/89 = 77.5% | 50/89 = 56.2% |
+| DS0731 @high | 70/89 = 78.7% | 62/89 = 69.7% | 40/89 = 44.9% | 55/89 = 61.8% |
+| Qwen @medium | 61/89 = 68.5% | 56/89 = 62.9% | 63/89 = 70.8% | 57/89 = 64.0% |
+
+Fill-in GitHub Actions at `19213d7`: Claude Code × DS [34684494958](https://github.com/pathlyapp/opensteerable/actions/runs/34684494958), Pi × Qwen [34684497256](https://github.com/pathlyapp/opensteerable/actions/runs/34684497256), Codex × GLM [34689464813](https://github.com/pathlyapp/opensteerable/actions/runs/34689464813), Codex × DS [34689466743](https://github.com/pathlyapp/opensteerable/actions/runs/34689466743), Codex × Qwen [34689468681](https://github.com/pathlyapp/opensteerable/actions/runs/34689468681).
+
+OpenRouter list $ per solved task (pinned-host list prices, not the published GLM @max $0.146 homepage-method axis):
+
+| Model | Steerable | Pi | Claude Code | Codex |
+| ----- | --------- | -- | ----------- | ----- |
+| GLM @high | $0.61 | $0.12 | $0.23 | $1.06 |
+| DS0731 @high | $2.18 | $0.28 | $0.85 | $4.42 |
+| Qwen @medium | $4.12 | $2.87 | $1.68 | $2.60 |
+
+Claude Code × DeepSeek is pulled down by `reasoning_content` / thinking-flag failures. Codex GLM includes a known JSON protocol error on `regex-chess` and a GitHub 360-minute unfinished snapshot. Codex Qwen and Pi × Qwen likewise count unfinished 360-minute snapshots as fail.
+
 ## Task stratification at `8e260de`
 
 Six catalog runs at that commit (GHA [34031313764](https://github.com/pathlyapp/opensteerable/actions/runs/34031313764), [34031319806](https://github.com/pathlyapp/opensteerable/actions/runs/34031319806), [34040053173](https://github.com/pathlyapp/opensteerable/actions/runs/34040053173), [34122470060](https://github.com/pathlyapp/opensteerable/actions/runs/34122470060), [34122485974](https://github.com/pathlyapp/opensteerable/actions/runs/34122485974), [34139665379](https://github.com/pathlyapp/opensteerable/actions/runs/34139665379); tool: `python -m evals.stratify_catalog --root <downloaded-shards>`) split the 89 ids as:

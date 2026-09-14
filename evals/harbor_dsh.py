@@ -118,6 +118,26 @@ def pin_proxy_listen_url(port: int = _PIN_PROXY_PORT) -> str:
     return f"http://127.0.0.1:{port}/v1"
 
 
+def pin_proxy_target(upstream: str, request_path: str) -> str:
+    """Map loopback ``/v1/...`` onto the real OpenRouter ``/api/v1/...`` URL.
+
+    ``urljoin('https://openrouter.ai/api/v1/', '/v1/chat/completions')``
+    becomes ``https://openrouter.ai/v1/chat/completions`` and 404s. cheap-12
+    34837175358 returned that as HTTP 502 from the pin proxy.
+    """
+    path, _, query = request_path.partition("?")
+    if path.startswith("/v1/"):
+        suffix = path[3:]
+    elif path == "/v1":
+        suffix = "/"
+    else:
+        suffix = path if path.startswith("/") else f"/{path}"
+    target = upstream.rstrip("/") + suffix
+    if query:
+        target = f"{target}?{query}"
+    return target
+
+
 PIN_PROXY_SOURCE = r'''#!/usr/bin/env python3
 """Forward OpenAI-compat POSTs and inject OpenRouter provider pin.
 
@@ -131,7 +151,6 @@ import argparse
 import json
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urljoin
 from urllib.request import ProxyHandler, Request, build_opener
 
 parser = argparse.ArgumentParser()
@@ -139,13 +158,27 @@ parser.add_argument("--upstream", required=True)
 parser.add_argument("--order", action="append", default=[])
 parser.add_argument("--listen", default="127.0.0.1:8787")
 args = parser.parse_args()
-upstream = args.upstream.rstrip("/") + "/"
+upstream = args.upstream.rstrip("/")
 order = [item for item in args.order if item]
 if not order:
     sys.exit("pin proxy needs --order")
 routing = {"order": order, "allow_fallbacks": False}
 host, port_s = args.listen.rsplit(":", 1)
 opener = build_opener(ProxyHandler({}))
+
+
+def pin_proxy_target(upstream, request_path):
+    path, _, query = request_path.partition("?")
+    if path.startswith("/v1/"):
+        suffix = path[3:]
+    elif path == "/v1":
+        suffix = "/"
+    else:
+        suffix = path if path.startswith("/") else "/" + path
+    target = upstream.rstrip("/") + suffix
+    if query:
+        target = target + "?" + query
+    return target
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -173,7 +206,7 @@ class Handler(BaseHTTPRequestHandler):
         self._forward(body, "POST")
 
     def _forward(self, body: bytes, method: str) -> None:
-        target = urljoin(upstream, self.path.lstrip("/"))
+        target = pin_proxy_target(upstream, self.path)
         req = Request(target, data=body or None, method=method)
         for key, value in self.headers.items():
             lowered = key.lower()
@@ -196,12 +229,13 @@ class Handler(BaseHTTPRequestHandler):
                         break
                     self.wfile.write(chunk)
         except Exception as exc:
-            sys.stderr.write("pin-proxy upstream error: %s\n" % exc)
+            sys.stderr.write("pin-proxy upstream error: %s %s\n" % (target, exc))
             self.send_error(502, str(exc)[:200])
 
 
 http_host = host
 port = int(port_s)
+sys.stderr.write("pin-proxy listen %s:%s -> %s\n" % (http_host, port, upstream))
 ThreadingHTTPServer((http_host, port), Handler).serve_forever()
 '''
 
@@ -405,23 +439,30 @@ class DshHarborAgent(BaseInstalledAgent):
                 f"--order {shlex.quote(item)}" for item in order
             )
             start_pin = (
-                "python3 "
+                "PY3=$(command -v python3); "
+                'if [ -z "$PY3" ]; then echo python3 missing >&2; exit 1; fi; '
+                "nohup \"$PY3\" -u "
                 f"{shlex.quote(_PIN_PROXY_REMOTE)} "
                 f"--upstream {shlex.quote(base_url)} "
                 f"{order_flags} "
                 f"--listen 127.0.0.1:{_PIN_PROXY_PORT} "
                 ">/tmp/or-pin-proxy.log 2>&1 & "
-                "for i in $(seq 1 50); do "
-                f"python3 -c 'import socket; s=socket.create_connection((\"127.0.0.1\", {_PIN_PROXY_PORT}), 1)' "
-                "&& break; sleep 0.1; done; "
-                f"python3 -c 'import socket; s=socket.create_connection((\"127.0.0.1\", {_PIN_PROXY_PORT}), 1)' "
-                "|| { echo 'pin proxy did not listen' >&2; cat /tmp/or-pin-proxy.log >&2; exit 1; }; "
+                "echo $! >/tmp/or-pin-proxy.pid; "
+                "ok=0; "
+                "for i in $(seq 1 100); do "
+                f"\"$PY3\" -c 'import socket; socket.create_connection((\"127.0.0.1\", {_PIN_PROXY_PORT}), 1).close()' "
+                "&& ok=1 && break; sleep 0.1; done; "
+                'if [ "$ok" != 1 ]; then '
+                "echo pin-proxy did not listen PY3=$PY3 >&2; "
+                "cat /tmp/or-pin-proxy.log >&2; "
+                "exit 1; "
+                "fi; "
             )
         await self.exec_as_agent(
             environment,
             command=(
-                "if [ -s ~/.nvm/nvm.sh ]; then . ~/.nvm/nvm.sh; fi; "
                 f"{start_pin}"
+                "if [ -s ~/.nvm/nvm.sh ]; then . ~/.nvm/nvm.sh; fi; "
                 f"dsh --profile headless "
                 f'"$(cat {shlex.quote(_INSTRUCTION_REMOTE)})" '
                 f"> {shlex.quote(log)} 2>&1"

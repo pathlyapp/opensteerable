@@ -65,6 +65,30 @@ Codex CLI completed the full 89-task catalog after a fill-in run for the 7 tasks
 
 The Pi result is our own Harbor run rather than a vendor-submitted leaderboard score. Its model request parameters match the Steerable leg, subject to the protocol differences documented below.
 
+## Flash matrix · n=1 @high/medium
+
+**Not the score of record.** This is a separate single-run catalog-89 matrix at cheaper effort. Do not mix these Means with the 80.7% ±2.9 @max six-run.
+
+Protocol: Harbor catalog-89, n=1, timeout / error / missing = fail, Mean = pass/89. GLM-5.3-Flash and DeepSeek-V4-Flash **0731** (`deepseek/deepseek-v4-flash-0731`) at `high`; Qwen3.8-27B at `medium` (Pi CLI maps medium to `--thinking high`). Pins: GLM `z-ai`, DeepSeek and Qwen `alibaba`. No Terminus. Seven cells at SHA `6f70bf5`; fill cells (Claude Code × DeepSeek, Pi × Qwen, Codex × three models) at SHA `19213d7`; DSH at SHA `c576a88` on `evals/strat-cheap-12-probe`.
+
+| Model | Steerable | Pi | Claude Code | Codex | DSH |
+| ----- | --------- | -- | ----------- | ----- | --- |
+| GLM @high | **71/89 = 79.8%** | 65/89 = 73.0% | 69/89 = 77.5% | 50/89 = 56.2% | 59/89 = 66.3% |
+| DS0731 @high | 70/89 = 78.7% | 62/89 = 69.7% | 40/89 = 44.9% | 55/89 = 61.8% | **69/89 = 77.5%** |
+| Qwen @medium | 61/89 = 68.5% | 56/89 = 62.9% | 63/89 = 70.8% | 57/89 = 64.0% | 54/89 = 60.7% |
+
+Fill-in GitHub Actions at `19213d7`: Claude Code × DS [34684494958](https://github.com/pathlyapp/opensteerable/actions/runs/34684494958), Pi × Qwen [34684497256](https://github.com/pathlyapp/opensteerable/actions/runs/34684497256), Codex × GLM [34689464813](https://github.com/pathlyapp/opensteerable/actions/runs/34689464813), Codex × DS [34689466743](https://github.com/pathlyapp/opensteerable/actions/runs/34689466743), Codex × Qwen [34689468681](https://github.com/pathlyapp/opensteerable/actions/runs/34689468681). DSH catalog at `c576a88`: GLM [34848045490](https://github.com/pathlyapp/opensteerable/actions/runs/34848045490), DS0731 [34848052842](https://github.com/pathlyapp/opensteerable/actions/runs/34848052842), Qwen [34848057723](https://github.com/pathlyapp/opensteerable/actions/runs/34848057723).
+
+OpenRouter list $ per solved task (pinned-host list prices, not the published GLM @max $0.146 homepage-method axis). Harbor DSH trials still write `n_*_tokens` as null; DSH dollars use OpenRouter analytics tokens for the catalog window 2026-09-14 13:14–20:00 UTC (that morning's cheap-12 DSH excluded), then the same list formula as the twelve Harbor cells:
+
+| Model | Steerable | Pi | Claude Code | Codex | DSH |
+| ----- | --------- | -- | ----------- | ----- | --- |
+| GLM @high | $0.61 | $0.12 | $0.23 | $1.06 | $0.12 |
+| DS0731 @high | $2.18 | $0.28 | $0.85 | $4.42 | $3.48 |
+| Qwen @medium | $4.12 | $2.87 | $1.68 | $2.60 | $3.36 |
+
+Claude Code × DeepSeek is pulled down by `reasoning_content` / thinking-flag failures. Codex GLM includes a known JSON protocol error on `regex-chess` and a GitHub 360-minute unfinished snapshot. Codex Qwen and Pi × Qwen likewise count unfinished 360-minute snapshots as fail. DSH Qwen is missing `winning-avg-corewars` (shard still running at the 360-minute job cap); that id is fail. DSH GLM/Qwen also include `NetworkConnectionError` pin-proxy misses, counted as fail.
+
 ## Task stratification at `8e260de`
 
 Six catalog runs at that commit (GHA [34031313764](https://github.com/pathlyapp/opensteerable/actions/runs/34031313764), [34031319806](https://github.com/pathlyapp/opensteerable/actions/runs/34031319806), [34040053173](https://github.com/pathlyapp/opensteerable/actions/runs/34040053173), [34122470060](https://github.com/pathlyapp/opensteerable/actions/runs/34122470060), [34122485974](https://github.com/pathlyapp/opensteerable/actions/runs/34122485974), [34139665379](https://github.com/pathlyapp/opensteerable/actions/runs/34139665379); tool: `python -m evals.stratify_catalog --root <downloaded-shards>`) split the 89 ids as:
@@ -95,11 +119,11 @@ Arm history on the road to `8e260de`. Flaky A/B of the `20a854d` verify gate is 
 | Oracle smoke | PR / push when `evals/**` changes, plus `workflow_dispatch` | Harbor `oracle` (Mean 1.0); product `steerable` canary when a key is set | `oracle-canary` (`fix-git`) |
 | L2 weekly | Monday cron + `workflow_dispatch` | `steerable`, `claude-code`, `codex`, `pi`, `pi-glm` | `cheap-12` (1 attempt) |
 | L2 failed-prev | `workflow_dispatch` on `Evals weekly` with split `failed-prev` | `steerable` | remaining catalog-89 zeros after run 33369888461 (31 ids, 24 shards) |
-| L2 catalog | `workflow_dispatch` on `Evals weekly` with split `catalog` | `steerable` | full `catalog` (89 ids, 49 shards) |
+| L2 catalog | `workflow_dispatch` on `Evals weekly` with split `catalog` | `steerable`, `claude-code-glm`, `pi-glm`, `terminus-2` | full `catalog` (89 ids, 49 shards) |
 
 L2 is **not** a required merge check. A matrix cell whose API key secret is empty is skipped. The product cell needs `STEERABLE_API_KEY` and `STEERABLE_BASE_URL` (the same OpenAI-compatible gateway used locally). Baseline cells need official Anthropic / OpenAI keys. The workflow fails if every live agent was skipped. Weekly Harbor uses `--n-concurrent 2` (local suite default stays 1). Feishu is best-effort: a webhook failure does not fail the eval. Mean is appended to the GitHub job summary when `GITHUB_STEP_SUMMARY` is set.
 
-DeepSeek Harness is listed in `suite.yaml` as skipped: it has no Harbor `BaseInstalledAgent`. Its own ACP snapshots remain L0 harness-contract tests in that repository. Headless `pnpm dsh --profile headless` is not this gate.
+DeepSeek Harness is skipped on the Monday `LIVE_AGENTS` matrix so stock Codex does not inherit the gateway env. This probe branch (`evals/strat-cheap-12-probe`, SHA `c576a88`) runs DSH as a dispatched `--agent dsh` cell via `evals.harbor_dsh:DshHarborAgent`. Headless `pnpm dsh --profile headless` is not the Monday gate.
 
 ## Agents
 
@@ -115,11 +139,15 @@ This aligns model request parameters, not the full evaluation protocol. Pi and S
 
 ## cheap-12
 
-Twelve Terminal-Bench 2.1 ids that avoid QEMU, GPU, video, and long compiles. They must stay a subset of the 89-id catalog (enforced in `evals/tests`).
+Stratified 12 from Terminal-Bench 2.1 catalog-89 (`evals/cheap12.py`): Hamilton allocation 7 stable-green / 4 flaky / 1 stable-red on the six `8e260de` runs. Within flaky, one id from each of the 1/6, 2/6, 4/6, 5/6 pass-rate bands (not two 5/6s) so the 12-task mean keeps variance. Within a cell: shortest `catalog_minutes`, skip exclusive-pack and vision (`code-from-image`). `fix-git` is forced into the green seven so oracle-canary stays a subset.
 
-`fix-git`, `openssl-selfsigned-cert`, `sqlite-db-truncate`, `nginx-request-logging`, `configure-git-webserver`, `sanitize-git-repo`, `polyglot-c-py`, `log-summary-date-ranges`, `filter-js-from-html`, `password-recovery`, `git-multibranch`, `sqlite-with-gcov`.
+Green: `fix-git`, `kv-store-grpc`, `log-summary-date-ranges`, `openssl-selfsigned-cert`, `pypi-server`, `build-pmars`, `compile-compcert`. Flaky: `raman-fitting` (1/6), `dna-insert` (2/6), `bn-fit-modify` (4/6), `extract-elf` (5/6). Red: `protein-assembly`.
 
-A product cheap-12 at `n_concurrent: 1` is a multi-hour job (local glm-5.3-flash, Mean 0.750: 2h06m). `filter-js-from-html` alone can take ~30 minutes. The weekly GHA job timeout is 240 minutes; `--n-concurrent 2` is the GHA override. Harbor prints `harbor progress: done/started` every minute so a long run is not mistaken for a hang.
+A `workflow_dispatch` with split `catalog` **and** a `--model` starts the 3-model × gateway-harness baseline on all 89 ids (steerable / claude-code-glm / pi-glm / terminus-2; Codex skipped). Official OpenRouter pins: GLM `z-ai` @high, DeepSeek `alibaba` (Alibaba Cloud Int.; slug `deepseek/deepseek-v4-flash-0731` GA, not the unsuffixed 0423 preview; official `deepseek` does not serve it) @high, Qwen `alibaba` @medium. Pi×Qwen is skipped (Pi cannot emit `medium`). Claude Code × DeepSeek is skipped (Anthropic dialect does not parse DeepSeek DSML tool calls). Those Means are **n=1 @high/medium**, not the six-run 80.7% @max at `8e260de`: do not mix them. The homepage grouped bars and dollar scatter both include DSH (`c576a88`). DSH scatter dollars are OpenRouter analytics tokens for the catalog window, not Harbor `result.json`.
+
+A `workflow_dispatch` with split `cheap-12` **and** a `--model` is the 12-id smoke of that same matrix. Monday cron with an empty model still runs the LIVE_AGENTS smoke on cheap-12.
+
+The weekly GHA job timeout is 240 minutes; `--n-concurrent 2` is the GHA override. Harbor prints `harbor progress: done/started` every minute so a long run is not mistaken for a hang.
 
 The full 89-id catalog is `Evals weekly` → `workflow_dispatch` → split `catalog` (never on a pull request). It splits the suite into 49 shards (`--shard N --shards 49`), each with a 360-minute timeout. Feishu merges shard `result.json` files into one Mean. QEMU, Windows 3.11, video, and long compiles live only in this split.
 
@@ -156,4 +184,4 @@ Wrapper flags map onto Harbor: `--dataset terminal-bench/terminal-bench-2-1`, `-
 - Homemade prompt YAML as the merge gate
 - Coder Eval skill/CLI A/B as the primary gate
 - LLM-as-judge
-- DSH live Terminal-Bench until a Harbor adapter exists
+- Harbor-native DSH token telemetry (`agent_result.n_*_tokens`); homepage DSH dollars currently use OpenRouter analytics for the catalog window

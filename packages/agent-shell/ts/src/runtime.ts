@@ -97,8 +97,8 @@ export function getAppRootDir(): string {
 /**
  * preload  bundle 路径（3.4 修复）：shell main.ts 创建窗口时需要
  * preload.cjs——shell 自带默认面（dist/preload.cjs，buildPreloadApi()
- * 无包贡献），但带 invoke 型包贡献的产品（如 ciflog）由产品构建把
- * 组合后的 preload.cjs 出在产品 main.js 旁，产品入口在动态 import
+ * 无包贡献），但带 invoke 型包贡献的产品由产品构建把组合后的
+ * preload.cjs 出在产品 main.js 旁，产品入口在动态 import
  * shell main 之前经本函数注入。未注入时回退 shell 自带默认。
  */
 let preloadPathOverride: string | null = null;

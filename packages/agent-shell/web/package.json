@@ -14,7 +14,10 @@
     "url": "https://github.com/pathlyapp/steerable-framework/issues"
   },
   "exports": {
-    "./vite.base": "./vite.base.ts",
+    "./vite.base": {
+      "types": "./vite.base.d.ts",
+      "default": "./vite.base.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -22,7 +25,8 @@
     "!src/**/*.test.ts",
     "!src/**/*.test.tsx",
     "public",
-    "vite.base.ts",
+    "vite.base.js",
+    "vite.base.d.ts",
     "README.md"
   ],
   "publishConfig": {
@@ -31,7 +35,9 @@
   },
   "scripts": {
     "gen": "echo agent-shell-web",
-    "build": "tsc --noEmit",
+    "build": "tsc --noEmit && npm run build:vite-base",
+    "build:vite-base": "tsc vite.base.ts --module esnext --target es2022 --moduleResolution bundler --declaration --skipLibCheck --outDir .",
+    "prepublishOnly": "npm run build:vite-base",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "lint": "tsc --noEmit",

@@ -533,29 +533,29 @@ async def test_skills_list_applies_conditions_and_exclude(
         "name: local-exec\ndescription: x\npriority: 700\nconditions: [tool:local_exec_shell]\n",
         "body",
     )
-    _write_skill(root, "90-domain_tool", "name: domain_tool\ndescription: y\npriority: 600\n", "body")
+    _write_skill(root, "90-csv-tools", "name: csv-tools\ndescription: y\npriority: 600\n", "body")
     # No conditions → only the unconditional skill matches.
     gated = await _call(sidecar, "skills.list", {"roots": [str(root)]})
-    assert {s["name"] for s in gated["result"]["skills"]} == {"domain_tool"}
+    assert {s["name"] for s in gated["result"]["skills"]} == {"csv-tools"}
     # Matching condition → both.
     matched = await _call(
         sidecar,
         "skills.list",
         {"roots": [str(root)], "conditions": ["tool:local_exec_shell"]},
     )
-    assert {s["name"] for s in matched["result"]["skills"]} == {"local-exec", "domain_tool"}
-    # Exclusion drops domain_tool even though it matches.
+    assert {s["name"] for s in matched["result"]["skills"]} == {"local-exec", "csv-tools"}
+    # Exclusion drops csv-tools even though it matches.
     excluded = await _call(
         sidecar,
         "skills.list",
-        {"roots": [str(root)], "conditions": ["tool:local_exec_shell"], "exclude": ["domain_tool"]},
+        {"roots": [str(root)], "conditions": ["tool:local_exec_shell"], "exclude": ["csv-tools"]},
     )
     assert {s["name"] for s in excluded["result"]["skills"]} == {"local-exec"}
     # ignoreConditions lists everything.
     all_skills = await _call(
         sidecar, "skills.list", {"roots": [str(root)], "ignoreConditions": True}
     )
-    assert {s["name"] for s in all_skills["result"]["skills"]} == {"local-exec", "domain_tool"}
+    assert {s["name"] for s in all_skills["result"]["skills"]} == {"local-exec", "csv-tools"}
 
 
 async def test_skills_list_requires_roots(sidecar: Sidecar) -> None:

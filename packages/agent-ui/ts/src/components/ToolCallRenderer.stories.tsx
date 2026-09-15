@@ -51,8 +51,8 @@ const destructiveCall: ToolCall = {
 
 const localCall: ToolCall = {
   id: 'call_local_1',
-  name: 'domain_tool_open_workspace',
-  arguments: { path: '/Users/me/projects/domain_tool/case-2024-001' },
+  name: 'open_workspace',
+  arguments: { path: '/Users/me/projects/demo/case-2024-001' },
 };
 
 const successResult: ToolResult = {

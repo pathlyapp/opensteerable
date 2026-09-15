@@ -66,10 +66,10 @@ beforeEach(() => {
   listChatAgentSkills.mockResolvedValue({
     skills: [
       {
-        id: '90-domain_tool',
-        name: 'domain_tool',
-        displayName: 'domain卡片',
-        description: '驱动 DomainTool 回放卡片。',
+        id: '90-csv-tools',
+        name: 'csv-tools',
+        displayName: 'CSV 工具',
+        description: '处理本地 CSV 数据。',
         layer: 'catalog',
       },
       {
@@ -142,11 +142,11 @@ describe('AgentsSettingsPanel', () => {
     await screen.findByTestId('agent-row-local-assistant');
     fireEvent.click(screen.getByTestId('agent-add'));
     fireEvent.change(screen.getByTestId('agent-form-name'), {
-      target: { value: 'domain助手' },
+      target: { value: '数据助手' },
     });
 
-    const domain_tool = await screen.findByTestId('agent-form-skill-90-domain_tool');
-    fireEvent.click(checkbox(domain_tool));
+    const csvTools = await screen.findByTestId('agent-form-skill-90-csv-tools');
+    fireEvent.click(checkbox(csvTools));
     fireEvent.click(screen.getByTestId('agent-form-allow-external-skills'));
     fireEvent.click(screen.getByTestId('agent-form-tool-mode-allowlist'));
     const readFile = await screen.findByTestId('agent-form-tool-local_read_file');
@@ -156,8 +156,8 @@ describe('AgentsSettingsPanel', () => {
     await waitFor(() => {
       expect(createChatAgent).toHaveBeenCalledWith(
         expect.objectContaining({
-          name: 'domain助手',
-          skillIds: ['90-domain_tool'],
+          name: '数据助手',
+          skillIds: ['90-csv-tools'],
           allowExternalSkills: false,
           toolPolicy: { mode: 'allowlist', tools: ['local_read_file'] },
         }),
@@ -168,7 +168,7 @@ describe('AgentsSettingsPanel', () => {
   it('编辑时回填已保存的能力面', async () => {
     const restricted: LocalChatAgent = {
       ...custom,
-      skillIds: ['90-domain_tool'],
+      skillIds: ['90-csv-tools'],
       allowExternalSkills: false,
       loadAllSkills: true,
       toolPolicy: { mode: 'denylist', tools: ['local_exec_shell'] },
@@ -178,8 +178,8 @@ describe('AgentsSettingsPanel', () => {
     await screen.findByTestId('agent-row-geo-advisor');
     fireEvent.click(screen.getByTestId('agent-edit-geo-advisor'));
 
-    const domain_tool = await screen.findByTestId('agent-form-skill-90-domain_tool');
-    expect(checkbox(domain_tool).checked).toBe(true);
+    const csvTools = await screen.findByTestId('agent-form-skill-90-csv-tools');
+    expect(checkbox(csvTools).checked).toBe(true);
     expect(
       (screen.getByTestId('agent-form-allow-external-skills') as HTMLInputElement).checked,
     ).toBe(false);
@@ -196,7 +196,7 @@ describe('AgentsSettingsPanel', () => {
   it('列表行摘要标出受限的智能体，缺省配置不占位', async () => {
     const restricted: LocalChatAgent = {
       ...custom,
-      skillIds: ['90-domain_tool'],
+      skillIds: ['90-csv-tools'],
       allowExternalSkills: false,
       toolPolicy: { mode: 'allowlist', tools: ['local_read_file'] },
     };

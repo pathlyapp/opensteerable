@@ -108,15 +108,72 @@ export function parseScutilProxyOutput(output: string): string[] {
 export async function detectSystemProxyEndpoints(
   platform: NodeJS.Platform = process.platform,
 ): Promise<string[]> {
-  if (platform !== 'darwin') return [];
+  if (platform === 'darwin') {
+    try {
+      const { stdout } = await execFileAsync('/usr/sbin/scutil', ['--proxy'], {
+        timeout: 5_000,
+      });
+      return parseScutilProxyOutput(stdout);
+    } catch {
+      return [];
+    }
+  }
+  if (platform === 'win32') {
+    return detectWindowsRegistryProxyEndpoints();
+  }
+  return [];
+}
+
+/**
+ * Windows Registry proxy endpoints (HKCU\Software\Microsoft\Windows\
+ * CurrentVersion\Internet Settings). Empty on any reg.exe failure —
+ * detection must never break boot.
+ */
+async function detectWindowsRegistryProxyEndpoints(): Promise<string[]> {
   try {
-    const { stdout } = await execFileAsync('/usr/sbin/scutil', ['--proxy'], {
-      timeout: 5_000,
-    });
-    return parseScutilProxyOutput(stdout);
+    const { stdout } = await execFileAsync(
+      'reg.exe',
+      [
+        'query',
+        'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings',
+        '/v',
+        'ProxyServer',
+      ],
+      { timeout: 5_000 },
+    );
+    return parseWindowsRegProxyOutput(stdout);
   } catch {
     return [];
   }
+}
+
+/**
+ * Parse `reg query` output for ProxyServer into `host:port` endpoints.
+ * The value is either `host:port` (single proxy) or
+ * `protocol=host:port;...` (per-protocol). Only enabled proxies yield an
+ * entry; the ProxyEnable flag is intentionally ignored (the value is
+ * still present when disabled, and the bypass list is not reliably
+ * surfaced here).
+ */
+export function parseWindowsRegProxyOutput(output: string): string[] {
+  const match = output.match(/ProxyServer\s+REG_SZ\s+(.+)$/m);
+  if (!match) return [];
+  const value = match[1].trim();
+  if (!value) return [];
+  const out = new Set<string>();
+  // Per-protocol form: "http=host:port;https=host:port;..."
+  if (value.includes('=')) {
+    for (const part of value.split(';')) {
+      const eq = part.indexOf('=');
+      if (eq < 0) continue;
+      const endpoint = part.slice(eq + 1).trim();
+      if (endpoint) out.add(endpoint);
+    }
+  } else {
+    // Single proxy form: "host:port"
+    out.add(value);
+  }
+  return [...out];
 }
 
 /** All ambient proxy endpoints the sidecar may legitimately egress to. */

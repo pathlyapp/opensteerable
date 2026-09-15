@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react';
-import { LuActivity, LuBlocks, LuBot, LuChartBar, LuPlug, LuSearch, LuSettings, LuShieldCheck } from 'react-icons/lu';
+import { LuActivity, LuBlocks, LuBot, LuChartBar, LuNetwork, LuPlug, LuSearch, LuSettings, LuShieldCheck } from 'react-icons/lu';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
 import { isElectron } from '@/lib/electron-bridge';
 import { AgentsSettingsPanel } from '@/components/settings/AgentsSettingsPanel';
+import { DiagnoseSettingsPanel } from '@/components/settings/DiagnoseSettingsPanel';
 import { InsightsSettingsPanel } from '@/components/settings/InsightsSettingsPanel';
 import {
   LlmSettingsPanel,
@@ -136,6 +137,14 @@ export function SettingsPage() {
                   用量与成本
                 </h2>
                 <UsagePanel />
+              </section>
+
+              <section className="space-y-3" data-testid="settings-section-diagnose">
+                <h2 className="flex items-center gap-1.5 text-sm font-semibold text-agent-foreground">
+                  <LuNetwork className="h-4 w-4 text-agent-muted-foreground" />
+                  链路诊断
+                </h2>
+                <DiagnoseSettingsPanel />
               </section>
 
               <section className="space-y-3" data-testid="settings-section-security">

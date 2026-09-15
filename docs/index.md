@@ -46,9 +46,9 @@ Pick any subset, skip the rest — every layer ships on its own.
 <span class="sf-score-meta">Pi + GLM-5.3-Flash · 73.4%</span>
 </div>
 <div class="sf-score" markdown>
-<span class="sf-score-value">79–84%</span>
-<span class="sf-score-label">Native frontier CLI band</span>
-<span class="sf-score-meta">vendor-submitted · tbench.ai</span>
+<span class="sf-score-value">$0.146</span>
+<span class="sf-score-label">per solved task</span>
+<span class="sf-score-meta">six-run mean · ~$10.50 / catalog-89</span>
 </div>
 </div>
 
@@ -66,11 +66,11 @@ Local, quantized, and cheap models break the structured-`tool_calls` assumptions
 </div>
 <div class="sf-card" markdown>
 ### One wire protocol
-One JSON Schema → generated **TypeScript types + Pydantic models**. `content`, `tool_call`, `tool_result`, `error`, `done`, `budget_exhausted` — all standardised, with a conformance suite keeping both SDKs byte-compatible. All 7 publishable packages share one lockstep `X.Y.Z`; npm tarballs ship **sigstore provenance** attestations.
+One JSON Schema → generated **TypeScript types + Pydantic models**. `content`, `tool_call`, `tool_result`, `error`, `done`, `budget_exhausted` — all standardised, with a conformance suite keeping both SDKs byte-compatible. All 8 published packages share one lockstep `X.Y.Z`; npm tarballs ship **sigstore provenance** attestations.
 </div>
 <div class="sf-card" markdown>
 ### Pure-function harness
-Policy, budget, retry, completion, tracing, safety patterns. **Zero I/O coupling** — drop into FastAPI, Celery, or a notebook. 49 unit + golden tests.
+Policy, budget, retry, completion, tracing, safety patterns. **Zero I/O coupling** — drop into FastAPI, Celery, or a notebook. Unit and golden tests in CI.
 </div>
 <div class="sf-card" markdown>
 ### Pluggable runtime
@@ -252,101 +252,8 @@ The score of record is still Steerable + GLM-5.3-Flash **80.7%** at `reasoning_e
 
 </div>
 
-<div class="sf-bench">
-
-<div class="sf-bench-group">
-<div class="sf-bench-kicker">Frontier CLIs · public board</div>
-<p class="sf-bench-blurb">Different models and harnesses. Shows the band 80.7% sits in, not a controlled A/B.</p>
-
-<div class="sf-bench-row">
-<div class="sf-bench-who">
-<span class="sf-bench-agent">Claude Code</span>
-<span class="sf-bench-model">Claude 5 Fable</span>
-</div>
-<span class="sf-bench-pct">83.8%</span>
-<span class="sf-bench-track" aria-hidden="true"><span class="sf-bench-fill" style="width:83.8%"></span></span>
-<div class="sf-bench-meta">
-<span class="sf-bench-src"><a href="https://snorkel.ai/leaderboard/terminal-bench-2-1/">Snorkel / tbench.ai</a></span>
-</div>
-</div>
-
-<div class="sf-bench-row">
-<div class="sf-bench-who">
-<span class="sf-bench-agent">Codex CLI</span>
-<span class="sf-bench-model">GPT-5.5</span>
-</div>
-<span class="sf-bench-pct">83.1%</span>
-<span class="sf-bench-track" aria-hidden="true"><span class="sf-bench-fill" style="width:83.1%"></span></span>
-<div class="sf-bench-meta">
-<span class="sf-bench-src"><a href="https://snorkel.ai/leaderboard/terminal-bench-2-1/">Snorkel / tbench.ai</a></span>
-</div>
-</div>
-
-<div class="sf-bench-row">
-<div class="sf-bench-who">
-<span class="sf-bench-agent">Terminus 2</span>
-<span class="sf-bench-model">Claude 5 Fable</span>
-</div>
-<span class="sf-bench-pct">80.4%</span>
-<span class="sf-bench-track" aria-hidden="true"><span class="sf-bench-fill" style="width:80.4%"></span></span>
-<div class="sf-bench-meta">
-<span class="sf-bench-src"><a href="https://snorkel.ai/leaderboard/terminal-bench-2-1/">Snorkel / tbench.ai</a></span>
-</div>
-</div>
-
-<div class="sf-bench-row">
-<div class="sf-bench-who">
-<span class="sf-bench-agent">Claude Code</span>
-<span class="sf-bench-model">Claude Opus 4.8</span>
-</div>
-<span class="sf-bench-pct">78.9%</span>
-<span class="sf-bench-track" aria-hidden="true"><span class="sf-bench-fill" style="width:78.9%"></span></span>
-<div class="sf-bench-meta">
-<span class="sf-bench-src"><a href="https://snorkel.ai/leaderboard/terminal-bench-2-1/">Snorkel / tbench.ai</a></span>
-</div>
-</div>
-
-<div class="sf-bench-row">
-<div class="sf-bench-who">
-<span class="sf-bench-agent">Codex CLI</span>
-<span class="sf-bench-model">GPT-5.6 Terra</span>
-</div>
-<span class="sf-bench-pct">78.4%</span>
-<span class="sf-bench-track" aria-hidden="true"><span class="sf-bench-fill" style="width:78.4%"></span></span>
-<div class="sf-bench-meta">
-<span class="sf-bench-src"><a href="https://snorkel.ai/leaderboard/terminal-bench-2-1/">Snorkel / tbench.ai</a></span>
-</div>
-</div>
-
-<div class="sf-bench-row">
-<div class="sf-bench-who">
-<span class="sf-bench-agent">Claude Code</span>
-<span class="sf-bench-model">Claude Sonnet 5</span>
-</div>
-<span class="sf-bench-pct">74.6%</span>
-<span class="sf-bench-track" aria-hidden="true"><span class="sf-bench-fill" style="width:74.6%"></span></span>
-<div class="sf-bench-meta">
-<span class="sf-bench-src"><a href="https://snorkel.ai/leaderboard/terminal-bench-2-1/">Snorkel / tbench.ai</a></span>
-</div>
-</div>
-
-<div class="sf-bench-row">
-<div class="sf-bench-who">
-<span class="sf-bench-agent">Gemini CLI</span>
-<span class="sf-bench-model">Gemini 3.1 Pro</span>
-</div>
-<span class="sf-bench-pct">65.8%</span>
-<span class="sf-bench-track" aria-hidden="true"><span class="sf-bench-fill" style="width:65.8%"></span></span>
-<div class="sf-bench-meta">
-<span class="sf-bench-src"><a href="https://snorkel.ai/leaderboard/terminal-bench-2-1/">Snorkel / tbench.ai</a></span>
-</div>
-</div>
-</div>
-
-</div>
-
 <p class="sf-lede" markdown>
-Native frontier CLIs sit 79–84% on the public board. Steerable is in that band on a Flash-cost model — about **$10 per full 89-task run** — usable as a coding agent, not a demo loop.
+Same GLM-5.3-Flash, same Harbor catalog-89 protocol: Claude Code 83.1% at $0.162 per solved task, Steerable **80.7%** at **$0.146**, Pi 73.4% at $0.061. About **$10.50 per full 89-task run** — usable as a coding agent, not a demo loop.
 </p>
 
 <h2 class="sf-section">Quickstart — pick your path</h2>
@@ -468,12 +375,13 @@ graph BT
 Steerable isn't the only way to ship an agent. The short, honest version against the frameworks you're probably also evaluating:
 </p>
 
-| Dimension | Steerable | OpenAI Codex | DeepSeek Harness | LangGraph | OpenAI Agents SDK | Claude Agent SDK |
-| --------- | --------- | ------------ | ---------------- | --------- | ----------------- | ---------------- |
-| **Form factor** | Layered library — the same loop in a desktop sidecar and a server | Product family: CLI, IDE, cloud | Plugin-based harness (pre-release) | Orchestration library | Lightweight framework over the Responses API | The Claude Code loop as a library |
-| **Event model** | Structured `LoopEvent` taxonomy over one typed wire protocol | Session-owned turn loop + hooks | Inbox-driven ReactLoop with steer/inject | You design the graph | Handoffs; no mid-run steer | Steer via messages; hooks intercept tools |
-| **Sandbox / isolation** | OS-sandboxed sidecar (macOS Seatbelt today) + command classifier with dozens of rules | Approval policies + platform sandbox | `sandbox.confine`, fail-closed | None built-in | Guardrails; no sandbox | Permission modes + hooks |
-| **Maturity** | Early-stage (`0.6.x`); one production consumer | Massive real-world usage | Pre-release; internal use | Widely adopted in production | Production, OpenAI-tied | Production, Anthropic-only |
+| Dimension | Steerable | OpenAI Codex | DeepSeek Harness | LangGraph | OpenAI Agents SDK | Claude Code / Agent SDK |
+| --------- | --------- | ------------ | ---------------- | --------- | ----------------- | ----------------------- |
+| **Form factor** | Layered library — the same loop in a desktop sidecar and a server | Product family: CLI, IDE, desktop, cloud — Rust core | Plugin-based harness (TS) on Cordis | Orchestration library — you write the graph | Lightweight framework over the Responses API | One closed-source bundle behind both the CLI and the Agent SDK |
+| **Loop / events** | `CoreLoop` + structured `LoopEvent` taxonomy; mid-turn `agent.chat.steer` | Session-owned turn loop; interrupt/abort; 12-event hooks | Inbox-driven ReactLoop; steer / inject / followup | Interrupts at node boundaries | Handoffs + guardrails; no mid-run steer | Mid-turn fold queue; hooks can veto continuation |
+| **Sandbox** | Seatbelt + bwrap/Landlock, fail-closed; command classifier; per-host egress proxy | Approvals + ExecPolicy + Seatbelt/Landlock + Guardian | `sandbox.confine`, fail-closed | None built-in | Guardrails; no sandbox | Permission modes; Seatbelt/bwrap opt-in, fail-open |
+| **Model quality** | Recovers malformed tool calls; completion veto; grounding; token calibration | Assumes structured `tool_calls` | Assumes structured `tool_calls` | Substrate — you own the loop | Built for frontier models | Built for frontier models |
+| **Maturity** | `0.6.x`; one production consumer | Massive real-world usage | Pre-release (`0.1.x`); internal use | Widely adopted in production | Production, OpenAI-tied | Production; Anthropic models via first-party, Bedrock, Vertex, Foundry, Gateway |
 
 <p class="sf-lede" markdown>
 Where Steerable genuinely differs, where it lags, and how to choose: [Full comparison](comparison.md).
@@ -490,6 +398,7 @@ The framework was extracted from this codebase and is dogfooded back into it on 
 
 <div class="sf-links" markdown>
 [Full walkthrough](getting-started.md){ .md-button }
+[Comparison](comparison.md){ .md-button }
 [Evals](evals.md){ .md-button }
 [Wire spec](spec/overview.md){ .md-button }
 [Architecture](spec/architecture.md){ .md-button }

@@ -1,7 +1,6 @@
 {
   "name": "@steerable/agent-shell-web",
   "version": "0.6.14",
-  "private": true,
   "type": "module",
   "description": "Steerable framework \u2014 product-neutral renderer SPA source for @steerable/agent-shell (React + Vite). Consumed by product web entry points via the `@/` alias (anchored at this package's src/) and the createProductViteConfig factory; never published to npm.",
   "license": "Apache-2.0",
@@ -17,6 +16,16 @@
   "exports": {
     "./vite.base": "./vite.base.ts",
     "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "public",
+    "vite.base.ts",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
     "gen": "echo agent-shell-web",

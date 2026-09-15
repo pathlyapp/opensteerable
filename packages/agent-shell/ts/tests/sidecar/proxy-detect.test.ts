@@ -5,6 +5,7 @@ import {
   endpointFromProxyUrl,
   envProxyEndpoints,
   parseScutilProxyOutput,
+  parseWindowsRegProxyOutput,
 } from '../../src/sidecar/proxy-detect.js';
 
 // Captured verbatim from `scutil --proxy` on macOS 25.6 with a Clash-style
@@ -107,10 +108,47 @@ describe('parseScutilProxyOutput', () => {
   });
 });
 
+describe('parseWindowsRegProxyOutput', () => {
+  it('parses a single proxy entry', () => {
+    const output = `
+HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings
+    ProxyServer    REG_SZ    127.0.0.1:7890
+`;
+    expect(parseWindowsRegProxyOutput(output)).toEqual(['127.0.0.1:7890']);
+  });
+
+  it('parses per-protocol entries', () => {
+    const output = `
+HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings
+    ProxyServer    REG_SZ    http=proxy.corp.com:8080;https=proxy.corp.com:8443;socks=10.0.0.2:1080
+`;
+    expect(parseWindowsRegProxyOutput(output).sort()).toEqual([
+      '10.0.0.2:1080',
+      'proxy.corp.com:8080',
+      'proxy.corp.com:8443',
+    ]);
+  });
+
+  it('returns empty when ProxyServer is absent', () => {
+    const output = `
+HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings
+    ProxyEnable    REG_DWORD    0x0
+`;
+    expect(parseWindowsRegProxyOutput(output)).toEqual([]);
+  });
+
+  it('returns empty for empty value', () => {
+    const output = `
+HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings
+    ProxyServer    REG_SZ    
+`;
+    expect(parseWindowsRegProxyOutput(output)).toEqual([]);
+  });
+});
+
 describe('detectSystemProxyEndpoints', () => {
   it('is empty off-darwin without invoking scutil', async () => {
     await expect(detectSystemProxyEndpoints('linux')).resolves.toEqual([]);
-    await expect(detectSystemProxyEndpoints('win32')).resolves.toEqual([]);
   });
 });
 

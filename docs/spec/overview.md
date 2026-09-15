@@ -37,7 +37,7 @@ Both run in CI on every PR; a hand-edited generated file fails the build.
 
 ## Lock-step versioning
 
-**All 8 published packages** (TS protocol/harness/ui on npm + Py protocol/harness/runtime/sidecar/egress-proxy on PyPI) are kept at the same version by `scripts/check_lockstep_versions.py` (CI-enforced on every tag push). The same gate also pins the versions of the source-only packages — the three private Tier-5 shell packages and the TS `@steerable/agent-runtime` wrapper — so a tag never carries mixed sources. Releases are operator-driven: `./scripts/release/bump_to.sh X.Y.Z` is the only writer of versions, and the lockstep gate in `.github/workflows/release.yml` refuses any tag whose source tree disagrees with the tag.
+**All 11 published packages** (TS protocol/harness/ui/pack-sdk/agent-shell/agent-shell-web on npm + Py protocol/harness/runtime/sidecar/egress-proxy on PyPI) are kept at the same version by `scripts/check_lockstep_versions.py` (CI-enforced on every tag push). The same gate also pins the version of the source-only TS `@steerable/agent-runtime` wrapper so a tag never carries mixed sources. Releases are operator-driven: `./scripts/release/bump_to.sh X.Y.Z` is the only writer of versions, and the lockstep gate in `.github/workflows/release.yml` refuses any tag whose source tree disagrees with the tag.
 
 This is stricter than the original protocol-only lockstep — TS and Py implementations of `agent-protocol` (the codegen pair) plus the six other published packages all move together. The cost is a few extra registry versions on no-op packages per release; the benefit is partial-bump corruption is structurally impossible.
 

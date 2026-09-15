@@ -45,6 +45,7 @@ import { setDefaultExecTimeoutMs } from '../local-executor.js';
 import { allowEgressForBaseUrl, getActiveEgressBroker, getEgressPosture } from '../sidecar/egress-proxy.js';
 import { buildExecSandbox, parseExecPolicy } from '../sidecar/exec-sandbox.js';
 import { SidecarSupervisor } from '../sidecar/index.js';
+import { diagnoseLlmConnection } from './llm-diagnose.js';
 import {
   buildSystemPrompt,
   buildForcedSkillMessage,
@@ -1452,6 +1453,40 @@ export class LocalBackendRouter {
             error: `models.list 失败: ${err instanceof Error ? err.message : String(err)}`,
             models: [],
             catalogStatus: 'offline',
+          },
+        };
+      }
+    }
+
+    // W-llm-diagnose：LLM 链路诊断。设置页「诊断」按钮触发，在主进程内
+    // 探测 DNS/TCP/TLS/HTTP/chat 五级连通性，并报告宿主机的 ambient 代理
+    // 配置（sidecar 沙箱视角会隐藏用户需要看到的代理问题）。
+    if (method === 'POST' && pathname === '/api/v2/llm/diagnose') {
+      const payload = this.toRecord(request.body);
+      const settings = llmService.getSettings();
+      const baseUrl =
+        typeof payload.baseUrl === 'string' && payload.baseUrl.trim()
+          ? payload.baseUrl.trim()
+          : settings.baseUrl;
+      if (!baseUrl) {
+        return { status: 400, data: { error: 'baseUrl is required' } };
+      }
+      const apiKey =
+        typeof payload.apiKey === 'string' && payload.apiKey.trim()
+          ? payload.apiKey.trim()
+          : settings.apiKey;
+      const model =
+        typeof payload.model === 'string' && payload.model.trim()
+          ? payload.model.trim()
+          : settings.model;
+      try {
+        const result = await diagnoseLlmConnection({ baseUrl, apiKey, model });
+        return { status: 200, data: result };
+      } catch (err) {
+        return {
+          status: 502,
+          data: {
+            error: `diagnose 失败: ${err instanceof Error ? err.message : String(err)}`,
           },
         };
       }

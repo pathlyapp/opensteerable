@@ -11,6 +11,7 @@ import type {
   LlmSettings,
 } from './local-api';
 import { pickDefaultAgentId } from '@/brand';
+import { isDemoMode } from './demo-flag';
 import browserDevData from '../fixtures/browser-dev-data.json';
 
 type MutableChat = LocalChat;
@@ -599,7 +600,10 @@ function cancelStream(streamId: string) {
 }
 
 export function installBrowserDevElectronMock() {
-  if (!import.meta.env.DEV || typeof window === 'undefined' || window.electron) return;
+  if (typeof window === 'undefined' || window.electron) return;
+  // DEV 浏览器预览自动安装；官网静态 demo 构建（app-demo 入口）经 demo flag
+  // 显式安装。普通 prod 构建两条路都不通，本模块根本不会进产物。
+  if (!import.meta.env.DEV && !isDemoMode()) return;
 
   window.electron = {
     runtime: 'local',

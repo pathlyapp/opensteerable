@@ -30,6 +30,7 @@ from steerable_agent_runtime.hooks import ChainHooks
 from steerable_agent_runtime.llm import LLMMessage
 from steerable_agent_runtime.storage import InMemoryStorage
 
+from ._version import __version__
 from .acp_adapter import _env_provider_params
 from .delivery import DeliveryGatedExecutor, DeliveryHooks
 from .loop_limits import resolve_loop_limits
@@ -40,8 +41,6 @@ from .sidecar import (
     default_llm_provider_factory,
 )
 from .workspace_tools import workspace_tools_for_cwd
-
-__version__ = "0.2.5"
 
 #: Headless system prompt.
 #:

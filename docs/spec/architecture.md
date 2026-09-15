@@ -18,7 +18,7 @@ splits the five concerns that change at very different rates:
 | 2    | Harness rule changes (new policy mode, etc.) | PyPI bump (TS facade auto) |
 | 3    | Runtime adapter added (new LLM provider)     | Independent PyPI bump      |
 | 4    | UI components added / refactored             | Independent npm bump       |
-| 5    | Host shell gains a product surface           | Never published (private)  |
+| 5    | Host shell gains a product surface           | Lock-step npm bump (public) |
 
 ## Tier 1 — Protocol
 
@@ -105,11 +105,15 @@ React tree can mount either:
 
 without any component-level changes.
 
-## Tier 5 — Host Shell (private)
+## Tier 5 — Host Shell
 
 **Packages:** `@steerable/agent-shell` · `@steerable/agent-shell-web` ·
-`@steerable/pack-sdk` — versioned in lockstep, **never published**; product
-repos consume them via source/`link:` dependencies.
+`@steerable/pack-sdk` — versioned in lockstep and **published to npm** so
+product repos can pin semantic versions. `agent-shell` ships its compiled
+`dist/`; `agent-shell-web` ships its `src/` (products compile it via the
+`createProductViteConfig` factory and the `@/` alias); `pack-sdk` ships pure
+`types/` (zero runtime). Products may still use source/`link:` during local
+development.
 
 The assemble-a-product tier: an Electron desktop shell (main process, IPC,
 strict CSP, visible PTY) and a headless HTTP server (`/api/v2/*`, SSE) built

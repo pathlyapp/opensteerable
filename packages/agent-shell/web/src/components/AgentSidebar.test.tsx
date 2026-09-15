@@ -10,7 +10,7 @@ vi.mock('@/lib/electron-bridge', () => ({
 }));
 
 vi.mock('@/brand', () => ({
-  BRAND_NAME: 'DomainTool智能助手',
+  BRAND_NAME: '测试助手',
   getBrandLogoUrl: () => 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>',
 }));
 

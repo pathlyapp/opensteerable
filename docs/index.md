@@ -38,7 +38,7 @@ Pick any subset, skip the rest — every layer ships on its own.
 <div class="sf-score sf-score--ours" markdown>
 <span class="sf-score-value">80.7%</span>
 <span class="sf-score-label">Steerable + GLM-5.3-Flash</span>
-<span class="sf-score-meta">TB 2.1 · 6-run mean · this repo</span>
+<span class="sf-score-meta">TB 2.1 · 6-run mean @max · this repo</span>
 </div>
 <div class="sf-score" markdown>
 <span class="sf-score-value">+7.3</span>
@@ -89,7 +89,7 @@ A portable, signed CPython binary speaking JSON-RPC over stdio. Ship local LLMs 
 <h2 class="sf-section">Terminal-Bench 2.1</h2>
 
 <p class="sf-lede" markdown>
-A Flash-cost model on Steerable lands in the same band as frontier models on the vendor CLIs. Same model, same gateway, four harnesses: Claude Code 83%, Steerable **80.7%**, Pi 73%, Codex 58% — the harness alone moves the score 25 points. Harbor hidden tests, 89-task catalog, six independent full runs: mean **80.7%** (SD 2.9 points). We report the mean, not the 86.5 high-water mark. Protocol and run list: [Evals](evals.md).
+The score of record is still Steerable + GLM-5.3-Flash **80.7%** at `reasoning_effort=max` (six-run mean, SD 2.9). The figures below are a **separate n=1** protocol: GLM-5.3-Flash and DeepSeek-V4-Flash 0731 at `high`, Qwen3.8-27B at `medium`, five harnesses, one OpenRouter account, Harbor catalog-89. Timeout, error, and missing trials count as fail. Terminus is omitted. DSH is on both figures (SHA `c576a88`); its dollars are OpenRouter analytics tokens for the catalog window, scored with the same pinned-host list formula as the twelve Harbor cells. Protocol and run list: [Evals](evals.md).
 </p>
 
 <div class="sf-bench sf-bench--wide">
@@ -97,111 +97,155 @@ A Flash-cost model on Steerable lands in the same band as frontier models on the
 <div class="sf-bench-duo">
 
 <div class="sf-bench-group sf-bench-group--focus">
-<div class="sf-bench-kicker">Same model · same gateway · four harnesses</div>
-<p class="sf-bench-blurb">The comparison that matters: identical GLM-5.3-Flash, identical OpenRouter gateway. The harness is the multiplier.</p>
-
-<div class="sf-bench-row sf-bench-row--ours">
-<div class="sf-bench-who">
-<span class="sf-bench-agent">Steerable <span class="sf-bench-badge">ours</span></span>
-<span class="sf-bench-model">GLM-5.3-Flash</span>
-</div>
-<span class="sf-bench-pct">80.7%</span>
-<span class="sf-bench-track" aria-hidden="true"><span class="sf-bench-fill" style="width:80.7%"></span></span>
-<div class="sf-bench-meta">
-<span class="sf-bench-delta">2.4 pts behind Claude Code's single run · 10% less $ per solve</span>
-<span class="sf-bench-src">this repo, 6× catalog-89</span>
-</div>
-</div>
-
-<div class="sf-bench-row">
-<div class="sf-bench-who">
-<span class="sf-bench-agent">Claude Code</span>
-<span class="sf-bench-model">GLM-5.3-Flash</span>
-</div>
-<span class="sf-bench-pct">83%</span>
-<span class="sf-bench-track" aria-hidden="true"><span class="sf-bench-fill" style="width:83%"></span></span>
-<div class="sf-bench-meta">
-<span class="sf-bench-note">single run, same gateway</span>
-<span class="sf-bench-src">this repo, catalog-89</span>
-</div>
-</div>
-
-<div class="sf-bench-row">
-<div class="sf-bench-who">
-<span class="sf-bench-agent">Pi</span>
-<span class="sf-bench-model">GLM-5.3-Flash</span>
-</div>
-<span class="sf-bench-pct">73%</span>
-<span class="sf-bench-track" aria-hidden="true"><span class="sf-bench-fill" style="width:73%"></span></span>
-<div class="sf-bench-meta">
-<span class="sf-bench-note">same model, default harness</span>
-<span class="sf-bench-src">this repo, 3 catalog runs</span>
-</div>
-</div>
-
-<div class="sf-bench-row">
-<div class="sf-bench-who">
-<span class="sf-bench-agent">Codex CLI</span>
-<span class="sf-bench-model">GLM-5.3-Flash</span>
-</div>
-<span class="sf-bench-pct">58%</span>
-<span class="sf-bench-track" aria-hidden="true"><span class="sf-bench-fill" style="width:58%"></span></span>
-<div class="sf-bench-meta">
-<span class="sf-bench-note">protocol-bound lower bound · 7× $ per solve</span>
-<span class="sf-bench-src">this repo, catalog-89</span>
-</div>
-</div>
-
-<p class="sf-bench-foot">Cost per solved task on one OpenRouter account: Pi $0.06 · Steerable $0.146 · Claude Code $0.16 · Codex $0.81. Z.AI's own number for this model on Claude Code is <a href="https://z.ai/blog/glm-5.3-flash">84.3%</a> with a 6-hour timeout; our 170-minute protocol lands Claude Code at 83%.</p>
+<div class="sf-bench-kicker">Same protocol · three Flash models · five harnesses</div>
+<p class="sf-bench-blurb">Grouped bars are pass/89. Color is the harness. This is n=1 at high/medium, not the 80.7% @max six-run.</p>
+<svg class="sf-bars" viewBox="0 0 760 336" role="img" aria-label="Terminal-Bench 2.1 n=1 pass over 89 for three models and five harnesses: Steerable, Pi, Claude Code, Codex, DSH.">
+<line class="axis" x1="56" y1="48" x2="56" y2="280"/>
+<line class="axis" x1="56" y1="280" x2="730" y2="280"/>
+<text class="tick" x="50" y="284" text-anchor="end">0</text>
+<text class="tick" x="50" y="219" text-anchor="end">25</text>
+<text class="tick" x="50" y="154" text-anchor="end">50</text>
+<text class="tick" x="50" y="89" text-anchor="end">75</text>
+<text class="tick" x="50" y="58" text-anchor="end">89</text>
+<line class="grid" x1="56" y1="215" x2="730" y2="215"/>
+<line class="grid" x1="56" y1="150" x2="730" y2="150"/>
+<line class="grid" x1="56" y1="85" x2="730" y2="85"/>
+<line class="grid" x1="56" y1="54" x2="730" y2="54"/>
+<rect class="bar--steer" fill="#5c6bc0" x="79" y="99.6" width="22" height="180.4"/>
+<rect class="bar--pi" fill="#0e7490" x="107" y="114.9" width="22" height="165.1"/>
+<rect class="bar--cc" fill="#c2410c" x="135" y="104.7" width="22" height="175.3"/>
+<rect class="bar--codex" fill="#a1a1aa" x="163" y="153.0" width="22" height="127.0"/>
+<rect class="bar--dsh" fill="#15803d" x="191" y="130.2" width="22" height="149.8"/>
+<text class="barVal" x="90" y="95" text-anchor="middle">79.8</text>
+<text class="barVal" x="118" y="110" text-anchor="middle">73.0</text>
+<text class="barVal" x="146" y="100" text-anchor="middle">77.5</text>
+<text class="barVal" x="174" y="149" text-anchor="middle">56.2</text>
+<text class="barVal" x="202" y="125" text-anchor="middle">66.3</text>
+<text class="axisTitle" x="146" y="298" text-anchor="middle">GLM @high</text>
+<rect class="bar--steer" fill="#5c6bc0" x="303" y="102.1" width="22" height="177.9"/>
+<rect class="bar--pi" fill="#0e7490" x="331" y="122.5" width="22" height="157.5"/>
+<rect class="bar--cc" fill="#c2410c" x="359" y="178.4" width="22" height="101.6"/>
+<rect class="bar--codex" fill="#a1a1aa" x="387" y="140.3" width="22" height="139.7"/>
+<rect class="bar--dsh" fill="#15803d" x="415" y="104.8" width="22" height="175.2"/>
+<text class="barVal" x="314" y="98" text-anchor="middle">78.7</text>
+<text class="barVal" x="342" y="118" text-anchor="middle">69.7</text>
+<text class="barVal" x="370" y="174" text-anchor="middle">44.9</text>
+<text class="barVal" x="398" y="136" text-anchor="middle">61.8</text>
+<text class="barVal" x="426" y="100" text-anchor="middle">77.5</text>
+<text class="axisTitle" x="370" y="298" text-anchor="middle">DS0731 @high</text>
+<rect class="bar--steer" fill="#5c6bc0" x="527" y="125.0" width="22" height="155.0"/>
+<rect class="bar--pi" fill="#0e7490" x="555" y="137.8" width="22" height="142.2"/>
+<rect class="bar--cc" fill="#c2410c" x="583" y="120.0" width="22" height="160.0"/>
+<rect class="bar--codex" fill="#a1a1aa" x="611" y="135.2" width="22" height="144.8"/>
+<rect class="bar--dsh" fill="#15803d" x="639" y="142.9" width="22" height="137.1"/>
+<text class="barVal" x="538" y="121" text-anchor="middle">68.5</text>
+<text class="barVal" x="566" y="133" text-anchor="middle">62.9</text>
+<text class="barVal" x="594" y="116" text-anchor="middle">70.8</text>
+<text class="barVal" x="622" y="131" text-anchor="middle">64.0</text>
+<text class="barVal" x="650" y="138" text-anchor="middle">60.7</text>
+<text class="axisTitle" x="594" y="298" text-anchor="middle">Qwen @medium</text>
+<rect class="bar--steer" fill="#5c6bc0" x="56" y="314" width="10" height="10"/>
+<text class="tick" x="70" y="323">Steerable</text>
+<rect class="bar--pi" fill="#0e7490" x="148" y="314" width="10" height="10"/>
+<text class="tick" x="162" y="323">Pi</text>
+<rect class="bar--cc" fill="#c2410c" x="198" y="314" width="10" height="10"/>
+<text class="tick" x="212" y="323">Claude Code</text>
+<rect class="bar--codex" fill="#a1a1aa" x="318" y="314" width="10" height="10"/>
+<text class="tick" x="332" y="323">Codex</text>
+<rect class="bar--dsh" fill="#15803d" x="396" y="314" width="10" height="10"/>
+<text class="tick" x="410" y="323">DSH</text>
+</svg>
+<p class="sf-bench-foot">Mean = pass/89. GLM/DS @high pin z-ai / alibaba; Qwen @medium pin alibaba (Pi maps medium to <code>--thinking high</code>). DeepSeek is 0731 GA, not the 0423 preview. Steerable/Pi/CC/Codex SHA <code>6f70bf5</code> + fill <code>19213d7</code>. DSH SHA <code>c576a88</code> (Qwen missing <code>winning-avg-corewars</code> counts as fail).</p>
 </div>
 
 <div class="sf-bench-group sf-bench-group--focus">
-<div class="sf-bench-kicker">Cost × score · every marker measured on both axes</div>
-<p class="sf-bench-blurb">One harness, one model, four harnesses on the same gateway — every marker measured on both axes. We previously showed Steerable on DeepSeek-V4-Flash and Qwen3.8-27B here, but those two points rest on runs we cannot produce a run list, per-trial telemetry, or a matched-effort protocol for, so they are withdrawn rather than published without evidence.</p>
-<svg class="sf-scatter" viewBox="0 0 400 316" role="img" aria-label="Terminal-Bench 2.1 score against cost per solved task on GLM-5.3-Flash: Steerable 80.7 percent at 14.6 cents, Claude Code 83 percent at 16 cents, Pi 73 percent at 6 cents, Codex 58 percent at 81 cents.">
-<line class="grid" x1="66.6" y1="14" x2="66.6" y2="260"/>
-<line class="grid" x1="136.7" y1="14" x2="136.7" y2="260"/>
-<line class="grid" x1="229.4" y1="14" x2="229.4" y2="260"/>
-<line class="grid" x1="299.6" y1="14" x2="299.6" y2="260"/>
-<line class="grid" x1="369.7" y1="14" x2="369.7" y2="260"/>
-<line class="grid" x1="44" y1="37.1" x2="388" y2="37.1"/>
-<line class="grid" x1="44" y1="75.5" x2="388" y2="75.5"/>
-<line class="grid" x1="44" y1="113.9" x2="388" y2="113.9"/>
-<line class="grid" x1="44" y1="152.4" x2="388" y2="152.4"/>
-<line class="grid" x1="44" y1="190.8" x2="388" y2="190.8"/>
-<line class="grid" x1="44" y1="229.2" x2="388" y2="229.2"/>
-<line class="axis" x1="44" y1="14" x2="44" y2="260"/>
-<line class="axis" x1="44" y1="260" x2="388" y2="260"/>
-<text class="tick" x="66.6" y="272" text-anchor="middle">$0.05</text>
-<text class="tick" x="136.7" y="272" text-anchor="middle">$0.10</text>
-<text class="tick" x="229.4" y="272" text-anchor="middle">$0.25</text>
-<text class="tick" x="299.6" y="272" text-anchor="middle">$0.50</text>
-<text class="tick" x="369.7" y="272" text-anchor="middle">$1.00</text>
-<text class="tick" x="39" y="40.1" text-anchor="end">85</text>
-<text class="tick" x="39" y="78.5" text-anchor="end">80</text>
-<text class="tick" x="39" y="116.9" text-anchor="end">75</text>
-<text class="tick" x="39" y="155.4" text-anchor="end">70</text>
-<text class="tick" x="39" y="193.8" text-anchor="end">65</text>
-<text class="tick" x="39" y="232.2" text-anchor="end">60</text>
-<text class="axisTitle" x="216" y="290" text-anchor="middle">$ per solved task (log)</text>
-<text class="axisTitle" x="12" y="137" text-anchor="middle" transform="rotate(-90 12 137)">TB 2.1 score</text>
-<circle class="pt" cx="86.7" cy="129.3" r="5.5"/>
-<text class="lbl" x="98" y="127">Pi</text>
-<text class="sub" x="98" y="136.5">GLM-5.3-Flash · 73% · $0.06</text>
-<line x1="152" y1="52.4" x2="178.5" y2="52.4" style="stroke:var(--md-default-fg-color--light);stroke-width:0.6"/>
-<circle class="pt" cx="184.7" cy="52.4" r="5.5"/>
-<text class="lbl" x="150" y="48" text-anchor="end">Claude Code</text>
-<text class="sub" x="150" y="57.5" text-anchor="end">GLM-5.3-Flash · 83% · $0.16</text>
-<circle class="pt" cx="348.9" cy="244.6" r="5.5"/>
-<text class="lbl" x="340" y="236" text-anchor="end">Codex CLI</text>
-<text class="sub" x="340" y="245.5" text-anchor="end">GLM-5.3-Flash · 58% · $0.81</text>
-<circle class="pt pt--ours" cx="169.3" cy="62.4" r="7"/>
-<text class="lbl lbl--ours" x="158" y="73" text-anchor="end">Steerable</text>
-<text class="sub" x="158" y="82.5" text-anchor="end">GLM-5.3-Flash · 80.7% · $0.146</text>
-<text class="legend" x="44" y="301">Purple is Steerable. Grey is another harness on the same model and gateway.</text>
-<text class="legend" x="44" y="311.5">The four GLM-5.3-Flash rows share one gateway. Every marker sits at its measured cost and score.</text>
+<div class="sf-bench-kicker">Cost × score · fifteen cells · same list-price formula</div>
+<p class="sf-bench-blurb">Color is the harness. Shape is the model: circle GLM, square DeepSeek, diamond Qwen. Larger marker is Steerable. Dollars are OpenRouter list on the pinned host, not the published GLM @max $0.146 axis. Green DSH markers use OpenRouter analytics tokens for the catalog window (Harbor DSH trials still write no tokens).</p>
+<svg class="sf-scatter" viewBox="0 0 800 428" role="img" aria-label="Terminal-Bench 2.1 n=1 score against OpenRouter list dollars per solved task for fifteen catalog-89 cells. Color is harness, shape is model. DSH dollars inferred from OpenRouter analytics.">
+<line class="grid" x1="48.0" y1="32" x2="48.0" y2="332"/>
+<line class="grid" x1="216.6" y1="32" x2="216.6" y2="332"/>
+<line class="grid" x1="344.2" y1="32" x2="344.2" y2="332"/>
+<line class="grid" x1="471.8" y1="32" x2="471.8" y2="332"/>
+<line class="grid" x1="599.4" y1="32" x2="599.4" y2="332"/>
+<line class="grid" x1="768.0" y1="32" x2="768.0" y2="332"/>
+<line class="grid" x1="48" y1="298.7" x2="768" y2="298.7"/>
+<line class="grid" x1="48" y1="232.0" x2="768" y2="232.0"/>
+<line class="grid" x1="48" y1="165.3" x2="768" y2="165.3"/>
+<line class="grid" x1="48" y1="98.7" x2="768" y2="98.7"/>
+<line class="grid" x1="48" y1="65.3" x2="768" y2="65.3"/>
+<line class="axis" x1="48" y1="32" x2="48" y2="332"/>
+<line class="axis" x1="48" y1="332" x2="768" y2="332"/>
+<text class="tick" x="48.0" y="348" text-anchor="middle">$0.10</text>
+<text class="tick" x="216.6" y="348" text-anchor="middle">$0.25</text>
+<text class="tick" x="344.2" y="348" text-anchor="middle">$0.50</text>
+<text class="tick" x="471.8" y="348" text-anchor="middle">$1</text>
+<text class="tick" x="599.4" y="348" text-anchor="middle">$2</text>
+<text class="tick" x="768.0" y="348" text-anchor="middle">$5</text>
+<text class="tick" x="42" y="302.7" text-anchor="end">45</text>
+<text class="tick" x="42" y="236.0" text-anchor="end">55</text>
+<text class="tick" x="42" y="169.3" text-anchor="end">65</text>
+<text class="tick" x="42" y="102.7" text-anchor="end">75</text>
+<text class="tick" x="42" y="69.3" text-anchor="end">80</text>
+<text class="axisTitle" x="408" y="372" text-anchor="middle">$ per solved task (log) · OpenRouter list on pinned host</text>
+<text class="axisTitle" x="14" y="182" text-anchor="middle" transform="rotate(-90 14 182)">TB 2.1 score (n=1 pass / 89)</text>
+<circle class="pt pt--pi" fill="#0e7490" stroke="#0e7490" cx="86.1" cy="112.0" r="11"/>
+<text class="lbl" x="100" y="108">Pi · GLM</text>
+<text class="sub" x="100" y="118">73.0% · $0.12</text>
+<circle class="pt pt--cc" fill="#c2410c" stroke="#c2410c" cx="198.1" cy="82.0" r="11"/>
+<text class="lbl" x="212" y="78">Claude Code · GLM</text>
+<text class="sub" x="212" y="88">77.5% · $0.23</text>
+<rect class="pt pt--pi" fill="#0e7490" stroke="#0e7490" x="223.2" y="123.0" width="22" height="22"/>
+<text class="lbl" x="250" y="130">Pi · DS</text>
+<text class="sub" x="250" y="140">69.7% · $0.28</text>
+<circle class="pt pt--ours" fill="#5c6bc0" stroke="#5c6bc0" cx="381.4" cy="66.7" r="14"/>
+<text class="lbl lbl--ours" x="398" y="81">Steerable · GLM</text>
+<text class="sub" x="398" y="91">79.8% · $0.61</text>
+<rect class="pt pt--cc" fill="#c2410c" stroke="#c2410c" x="430.0" y="288.3" width="22" height="22"/>
+<text class="lbl" x="456" y="286">Claude Code · DS</text>
+<text class="sub" x="456" y="296">44.9% · $0.85</text>
+<circle class="pt pt--codex" fill="#71717a" stroke="#71717a" cx="481.6" cy="224.0" r="11"/>
+<text class="lbl" x="496" y="220">Codex · GLM</text>
+<text class="sub" x="496" y="230">56.2% · $1.06</text>
+<polygon class="pt pt--cc" fill="#c2410c" stroke="#c2410c" points="567.3,110.7 583.3,126.7 567.3,142.7 551.3,126.7"/>
+<text class="lbl" x="548" y="116" text-anchor="end">Claude Code · Qwen</text>
+<text class="sub" x="548" y="126" text-anchor="end">70.8% · $1.68</text>
+<rect class="pt pt--ours" fill="#5c6bc0" stroke="#5c6bc0" x="602.3" y="61.0" width="26" height="26"/>
+<text class="lbl lbl--ours" x="598" y="58" text-anchor="end">Steerable · DS</text>
+<text class="sub" x="598" y="72" text-anchor="end">78.7% · $2.18</text>
+<polygon class="pt pt--codex" fill="#71717a" stroke="#71717a" points="647.6,156.0 663.6,172.0 647.6,188.0 631.6,172.0"/>
+<text class="lbl" x="628" y="198" text-anchor="end">Codex · Qwen</text>
+<text class="sub" x="628" y="208" text-anchor="end">64.0% · $2.60</text>
+<polygon class="pt pt--pi" fill="#0e7490" stroke="#0e7490" points="666.2,163.3 682.2,179.3 666.2,195.3 650.2,179.3"/>
+<text class="lbl" x="686" y="176">Pi · Qwen</text>
+<text class="sub" x="678" y="186">62.9% · $2.87</text>
+<polygon class="pt pt--ours" fill="#5c6bc0" stroke="#5c6bc0" points="732.1,124.0 750.1,142.0 732.1,160.0 714.1,142.0"/>
+<text class="lbl lbl--ours" x="710" y="128" text-anchor="end">Steerable · Qwen</text>
+<text class="sub" x="710" y="138" text-anchor="end">68.5% · $4.12</text>
+<rect class="pt pt--codex" fill="#71717a" stroke="#71717a" x="732.3" y="173.7" width="26" height="26"/>
+<text class="lbl" x="728" y="218" text-anchor="end">Codex · DS</text>
+<text class="sub" x="728" y="228" text-anchor="end">61.8% · $4.42</text>
+<circle class="pt pt--dsh" fill="#15803d" stroke="#15803d" cx="88.5" cy="156.7" r="11"/>
+<text class="lbl" x="104" y="152">DSH · GLM</text>
+<text class="sub" x="104" y="162">66.3% · $0.12</text>
+<rect class="pt pt--dsh" fill="#15803d" stroke="#15803d" x="690.3" y="71.0" width="22" height="22"/>
+<text class="lbl" x="686" y="100" text-anchor="end">DSH · DS</text>
+<text class="sub" x="686" y="110" text-anchor="end">77.5% · $3.48</text>
+<polygon class="pt pt--dsh" fill="#15803d" stroke="#15803d" points="694.8,183.0 705.8,194.0 694.8,205.0 683.8,194.0"/>
+<text class="lbl" x="694" y="248" text-anchor="middle">DSH · Qwen</text>
+<text class="sub" x="694" y="258" text-anchor="middle">60.7% · $3.36</text>
+<rect class="pt pt--steer" fill="#5c6bc0" stroke="#5c6bc0" x="48" y="388" width="14" height="14"/>
+<text class="legend" x="66" y="399">Steerable</text>
+<rect class="pt pt--pi" fill="#0e7490" stroke="#0e7490" x="150" y="388" width="14" height="14"/>
+<text class="legend" x="168" y="399">Pi</text>
+<rect class="pt pt--cc" fill="#c2410c" stroke="#c2410c" x="200" y="388" width="14" height="14"/>
+<text class="legend" x="218" y="399">Claude Code</text>
+<rect class="pt pt--codex" fill="#71717a" stroke="#71717a" x="330" y="388" width="14" height="14"/>
+<text class="legend" x="348" y="399">Codex</text>
+<rect class="pt pt--dsh" fill="#15803d" stroke="#15803d" x="420" y="388" width="14" height="14"/>
+<text class="legend" x="438" y="399">DSH</text>
+<text class="legend" x="490" y="399">circle GLM · square DeepSeek · diamond Qwen</text>
 </svg>
-<p class="sf-bench-foot">GLM costs from per-trial <code>result.json</code> telemetry on the eval account. Steerable pins <code>reasoning_effort=max</code> and the Z.AI endpoint for GLM. Codex completed the full 89-task catalog; protocol errors still depress its score. We previously also plotted Steerable on DeepSeek-V4-Flash (84.3%) and Qwen3.8-27B (75.3%) against each model's published number, but neither point is backed by a reproducible run list or per-trial telemetry in this repo — the Qwen run also ran at an unrecorded server-side reasoning tier, so it was not effort-matched to the reference it was drawn against — so both are withdrawn until they meet the same evidence bar as the GLM rows above.</p>
+<p class="sf-bench-foot">List dollars from per-trial Harbor <code>result.json</code> tokens on the pinned host (GLM Z.AI $0.15/$0.50/cache $0.03 per 1M; DeepSeek Alibaba $0.352/$1.056; Qwen Alibaba $0.425/$2.55). Cache billed at cache-read when <code>n_cache_tokens ≤ n_input_tokens</code> (DeepSeek/Qwen cache-read uses the input rate, matching the other twelve cells). Codex GLM/Qwen and Pi Qwen include GitHub 360-minute unfinished snapshots scored as fail. DSH tokens are OpenRouter analytics for 2026-09-14 13:14–20:00 UTC (catalog window; cheap-12 that morning excluded); Harbor DSH trials still write no tokens. Not mixed with the published GLM @max $0.146.</p>
 </div>
 
 </div>

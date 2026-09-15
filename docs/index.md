@@ -367,7 +367,7 @@ graph BT
 | [`steerable-agent-runtime`](https://pypi.org/project/steerable-agent-runtime/) · `@steerable/agent-runtime` (TS, source-only) | 3 | `CoreLoop` + `LLMProvider` adapters (OpenAI-compat / Responses / Anthropic / Gemini), `ToolRouter` + `@tool`, storage & transport adapters (FastAPI SSE, stdio JSON-RPC); the TS package owns the sidecar process lifecycle for pure-TypeScript hosts |
 | [`steerable-sidecar`](https://pypi.org/project/steerable-sidecar/) · [`steerable-egress-proxy`](https://pypi.org/project/steerable-egress-proxy/) | 3 | Portable CPython binary — boots in <1s, macOS notarised, Windows signed — plus the bundled per-host CONNECT allow-list egress proxy |
 | [`@steerable/agent-ui`](https://www.npmjs.com/package/@steerable/agent-ui) | 4 | `ChatPanel`, `MessageList`, `AgentSelector`, `ModelSelector`, `OrchestrationPlanCard`, `ToolCallRenderer`, `SSEStreamView` + 14-card `/cards` subpath + hooks + Tailwind preset |
-| `@steerable/agent-shell` · `agent-shell-web` · `pack-sdk` (private) | 5 | Electron + headless host shell, local backend, sidecar supervision, product-neutral renderer — consumed via source/`link:`, never published |
+| `@steerable/agent-shell` · `agent-shell-web` · `pack-sdk` | 5 | Electron + headless host shell, local backend, sidecar supervision, product-neutral renderer — published to npm (`dist` / source / pure-types respectively) |
 
 <h2 class="sf-section">How it compares</h2>
 

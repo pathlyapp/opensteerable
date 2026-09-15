@@ -19,6 +19,8 @@
   },
   "files": [
     "src",
+    "!src/**/*.test.ts",
+    "!src/**/*.test.tsx",
     "public",
     "vite.base.ts",
     "README.md"
@@ -41,6 +43,9 @@
   "dependencies": {
     "@steerable/agent-protocol": "workspace:*",
     "@steerable/agent-ui": "workspace:*",
+    "@steerable/pack-sdk": "workspace:*",
+    "@tailwindcss/vite": "^4.3.0",
+    "@vitejs/plugin-react": "^4.7.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-web-links": "^0.12.0",
     "@xterm/xterm": "^6.0.0",
@@ -51,19 +56,16 @@
     "react-markdown": "^10.1.0",
     "react-router-dom": "^6.30.0",
     "rehype-raw": "^7.0.0",
-    "remark-gfm": "^4.0.1"
+    "remark-gfm": "^4.0.1",
+    "tailwindcss": "^4.3.0",
+    "vite": "^5.4.21"
   },
   "devDependencies": {
-    "@steerable/pack-sdk": "workspace:*",
-    "@tailwindcss/vite": "^4.3.0",
     "@testing-library/react": "^16.1.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
-    "@vitejs/plugin-react": "^4.7.0",
     "happy-dom": "^15.11.7",
-    "tailwindcss": "^4.3.0",
     "typescript": "^5.8.3",
-    "vite": "^5.4.21",
     "vitest": "^3.2.4"
   }
 }

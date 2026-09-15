@@ -162,14 +162,33 @@ proc.stdin.write(JSON.stringify({
 
 Full runnable: [`examples/sidecar-roundtrip`](./examples/sidecar-roundtrip). Real-world embedder: [`deeppath-agent`](https://github.com/deeppath/deeppath-agent).
 
+### "I just want to see the agent shell running"
+
+The Tier 5 host shell runs standalone with neutral branding (no product, no packs), in two modes:
+
+```bash
+pnpm install
+pnpm agent-shell:web       # BS mode: builds shell + neutral web app, boots the headless server
+# → http://127.0.0.1:4787  (Steerable Shell)
+
+pnpm agent-shell:client    # desktop client mode: same build, launched as an Electron window
+```
+
+Both are the production code path (prod web build, shell default preload) — the browser-dev Electron mock is dev-server-only and tree-shaken out of prod builds, so it never appears here.
+
 ---
 
 ## Architecture
 
-Four tiers, strict no-upward-imports rule. Each tier is shippable on its own.
+Five tiers, strict no-upward-imports rule. Each tier is shippable on its own.
 
 ```mermaid
 flowchart TB
+    subgraph T5[Tier 5 · Host Shell]
+        SH["<b>@steerable/agent-shell</b> (TS, private)<br/>Electron main + preload · headless HTTP server · local-backend · storage · sidecar supervisor"]
+        SHW["<b>@steerable/agent-shell-web</b> (TS, private)<br/>product-neutral renderer SPA source (React + Vite)"]
+    end
+
     subgraph T4[Tier 4 · UI]
         UI["<b>@steerable/agent-ui</b><br/>React hooks · headless components · Tailwind preset"]
     end
@@ -188,6 +207,9 @@ flowchart TB
         P["<b>(@)steerable(/)agent-protocol</b><br/>spec/*.schema.json → TS types + Pydantic models"]
     end
 
+    SH --> UI
+    SH --> SC
+    SHW --> UI
     UI --> P
     RT --> H
     SC --> RT
@@ -198,16 +220,19 @@ flowchart TB
     classDef t2 fill:#f3e5f5,stroke:#7b1fa2
     classDef t3 fill:#e8f5e9,stroke:#388e3c
     classDef t4 fill:#fff3e0,stroke:#f57c00
+    classDef t5 fill:#fce4ec,stroke:#c2185b
     class P t1
     class H,HF t2
     class RT,SC t3
     class UI t4
+    class SH,SHW t5
 ```
 
 **The rules:**
 - Tier N never imports Tier N+1. Adopting any layer means inheriting only the layers below it.
 - TS↔Py for `agent-protocol` is **codegen, not parallel implementation** — `spec/*.schema.json` is the single source of truth.
-- All 7 publishable packages release **lockstep** (same `X.Y.Z` everywhere), gated by CI on every tag push.
+- All 7 publishable packages release **lockstep** (same `X.Y.Z` everywhere), gated by CI on every tag push. Tier 5 (`agent-shell` / `agent-shell-web` / `pack-sdk`) is `private: true` — versioned in lockstep but never published to npm; product repos consume it via source/`link:` dependencies.
+- Tier 5 is **product-neutral**: brand, telemetry endpoints, help links, and data-directory names are injected by the consuming product's assembly root (`setProductBrand` / `setProductConfig`), enforced by the `shell:neutral` gate in CI.
 
 ---
 
@@ -259,6 +284,20 @@ flowchart TB
 - **Tailwind preset** — drop-in tokens (`bg-agent-canvas`, `rounded-agent-md`, etc.)
 - **Storybook** — every component, every state, with axe a11y + Playwright visual-regression locked in CI
 - 44 unit tests + 27 stories + 4 MDX docs
+
+</details>
+
+<details>
+<summary><b>Tier 5 — Host Shell</b> · <code>@steerable/agent-shell</code> + <code>@steerable/agent-shell-web</code> + <code>@steerable/pack-sdk</code> (private)</summary>
+
+- **Two hosts, one runtime**: Electron desktop shell (main process, IPC, strict CSP, visible PTY via node-pty) and headless HTTP server (`/api/v2/*`, SSE) assembled from the same `HostRuntime`
+- **Local backend**: chat/project/agent CRUD, CoreLoop streaming, skill loader (brand-placeholder rendering), subagent profiles, worktree service, usage/insights storage (SQLite via better-sqlite3)
+- **Sidecar supervision**: boot, health, egress proxy, seatbelt/exec sandbox, reverse approval/ask-user bridges
+- **Scenario-pack extension points** (`pack-sdk` types): services, tools, migrations, seeds, skills, IPC namespaces, HTTP routes, renderer chat slots & settings panels, brand/logo — composed at build time by the product's assembly root
+- **Renderer SPA source** (`agent-shell-web`): product-neutral React app consumed by product web entries via the `@/` alias + `createProductViteConfig` factory
+- **Packaging helpers**: `scripts/prepare-sidecar.sh` / `prepare-framework-wheels.sh` build the embedded Python runtime for product installers
+- **Neutrality gate**: `pnpm --filter @steerable/agent-shell shell:neutral` fails CI on any product hardcoding in shell sources or skill text
+- 617 node-side unit tests + 225 renderer component tests
 
 </details>
 

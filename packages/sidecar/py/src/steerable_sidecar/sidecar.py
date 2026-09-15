@@ -128,6 +128,7 @@ from steerable_agent_runtime.transport.stdio_jsonrpc import (
     encode_frame,
 )
 
+from ._version import __version__ as SIDECAR_VERSION
 from .file_edit import EditError, EditOp, apply_edits
 from .host_tools import HostApprover, HostAskUserHandler, HostToolExecutor
 from .loop_limits import resolve_loop_limits
@@ -137,7 +138,6 @@ from .stream_chunks import RawChunkBridgeHooks
 logger = logging.getLogger("steerable_sidecar")
 
 PROTOCOL_VERSION = "0.1.0"
-SIDECAR_VERSION = "0.1.0"
 
 # asyncio's default 64 KiB StreamReader limit kills the read loop with
 # LimitOverrunError the moment a single JSON-RPC frame exceeds it — a large

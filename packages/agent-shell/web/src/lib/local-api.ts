@@ -684,3 +684,31 @@ export async function setLlmSettings(input: LlmSettings) {
     body: input,
   });
 }
+
+/* ---------------- LLM link diagnosis ---------------- */
+
+export interface DiagnoseStep {
+  name: string;
+  ok: boolean;
+  durationMs: number;
+  detail: string;
+}
+
+export interface DiagnoseResult {
+  ok: boolean;
+  steps: DiagnoseStep[];
+  ambientProxies: string[];
+  hint: string | null;
+}
+
+export async function diagnoseLlmConnection(input: {
+  baseUrl?: string;
+  apiKey?: string;
+  model?: string;
+}) {
+  return bridge().localBackend.request<DiagnoseResult>({
+    method: 'POST',
+    path: '/api/v2/llm/diagnose',
+    body: input,
+  });
+}

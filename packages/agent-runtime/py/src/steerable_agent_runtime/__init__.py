@@ -1,5 +1,13 @@
 """Steerable agent runtime — Tier 3 adapter package."""
 
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _dist_version
+
+try:
+    __version__ = _dist_version("steerable-agent-runtime")
+except PackageNotFoundError:  # source tree without installed metadata
+    __version__ = "0.0.0"
+
 from .antihallucination import (
     AntiHallucinationConfig,
     AntiHallucinationHooks,
@@ -480,5 +488,3 @@ __all__ = [
     "tool_search_descriptor",
     "upgrade_entry_dict",
 ]
-
-__version__ = "0.1.0"

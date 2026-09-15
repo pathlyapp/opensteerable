@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from steerable_sidecar import Sidecar
+from steerable_sidecar.sidecar import PROTOCOL_VERSION, SIDECAR_VERSION
 
 
 @pytest.fixture
@@ -22,8 +23,8 @@ async def _call(sidecar: Sidecar, method: str, params: dict | None = None, reque
 
 async def test_system_ping_returns_health(sidecar: Sidecar) -> None:
     response = await _call(sidecar, "system.ping")
-    assert response["result"]["version"] == "0.1.0"
-    assert response["result"]["protocolVersion"] == "0.1.0"
+    assert response["result"]["version"] == SIDECAR_VERSION
+    assert response["result"]["protocolVersion"] == PROTOCOL_VERSION
     assert response["result"]["loadedTools"] == 0
 
 

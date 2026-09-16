@@ -57,7 +57,7 @@ describe('localBackend.request', () => {
     await bridge.localBackend.request({ method: 'GET', path: '/api/v2/chats' });
     expect(fetchMock).toHaveBeenCalledWith('/api/v2/chats', {
       method: 'GET',
-      headers: undefined,
+      headers: {},
       body: undefined,
     });
   });
@@ -224,6 +224,43 @@ describe('startStream / cancelStream', () => {
     });
     // 重复取消是 no-op，不抛错。
     expect(() => bridge.localBackend.cancelStream(streamId!)).not.toThrow();
+  });
+});
+
+describe('BS token（bootstrap 注入的 Bearer）', () => {
+  const BOOT = { platform: 'darwin', flavor: 'test', brandName: 'T', token: 'tok 1' };
+
+  it('request 与 startStream 带 Authorization 头', async () => {
+    vi.stubGlobal('__DEEPPATH_BS__', BOOT);
+    const fetchMock = stubFetch(() => jsonResponse({}));
+    const bridge = createHttpBridge();
+    await bridge.localBackend.request({ method: 'GET', path: '/api/v2/chats' });
+    expect(fetchMock).toHaveBeenCalledWith('/api/v2/chats', {
+      method: 'GET',
+      headers: { Authorization: 'Bearer tok 1' },
+      body: undefined,
+    });
+    await bridge.localBackend.startStream({ method: 'POST', path: '/x' }, () => {});
+    expect(fetchMock).toHaveBeenCalledWith('/x', expect.objectContaining({
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok 1' },
+    }));
+  });
+
+  it('EventSource 不能设头，token 走 query（URL 编码）', () => {
+    vi.stubGlobal('__DEEPPATH_BS__', BOOT);
+    const urls: string[] = [];
+    vi.stubGlobal(
+      'EventSource',
+      class {
+        constructor(url: string) {
+          urls.push(url);
+        }
+        addEventListener(): void {}
+      },
+    );
+    const bridge = createHttpBridge();
+    bridge.onChatCreated?.(() => {});
+    expect(urls).toEqual(['/api/v2/events?token=tok%201']);
   });
 });
 

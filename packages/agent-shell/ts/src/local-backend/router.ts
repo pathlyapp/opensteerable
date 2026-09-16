@@ -1034,7 +1034,20 @@ export class LocalBackendRouter {
     }
 
     if (method === 'DELETE' && pathname.startsWith('/api/v2/chat-agents/skills/delete/')) {
-      const skillName = pathname.slice('/api/v2/chat-agents/skills/delete/'.length).trim();
+      // URL.pathname 保留百分号编码——目录名/frontmatter 名含空格等字符时
+      // 客户端发来的是 fancy%20skill，不 decode 永远匹配不上 fancy skill
+      // （projects/mcp 路由段都 decode，这里对齐）。非法编码按 400 处理。
+      let skillName: string;
+      try {
+        skillName = decodeURIComponent(
+          pathname.slice('/api/v2/chat-agents/skills/delete/'.length),
+        ).trim();
+      } catch {
+        return {
+          status: 400,
+          data: { error: 'skillName is not valid percent-encoding' },
+        };
+      }
       if (!skillName) {
         return {
           status: 400,
@@ -1925,6 +1938,14 @@ export class LocalBackendRouter {
       // user+assistant pair onto history while the original (possibly bad)
       // assistant reply stayed in place — the model saw both and had no real
       // reason to answer differently.
+      //
+      // sidecar 门必须先于任何写操作：rerun 回合只能跑在 sidecar 上
+      // （handleCoreLoopTurn 无 sidecar 直接 503）。若先截断再 503，旧回复
+      // 已删、新回复不会产生、record 也不存在——非破坏性承诺破窗。
+      if (!getSidecarSupervisor()) {
+        emit(this.sse('error', { message: 'coreloop enabled but sidecar is not running' }));
+        return { status: 503 };
+      }
       const targetMessageId = regenerateMatch[2];
       // The user turn that prompted the target reply is whatever immediately
       // precedes it — re-derive its text so buildConversationMessages gets

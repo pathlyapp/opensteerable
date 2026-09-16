@@ -18,9 +18,6 @@ The gate is [Terminal-Bench 2.1](https://github.com/harbor-framework/terminal-be
 | 6 | [34139665379](https://github.com/pathlyapp/opensteerable/actions/runs/34139665379) | 0.7978 (71/89) |
 
 **Cost is a co-equal metric, not a footnote.** The score of record is two numbers, not one: pass rate **80.7%** and cost per solved task **~$0.146** (mean 271.7M input tokens/run, ~$10.50/run across the same six `8e260de` runs; per-trial `result.json` telemetry, not the ±15% OpenRouter analytics panel). Every future catalog run updates both numbers together — a pass-rate move that hides a token move is half the information. For calibration on the same model and protocol: Pi solves at **$0.061**/task (138.9M tokens, 73.4%), Claude Code at **$0.162**/task (299.2M tokens, 83.1%); we spend 2.3× Pi's tokens to buy 7.3 points.
-| 4 | [34122470060](https://github.com/pathlyapp/opensteerable/actions/runs/34122470060) | 0.7978 (71/89) |
-| 5 | [34122485974](https://github.com/pathlyapp/opensteerable/actions/runs/34122485974) | 0.7978 (71/89) |
-| 6 | [34139665379](https://github.com/pathlyapp/opensteerable/actions/runs/34139665379) | 0.7978 (71/89) |
 
 Superseded: four runs at `27d521a` posted mean 0.8006 (73/70/73/69; GHA [33497477757](https://github.com/pathlyapp/opensteerable/actions/runs/33497477757), [33530806570](https://github.com/pathlyapp/opensteerable/actions/runs/33530806570), [33530856872](https://github.com/pathlyapp/opensteerable/actions/runs/33530856872), [33547943349](https://github.com/pathlyapp/opensteerable/actions/runs/33547943349)). A fifth run on the pre-`8e260de` tree ([34019591179](https://github.com/pathlyapp/opensteerable/actions/runs/34019591179)) is excluded: OpenRouter credit exhaustion mid-run (HTTP 402) truncated 45 of 89 trials, and its 36/89 measures the wallet, not the harness.
 

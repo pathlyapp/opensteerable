@@ -955,10 +955,11 @@ describe('技能导入与删除', () => {
     expect(fs.existsSync(inside)).toBe(true);
   });
 
-  it('DELETE /skills/delete/：带编码分隔符的名称解析不出 userSkillsDir，deleted:false', async () => {
+  it('DELETE /skills/delete/：编码分隔符 decode 出 .. 仍被路由内围栏拦下，deleted:false', async () => {
     // 第二道防线在路由内：rmSync 目标必须 resolve 到 userSkillsDir 内部。
-    // 'a%2F..%2F..' 不被 decode，path.join 视为普通目录名（永远不存在），
-    // 扫描匹配也不会命中——userSkillsDir 内外的目录都必须原样保留。
+    // 'a%2F..%2F..' decode 后是 'a/../../..'——path.join 直接逃逸出技能
+    // 目录，isInsideSkillsDir 拒绝；扫描匹配也不会命中。userSkillsDir
+    // 内外的目录都必须原样保留。
     const inside = path.join(h.userSkillsDir, 'real-skill');
     const outside = path.join(tmpDir, 'outside-skill');
     fs.mkdirSync(inside);
@@ -991,8 +992,6 @@ describe('技能导入与删除', () => {
 
   it('DELETE /skills/delete/:name：按 SKILL.md frontmatter 名称（大小写不敏感）匹配删除', async () => {
     // 目录名与 frontmatter name 不同：走扫描分支，按解析出的 name 匹配。
-    // （该路径段不做 decodeURIComponent，含空格的名称经 %20 编码后匹配不上——
-    // 这里用无空格名称验证大小写不敏感匹配本身。）
     const skillDir = path.join(h.userSkillsDir, 'dir-name-xyz');
     fs.mkdirSync(skillDir);
     fs.writeFileSync(path.join(skillDir, 'SKILL.md'), '---\nname: "FancySkill"\n---\n正文');
@@ -1004,6 +1003,30 @@ describe('技能导入与删除', () => {
     expect(res.status).toBe(200);
     expect((res.data as Record<string, any>).deleted).toBe(true);
     expect(fs.existsSync(skillDir)).toBe(false);
+  });
+
+  it('DELETE /skills/delete/:name：含空格名称经 %20 编码后能匹配删除（路径段 decode）', async () => {
+    // URL.pathname 保留百分号编码；不 decode 的话 fancy%20skill 永远
+    // 匹配不上目录 fancy skill（projects/mcp 路由段都 decode，这里对齐）。
+    const skillDir = path.join(h.userSkillsDir, 'fancy skill');
+    fs.mkdirSync(skillDir);
+    fs.writeFileSync(path.join(skillDir, 'SKILL.md'), '---\nname: fancy skill\n---\n');
+
+    const res = await makeRouter().handle({
+      method: 'DELETE',
+      path: '/api/v2/chat-agents/skills/delete/fancy%20skill',
+    });
+    expect(res.status).toBe(200);
+    expect(res.data).toEqual({ success: true, deleted: true });
+    expect(fs.existsSync(skillDir)).toBe(false);
+  });
+
+  it('DELETE /skills/delete/:name：非法百分号编码 → 400 而不是抛异常', async () => {
+    const res = await makeRouter().handle({
+      method: 'DELETE',
+      path: '/api/v2/chat-agents/skills/delete/%E4%B8',
+    });
+    expect(res.status).toBe(400);
   });
 
   it('DELETE /skills/delete/:name：不存在也返回 success（幂等，避免「删除失败」弹窗）', async () => {

@@ -1034,7 +1034,20 @@ export class LocalBackendRouter {
     }
 
     if (method === 'DELETE' && pathname.startsWith('/api/v2/chat-agents/skills/delete/')) {
-      const skillName = pathname.slice('/api/v2/chat-agents/skills/delete/'.length).trim();
+      // URL.pathname 保留百分号编码——目录名/frontmatter 名含空格等字符时
+      // 客户端发来的是 fancy%20skill，不 decode 永远匹配不上 fancy skill
+      // （projects/mcp 路由段都 decode，这里对齐）。非法编码按 400 处理。
+      let skillName: string;
+      try {
+        skillName = decodeURIComponent(
+          pathname.slice('/api/v2/chat-agents/skills/delete/'.length),
+        ).trim();
+      } catch {
+        return {
+          status: 400,
+          data: { error: 'skillName is not valid percent-encoding' },
+        };
+      }
       if (!skillName) {
         return {
           status: 400,

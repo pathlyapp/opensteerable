@@ -255,7 +255,7 @@ flowchart TB
 <details>
 <summary><b>Tier 3 — Runtime & Sidecar</b> · <code>steerable-agent-runtime</code> + <code>steerable-sidecar</code> + <code>steerable-egress-proxy</code></summary>
 
-- **CoreLoop** — the production single-agent step loop, yielding a structured `LoopEvent` stream (15 kinds): pseudo tool-call recovery, `before_completion` veto, four compaction paths with both circuit breakers, soft-timeout wrap-up, duplicate-call dedup, per-tool timeouts
+- **CoreLoop** — the production single-agent step loop, yielding a structured `LoopEvent` stream (15 kinds): pseudo tool-call recovery, `before_completion` veto, three default compaction paths plus one opt-in (`micro_compact_interval_rounds`) with both circuit breakers, soft-timeout wrap-up, duplicate-call dedup, per-tool timeouts
 - **LLMProvider** interface across **four wire protocols**: **OpenAI-compatible** chat/completions (Ollama, vLLM, llama.cpp server, DeepSeek, Groq, Together, …), **OpenAI Responses** (with `store: false` + encrypted-reasoning round-trips), **Anthropic-native**, **Gemini-native** — vendor divergences are data (`PROVIDER_COMPAT_HOSTS` + per-model sampling presets)
 - **Gateway model catalog** — live `GET /models` discovery (`models.list`, refreshable), bundled serving-provider catalog (`catalog.describe`), strict `reasoning_effort` handling
 - **ToolRouter** + `@tool` decorator with JSON Schema auto-derived from Python type hints (explicit `schema=` always overrides); exposure tiers (`direct` / `deferred` / `hidden`) with `tool_search`

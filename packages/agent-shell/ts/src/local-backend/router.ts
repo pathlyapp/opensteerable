@@ -1925,6 +1925,14 @@ export class LocalBackendRouter {
       // user+assistant pair onto history while the original (possibly bad)
       // assistant reply stayed in place — the model saw both and had no real
       // reason to answer differently.
+      //
+      // sidecar 门必须先于任何写操作：rerun 回合只能跑在 sidecar 上
+      // （handleCoreLoopTurn 无 sidecar 直接 503）。若先截断再 503，旧回复
+      // 已删、新回复不会产生、record 也不存在——非破坏性承诺破窗。
+      if (!getSidecarSupervisor()) {
+        emit(this.sse('error', { message: 'coreloop enabled but sidecar is not running' }));
+        return { status: 503 };
+      }
       const targetMessageId = regenerateMatch[2];
       // The user turn that prompted the target reply is whatever immediately
       // precedes it — re-derive its text so buildConversationMessages gets

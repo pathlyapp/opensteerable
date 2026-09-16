@@ -571,7 +571,7 @@ describe('regenerate', () => {
     expect(contents.at(-1)).toBe('第一个问题');
   });
 
-  it('sidecar 关闭时（fork=null）按协议直接截断，但回合本身 503', async () => {
+  it('sidecar 关闭时直接 503，历史一字不动（截断不得先于回合可用性检查）', async () => {
     const { chat, target } = seedConversation();
     installStream((opts) => opts.onText('新回答'));
     h.supervisor = null; // installStream 挂的 supervisor 摘掉
@@ -584,12 +584,10 @@ describe('regenerate', () => {
       },
       cap.emit,
     );
-    // fork=null 是协议回落 → 截断发生；但 CoreLoop 唯一路径需要 sidecar，
-    // 于是 503。注意：历史已被截断（目标及之后的消息从 UI 存储删除）。
+    // rerun 回合只能跑在 sidecar 上；旧行为先截断再 503，旧回复被删且
+    // 没有新回复、record 也不存在——非破坏性承诺破窗。现在门在前面。
     expect(res.status).toBe(503);
-    const remaining = h.store.listMessages(chat.id, 10).map((m) => m.content);
-    expect(remaining).toContain('第一个问题');
-    expect(remaining).not.toContain('第二个问题');
+    expect(h.store.listMessages(chat.id, 10)).toHaveLength(4);
   });
 });
 

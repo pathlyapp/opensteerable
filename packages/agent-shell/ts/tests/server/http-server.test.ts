@@ -86,8 +86,11 @@ function makeDeps(webDistDir: string): BsServerDeps {
     maybeExecInTerminal: mocks.maybeExecInTerminal,
     bus: { attach: mocks.busAttach } as unknown as BsServerDeps['bus'],
     webDistDir,
+    authToken: 'test-token',
   };
 }
+
+const AUTH = { Authorization: 'Bearer test-token' };
 
 describe('BS HTTP server', () => {
   let server: Server;
@@ -113,9 +116,11 @@ describe('BS HTTP server', () => {
   const post = (p: string, body?: unknown) =>
     fetch(`${base}${p}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...AUTH },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
+
+  const get = (p: string) => fetch(`${base}${p}`, { headers: AUTH });
 
   describe('/api/v2/* 代理到 LocalBackendRouter', () => {
     it('非流式请求：method/path/body 透传，响应状态与 data 来自 router', async () => {
@@ -132,7 +137,7 @@ describe('BS HTTP server', () => {
 
     it('GET 不带 body；query string 拼进 path 传给 router', async () => {
       mocks.routerHandle.mockResolvedValue({ status: 200, data: [] });
-      await fetch(`${base}/api/v2/chats?limit=3`);
+      await get('/api/v2/chats?limit=3');
       expect(mocks.routerHandle).toHaveBeenCalledWith({
         method: 'GET',
         path: '/api/v2/chats?limit=3',
@@ -150,7 +155,7 @@ describe('BS HTTP server', () => {
     it('非法 JSON body → 500（readJsonBody 抛出，走未捕获兜底）', async () => {
       const res = await fetch(`${base}/api/v2/chats`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...AUTH },
         body: '{not-json',
       });
       expect(res.status).toBe(500);
@@ -189,13 +194,13 @@ describe('BS HTTP server', () => {
 
     it('非流式 chats 路径（GET）不走 handleStream', async () => {
       mocks.routerHandle.mockResolvedValue({ status: 200, data: {} });
-      await fetch(`${base}/api/v2/chats/c1`);
+      await get('/api/v2/chats/c1');
       expect(mocks.routerHandleStream).not.toHaveBeenCalled();
     });
 
     it('GET /api/v2/events → SSE 事件总线 attach', async () => {
       mocks.busAttach.mockImplementation((res: { end: () => void }) => res.end());
-      const res = await fetch(`${base}/api/v2/events`);
+      const res = await get('/api/v2/events');
       expect(res.status).toBe(200);
       expect(mocks.busAttach).toHaveBeenCalledOnce();
     });
@@ -203,7 +208,7 @@ describe('BS HTTP server', () => {
 
   describe('/host/* direct-IPC 等价物', () => {
     it('GET /host/info → runtime/platform/brand 形状', async () => {
-      const res = await fetch(`${base}/host/info`);
+      const res = await get('/host/info');
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.runtime).toBe('bs');
@@ -213,7 +218,7 @@ describe('BS HTTP server', () => {
 
     it('terminal 系列：list/spawn/write/resize/kill 透传参数', async () => {
       mocks.terminalList.mockReturnValue([{ id: 't1' }]);
-      expect(await (await fetch(`${base}/host/terminal/list`)).json()).toEqual([{ id: 't1' }]);
+      expect(await (await get('/host/terminal/list')).json()).toEqual([{ id: 't1' }]);
 
       mocks.terminalSpawn.mockReturnValue({ id: 't2' });
       await post('/host/terminal/spawn', { cwd: '/tmp' });
@@ -305,7 +310,7 @@ describe('BS HTTP server', () => {
 
     it('local/scripts：CRUD + run（未找到 → success:false 错误形状）', async () => {
       mocks.scriptList.mockReturnValue([{ id: 's1' }]);
-      expect(await (await fetch(`${base}/host/local/scripts`)).json()).toEqual([{ id: 's1' }]);
+      expect(await (await get('/host/local/scripts')).json()).toEqual([{ id: 's1' }]);
 
       mocks.scriptCreate.mockReturnValue({ id: 's2' });
       await post('/host/local/scripts/add', { name: 'n', command: 'c' });
@@ -350,14 +355,60 @@ describe('BS HTTP server', () => {
     });
   });
 
+  describe('安全门（Host 白名单 + Bearer token）', () => {
+    /** fetch 禁设 Host 头，用 node:http 原生请求模拟 rebinding 来的 Host。 */
+    const rawGet = async (p: string, headers: Record<string, string>) => {
+      const { request } = await import('node:http');
+      const port = (server.address() as AddressInfo).port;
+      return new Promise<{ status: number; body: string }>((resolve, reject) => {
+        const req = request({ host: '127.0.0.1', port, path: p, method: 'GET', headers }, (res) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (c) => chunks.push(c));
+          res.on('end', () =>
+            resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString('utf8') }),
+          );
+        });
+        req.on('error', reject);
+        req.end();
+      });
+    };
+
+    it('Host 非回环 → 403（rebinding 拦截，含静态路径）', async () => {
+      const api = await rawGet('/api/v2/chats', { Host: 'evil.com' });
+      expect(api.status).toBe(403);
+      const html = await rawGet('/', { Host: 'evil.com' });
+      expect(html.status).toBe(403);
+      expect(html.body).not.toContain('test-token');
+    });
+
+    it('/api/v2 与 /host 无 token → 401', async () => {
+      expect((await fetch(`${base}/api/v2/chats`)).status).toBe(401);
+      expect((await fetch(`${base}/host/info`)).status).toBe(401);
+      expect((await fetch(`${base}/api/v2/chats`, { headers: { Authorization: 'Bearer wrong' } })).status).toBe(401);
+    });
+
+    it('query token 可过 /api/v2/events（EventSource 不能设头）', async () => {
+      mocks.busAttach.mockImplementation((res: { end: () => void }) => res.end());
+      const res = await fetch(`${base}/api/v2/events?token=test-token`);
+      expect(res.status).toBe(200);
+      expect(mocks.busAttach).toHaveBeenCalledOnce();
+    });
+
+    it('静态路径无 token 仍 200（浏览器靠它拿 bootstrap 里的 token）', async () => {
+      const res = await fetch(`${base}/`);
+      expect(res.status).toBe(200);
+    });
+  });
+
   describe('静态托管', () => {
-    it('GET / 返回 index.html 并注入 BS 引导标记', async () => {
+    it('GET / 返回 index.html 并注入 BS 引导标记（含 token）', async () => {
       const res = await fetch(`${base}/`);
       expect(res.status).toBe(200);
       expect(res.headers.get('content-type')).toContain('text/html');
       const html = await res.text();
       expect(html).toContain('window.__DEEPPATH_BS__');
       expect(html).toContain(process.platform);
+      expect(html).toContain('"token":"test-token"');
     });
 
     it('静态资源按扩展名给 MIME 与长缓存', async () => {

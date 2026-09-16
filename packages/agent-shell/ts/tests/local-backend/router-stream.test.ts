@@ -264,6 +264,7 @@ describe('流式回合 SSE 序列', () => {
     expect(cap.byType('budget_exhausted')[0].data).toEqual({
       type: 'budget_exhausted',
       budget: { kind: 'tokens' },
+      message: 'budget_exhausted: tokens',
     });
     expect(cap.byType('orchestration_child')[0].data).toMatchObject({
       childId: 'sub-1',

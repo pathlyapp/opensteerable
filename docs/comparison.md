@@ -102,10 +102,12 @@ each tier is independently adoptable.
   registration wins, the offender is named). What we still lack versus
   Claude Code is the marketplace, blocklist, and impersonation check — the
   runtime is there, the distribution trust layer is not.
-- **Context compaction now ships four paths and both breakers** —
-  pressure-triggered, overflow-reactive, periodic micro-compaction
-  (tool-result pruning), and manual (`compact_now`, the host-command
-  path). Two circuit breakers match Claude Code's pair: the failure
+- **Context compaction now ships three default paths plus one opt-in,
+  and both breakers** — pressure-triggered, overflow-reactive, and
+  manual (`compact_now`, the host-command path) are on by default;
+  periodic micro-compaction (tool-result pruning) is opt-in via
+  `micro_compact_interval_rounds` (default 0, no per-chat switch).
+  Two circuit breakers match Claude Code's pair: the failure
   breaker stops the pressure path after three consecutive ineffective
   compactions, and the rapid-refill breaker stops it after three
   consecutive compactions whose freed space refills within three rounds —

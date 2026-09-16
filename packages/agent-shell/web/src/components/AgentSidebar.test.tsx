@@ -282,9 +282,6 @@ describe('AgentSidebar 会话列表渲染', () => {
     expect(chatRow('c-no-agent').textContent).toContain('A');
   });
 
-  // 注意：置顶优先只作用于同一日期分组内部——normalizedChats 的 pin-first
-  // 排序之后还要按日期分组再按组优先级渲染，跨组时旧的置顶会话仍排在今天
-  // 的普通会话之后（见本轮测试报告的记录项）。
   it('同一日期分组内置顶会话排在普通会话之前并带图钉标记', () => {
     const pinnedEarly = makeChat({
       id: 'c-pinned',
@@ -298,6 +295,28 @@ describe('AgentSidebar 会话列表渲染', () => {
     const ids = screen.getAllByTestId('sidebar-chat-row').map((r) => r.getAttribute('data-chat-id'));
     expect(ids).toEqual(['c-pinned', 'c-fresh']);
     expect(screen.getByLabelText('已置顶')).toBeTruthy();
+  });
+
+  it('置顶会话跨日期分组也排在最前：独立「置顶」组优先于「今天」', () => {
+    const pinnedOld = makeChat({
+      id: 'c-pinned-old',
+      title: '五天前置顶的会话',
+      isPinned: true,
+      updatedAt: daysAgo(5),
+    });
+    const fresh = makeChat({ id: 'c-fresh', title: '今天的普通会话', updatedAt: daysAgo(0) });
+    renderSidebar('/agent', vi.fn(), { data: { chats: [fresh, pinnedOld] } });
+
+    // 组头顺序：置顶组在「今天」之前
+    expect(screen.getByText('置顶')).toBeTruthy();
+    const pinnedHeader = screen.getByText('置顶');
+    const todayHeader = screen.getByText('今天');
+    expect(
+      pinnedHeader.compareDocumentPosition(todayHeader) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    // 行顺序：旧的置顶会话仍在今天的普通会话之前
+    const ids = screen.getAllByTestId('sidebar-chat-row').map((r) => r.getAttribute('data-chat-id'));
+    expect(ids).toEqual(['c-pinned-old', 'c-fresh']);
   });
 
   it('[自动化] 前缀被解析为图标与提示，不进入展示标题', () => {

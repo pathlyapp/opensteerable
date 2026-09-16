@@ -13,6 +13,14 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
+
+// http-server.ts 模块级 import storage 单例——不 mock 的话测试进程会把
+// localStore 开到真实 ~/.agent-shell/agent-shell.db。本套件不测存储，
+// 把边界 stub 掉（storage 行为由 tests/storage/ 用真 SQLite 覆盖）。
+vi.mock('../../src/storage/index.js', () => ({
+  localStore: { addMessage: vi.fn() },
+}));
+
 import { createBsServer, type BsServerDeps } from '../../src/server/http-server.js';
 import { registerPackHttpRoutes, resetPackHttpRoutes } from '../../src/host/http-routes.js';
 

@@ -17,6 +17,7 @@
  * win32 分支属平台专属，本文件只覆盖 macOS/Linux 可达分支。
  */
 import { afterEach, describe, expect, it } from 'vitest';
+import { spawnSync } from 'node:child_process';
 import { access, mkdtemp, realpath, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -35,6 +36,12 @@ import {
 const isWin = process.platform === 'win32';
 const isMac = process.platform === 'darwin';
 const isLinux = process.platform === 'linux';
+// CI Linux 容器可能没装 zsh（spawn ENOENT），显式 zsh 用例按可用性跳过。
+const hasZsh = !isWin && spawnSync('zsh', ['--version'], { stdio: 'ignore' }).status === 0;
+// CI Linux 容器可能没装 zsh（spawn ENOENT），显式 zsh 用例按可用性跳过。
+const hasZsh = !isWin && spawnSync('zsh', ['--version'], { stdio: 'ignore' }).status === 0;
+// CI Linux 容器可能没装 zsh（spawn ENOENT），显式 zsh 用例按可用性跳过。
+const hasZsh = !isWin && spawnSync('zsh', ['--version'], { stdio: 'ignore' }).status === 0;
 
 describe('executeShell · 基础分支', () => {
   it('空命令 / 纯空白命令被拒绝（command is required）', async () => {
@@ -105,7 +112,7 @@ describe('executeShell · 基础分支', () => {
     expect(res.stdout?.trim()).not.toBe('');
   });
 
-  it.skipIf(isWin)('显式 shell=zsh：走 /bin/zsh 且结果标记 shell=zsh', async () => {
+  it.skipIf(!hasZsh)('显式 shell=zsh：走 zsh 且结果标记 shell=zsh', async () => {
     const res = await new LocalExecutor().executeShell({
       command: 'printf %s "$ZSH_VERSION"',
       shell: 'zsh',

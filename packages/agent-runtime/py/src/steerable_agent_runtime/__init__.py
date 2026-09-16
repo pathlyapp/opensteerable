@@ -89,6 +89,11 @@ from .cache_control import (
     system_blocks_with_cache,
 )
 from .calibration import CalibratingProvider, ModelCalibration, UsageCalibration
+from .compaction_policy import (
+    CompactionPolicy,
+    is_large_window,
+    resolve_compaction_policy,
+)
 from .compaction import CompactionHooks
 from .errors import (
     ApprovalAborted,
@@ -104,6 +109,8 @@ from .errors import (
 from .history import (
     RECORD_FORMAT_VERSION,
     CompactionBoundary,
+    CompactionStart,
+    CompactionSummary,
     ContextFragment,
     ContextManager,
     HistoryItem,
@@ -318,6 +325,11 @@ __all__ = [
     "ChainHooks",
     "ChildOutcome",
     "CompactionBoundary",
+    "CompactionPolicy",
+    "CompactionStart",
+    "CompactionSummary",
+    "resolve_compaction_policy",
+    "is_large_window",
     "CompactionHooks",
     "CompletionAction",
     "CompletionDecision",

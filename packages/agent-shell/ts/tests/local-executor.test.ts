@@ -38,10 +38,6 @@ const isMac = process.platform === 'darwin';
 const isLinux = process.platform === 'linux';
 // CI Linux 容器可能没装 zsh（spawn ENOENT），显式 zsh 用例按可用性跳过。
 const hasZsh = !isWin && spawnSync('zsh', ['--version'], { stdio: 'ignore' }).status === 0;
-// CI Linux 容器可能没装 zsh（spawn ENOENT），显式 zsh 用例按可用性跳过。
-const hasZsh = !isWin && spawnSync('zsh', ['--version'], { stdio: 'ignore' }).status === 0;
-// CI Linux 容器可能没装 zsh（spawn ENOENT），显式 zsh 用例按可用性跳过。
-const hasZsh = !isWin && spawnSync('zsh', ['--version'], { stdio: 'ignore' }).status === 0;
 
 describe('executeShell · 基础分支', () => {
   it('空命令 / 纯空白命令被拒绝（command is required）', async () => {

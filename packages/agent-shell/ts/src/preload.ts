@@ -169,23 +169,19 @@ const electronAPI = {
   },
   /**
    * 4.6a 后台任务状态推送：任务到达终态（completed/failed）或 worktree
-   * 合并/丢弃完成时，主进程广播 `task-updated`。载荷只带 chatId/taskId/
-   * status——renderer 收到后重新拉任务列表（GET /chats/:id/tasks），
+   * 合并/丢弃完成时，主进程广播 `task-updated`。载荷只带 chatId/taskId
+   * ——renderer 收到后重新拉任务列表（GET /chats/:id/tasks），
    * 不把整条任务记录塞进 IPC（避免与 SQLite 双写漂移）。
    */
   onTaskUpdated: (
-    callback: (payload: { chatId: string; taskId: string; status: string }) => void,
+    callback: (payload: { chatId: string; taskId: string }) => void,
   ) => {
     const handler = (
       _event: Electron.IpcRendererEvent,
-      payload: { chatId?: string; taskId?: string; status?: string },
+      payload: { chatId?: string; taskId?: string },
     ) => {
-      if (
-        typeof payload?.chatId === 'string' &&
-        typeof payload?.taskId === 'string' &&
-        typeof payload?.status === 'string'
-      ) {
-        callback({ chatId: payload.chatId, taskId: payload.taskId, status: payload.status });
+      if (typeof payload?.chatId === 'string' && typeof payload?.taskId === 'string') {
+        callback({ chatId: payload.chatId, taskId: payload.taskId });
       }
     };
     ipcRenderer.on('task-updated', handler);

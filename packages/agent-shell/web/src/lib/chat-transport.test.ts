@@ -67,10 +67,13 @@ describe('LocalBackendSseAdapter 帧归一化', () => {
     expect(ofType(events, 'done')).toHaveLength(1);
   });
 
+  // fixture 与服务端 router.ts onNotice 的真实发射形状一致（budget.kind + message）。
   it('budget_exhausted 在没有任何内容流过时原样透出、不结束流', () => {
     const { events, onEvent } = collectEvents();
     const adapter = new LocalBackendSseAdapter(onEvent);
-    adapter.feed('data: {"type":"budget_exhausted","message":"token limit"}\n\n');
+    adapter.feed(
+      'data: {"type":"budget_exhausted","budget":{"kind":"tokens"},"message":"budget_exhausted: tokens"}\n\n',
+    );
     expect(ofType(events, 'budget_exhausted')).toHaveLength(1);
     expect(ofType(events, 'done')).toHaveLength(0);
   });
@@ -79,7 +82,9 @@ describe('LocalBackendSseAdapter 帧归一化', () => {
     const { events, onEvent } = collectEvents();
     const adapter = new LocalBackendSseAdapter(onEvent);
     adapter.feed('data: {"content":"半截回答"}\n\n');
-    adapter.feed('data: {"type":"budget_exhausted","message":"token limit"}\n\n');
+    adapter.feed(
+      'data: {"type":"budget_exhausted","budget":{"kind":"tokens"},"message":"budget_exhausted: tokens"}\n\n',
+    );
     // 原事件被吞，替换为 suppression 标记 + done。
     expect(ofType(events, 'budget_exhausted')).toHaveLength(0);
     const suppressed = events.filter(

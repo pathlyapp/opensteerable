@@ -194,19 +194,20 @@ sequenceDiagram
 | 1 | 带滞回的压力触发 | ✅ 已发布 |
 | 2 | 带每轮上限的 overflow 恢复 | ✅ 已发布 |
 | 3 | 先确定性裁剪、后 LLM 摘要 | ✅ 已发布（fold 能降压就不点 LLM 阶段） |
-| 4 | warm-prefix 回放式摘要 | ✅ 已落地（本文 §Warm-prefix 回放；tag 中的 summarizer 仍是压平截断的旧版） |
+| 4 | warm-prefix 回放式摘要 | ✅ 已发布（v0.6.18，本文 §Warm-prefix 回放） |
 | 5 | 熔断器（失败 + 快速回填） | ✅ 已发布 |
 | 6 | 带 pre/post token 的录制边界 | ✅ 已发布（`CompactionBoundary`） |
-| 7 | **区段事务**——区段周围有崩溃安全、可回放的括号 | ✅ 已落地（record v3 括号三元组；恢复时复用已付费摘要仍待落地） |
-| 8 | **图像 offload**——旧图像降级为文本指针 | ✅ 已落地（prune 阶段内、视界内、record 留原件） |
-| 9 | **per-model 策略**——按模型验证过的阈值/保留量表 | ✅ 已落地（`resolve_compaction_policy`，见 §P3） |
-| 10 | **fold 视界对齐**——裁剪不越界进 tail | ✅ 已落地（基准发现的缺陷修复，见 §基准驱动的修复） |
+| 7 | **区段事务**——区段周围有崩溃安全、可回放的括号 | ✅ 已发布（v0.6.18，record v3 括号三元组；恢复时复用已付费摘要仍待落地） |
+| 8 | **图像 offload**——旧图像降级为文本指针 | ✅ 已发布（v0.6.18，prune 阶段内、视界内、record 留原件） |
+| 9 | **per-model 策略**——按模型验证过的阈值/保留量表 | ✅ 已发布（v0.6.18，`resolve_compaction_policy`，见 §P3） |
+| 10 | **fold 视界对齐**——裁剪不越界进 tail | ✅ 已发布（v0.6.18，基准发现的缺陷修复，见 §基准驱动的修复） |
 
 > 状态口径：「已发布」= 承载提交已进入某个 git tag（`git tag --contains <sha>`
 > 可核）；「已落地」= 已合入 develop、尚未进 tag。标「已落地」的条款随下一
-> tag 转为已发布，届时同步更新本表与 §迁移路径。
+> tag 转为已发布，届时同步更新本表与 §迁移路径。2026-09-16 落地的一批
+> （条款 4、7–10 与 §迁移路径 P0–P3）已随 v0.6.18 全部转为已发布。
 
-### P1——区段事务（括号先行的压缩）✅ 已落地
+### P1——区段事务（括号先行的压缩）✅ 已发布（v0.6.18）
 
 > **落地状态（2026-09-16）**：record schema v3 增加
 > `compaction_start` / `compaction_summary` 两个 envelope；
@@ -252,7 +253,7 @@ sequenceDiagram
 `CompactionBoundary` 成为 `compaction_replace` 的持久化形式；
 W6-10 宿主种子 reconcile 语义（`replacement_count`）不变。
 
-### P2——图像 offload ✅ 已落地
+### P2——图像 offload ✅ 已发布（v0.6.18）
 
 > **落地状态（2026-09-16）**：`_offload_old_images` 并入 prune 阶段
 > （`_prune_with_horizon` = fold + offload，同一视界），旋钮
@@ -280,7 +281,7 @@ flowchart LR
 通过 record 取回它的位置）；append-only record 保住字节。offload
 和 fold 一样只改写投影。
 
-### P3——per-model 策略 ✅ 已落地
+### P3——per-model 策略 ✅ 已发布（v0.6.18）
 
 > **落地状态（2026-09-16）**：`compaction_policy.py` 的
 > `resolve_compaction_policy(model, max_context_tokens)` 是唯一决策点
@@ -337,23 +338,23 @@ prompt token 总量反而下降（light 68,605 → 61,360；heavy 281,748 →
 
 ## 迁移路径
 
-1. **P0 warm-prefix 回放**——✅ 已落地（2026-09-16），随下一 tag
-   发布。L1 测试先红后绿，随后落地实现（`_summarize` 回放
+1. **P0 warm-prefix 回放**——✅ 已发布（v0.6.18，2026-09-16）。
+   L1 测试先红后绿，随后落地实现（`_summarize` 回放
    `[head, 原始 middle, 指令]`；`_summarize_middle` 新增
    `replay_source`，三个调用点全部接通）。v0.6.17 及以前的
    summarizer 仍是带外来 system prompt、按 `[role] 摘录` 压平并
    截到 2000 字符的旧版。
-2. **fold 视界对齐**——✅ 已落地（2026-09-16），随下一 tag 发布。
+2. **fold 视界对齐**——✅ 已发布（v0.6.18，2026-09-16）。
    评测套件发现的 tail 泄漏；fold/offload 视界 = tail 起点，兜底
    无视界 fold 只接退化情形。针召回 0.58/0.80 → 1.00/1.00。
-3. **P1 区段事务**——✅ 大部分已落地（2026-09-16），随下一 tag
-   发布：record v3 括号三元组 + loop 接线 + L2 断言。剩余：start
+3. **P1 区段事务**——✅ 大部分已发布（v0.6.18，2026-09-16）：
+   record v3 括号三元组 + loop 接线 + L2 断言。剩余：start
    先于 summarizer 落库（hook 持有 record 通道）与恢复时复用已
    付费摘要，随崩溃注入测试一起落地。
-4. **P2 图像 offload**——✅ 已落地（2026-09-16），随下一 tag
-   发布：prune 阶段内、视界内、计数门控；summarizer 回放文本化。
-5. **P3 per-model 策略**——✅ 已落地（2026-09-16），随下一 tag
-   发布：`resolve_compaction_policy` 成为唯一决策点，两处组装
+4. **P2 图像 offload**——✅ 已发布（v0.6.18，2026-09-16）：
+   prune 阶段内、视界内、计数门控；summarizer 回放文本化。
+5. **P3 per-model 策略**——✅ 已发布（v0.6.18，2026-09-16）：
+   `resolve_compaction_policy` 成为唯一决策点，两处组装
    if/else 删除。
 
 ## 非目标

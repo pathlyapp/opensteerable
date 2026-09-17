@@ -164,10 +164,10 @@ export interface ElectronBridge {
   ) => () => void;
   /**
    * 4.6a 后台任务状态推送。任务到达终态或 worktree 合并/丢弃完成时主进程
-   * 广播；载荷只有 chatId/taskId/status，面板收到后重新拉列表。
+   * 广播；载荷只有 chatId/taskId，面板收到后重新拉列表。
    */
   onTaskUpdated?: (
-    callback: (payload: { chatId: string; taskId: string; status: string }) => void,
+    callback: (payload: { chatId: string; taskId: string }) => void,
   ) => () => void;
   /**
    * 场景包广播事件订阅（3.1 通用化）：按通道名订阅主进程/BS 后端的

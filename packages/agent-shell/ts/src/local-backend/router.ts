@@ -3236,10 +3236,15 @@ export class LocalBackendRouter {
         onNotice: (kind, notice) => {
           if (kind === 'budget_exhausted') {
             // 预算维度（rounds/tokens）在 notice.budget；notice.kind 是信封
-            // 类型（loop 事件 data 里的 budget 键经 sidecar 透传）。
+            // 类型（loop 事件 data 里的 budget 键经 sidecar 透传）。message
+            // 是客户端读取的人类可读原因（chat-transport 的 reason 字段）。
             const budgetKind =
               typeof notice?.budget === 'string' ? notice.budget : undefined;
-            emit(this.sseData({ type: 'budget_exhausted', budget: { kind: budgetKind } }));
+            emit(this.sseData({
+              type: 'budget_exhausted',
+              budget: { kind: budgetKind },
+              message: budgetKind ? `budget_exhausted: ${budgetKind}` : 'budget_exhausted',
+            }));
           }
         },
         onChildEvent: (event) => {

@@ -76,6 +76,16 @@ describe('fallbackSuggestedReplies', () => {
     ).toEqual(['调整幻灯片的内容和文案', '调整配色和版式', '再加一页补充材料']);
   });
 
+  it('PPT 校验未通过 / 预览稿未生成时首条建议继续生成', () => {
+    const suggestions = fallbackSuggestedReplies(
+      '创建PPT',
+      'spec_lock 验证尚未通过，需要修复后继续生成 PPT 预览稿。请确认是否继续执行修复和生成流程。',
+    );
+    expect(suggestions).toHaveLength(3);
+    expect(suggestions[0]).toBe('继续修复并生成 PPT 预览稿');
+    expect(suggestions).toContain('按当前方案继续生成 PPT 预览');
+  });
+
   it('代码回复走解释/测试/可读性', () => {
     expect(fallbackSuggestedReplies('修这个函数', '```ts\nexport function foo() {}\n```')).toEqual([
       '解释这段实现的思路',

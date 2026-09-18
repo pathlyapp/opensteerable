@@ -22,8 +22,9 @@ const SYSTEM_PROMPT = `你是对话追问建议助手。根据用户上一轮请
 2. 每条 8-28 个字，用用户口吻，像用户会打的话
 3. 紧扣刚刚完成的工作：改内容、改样式、继续深入、换方向；不要空泛的「再详细说说」
 4. 如果助手已经邀请后续操作（例如「如需修改内容或调整样式」），把那些邀请写成具体可执行的短句
-5. 不要编号、不要引号、不要解释
-6. 只输出 JSON 字符串数组，例如 ["调整封面配色","把个人简介写得更具体","再加一页项目案例"]`;
+5. 如果助手回复显示任务尚未完成、校验/验证未通过、或助手在问「是否继续」，第一条建议必须是继续完成任务的短句（例如「继续生成 PPT 预览稿」「继续修复配置并生成预览稿」）
+6. 不要编号、不要引号、不要解释
+7. 只输出 JSON 字符串数组，例如 ["调整封面配色","把个人简介写得更具体","再加一页项目案例"]`;
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
   if (timeoutMs <= 0) return promise;
@@ -112,6 +113,11 @@ const PLAN_FALLBACK = ['按这个计划开始执行', '先改第 2 步再执行'
 const CODE_FALLBACK = ['解释这段实现的思路', '帮我补上测试', '再优化一下可读性'];
 const GENERIC_FALLBACK = ['继续完善这份结果', '换一种呈现方式', '告诉我下一步怎么做'];
 const PPT_OFFER_FALLBACK = ['调整幻灯片的内容和文案', '调整配色和版式', '再加一页补充材料'];
+const PPT_INCOMPLETE_FALLBACK = [
+  '继续修复并生成 PPT 预览稿',
+  '按当前方案继续生成 PPT 预览',
+  '先修正配置再继续生成预览稿',
+];
 
 /**
  * 不调模型的启发式三条。PPT / 计划 / 代码有专用句子，其它走通用。
@@ -120,6 +126,15 @@ const PPT_OFFER_FALLBACK = ['调整幻灯片的内容和文案', '调整配色�
 export function fallbackSuggestedReplies(userText: string, assistantText: string): string[] {
   const blob = `${userText}\n${assistantText}`;
   if (/\.pptx\b|幻灯片|演示文稿|\bppt\b/i.test(blob)) { // shell-neutral:allow — Office 扩展名 'ppt'/'.pptx'，不是产品品牌
+    // PPT 任务未完成：校验未通过、预览稿未生成、助手在问是否继续时，
+    // 第一条建议必须是可以直接点发、继续把 PPT 预览稿生成出来的指令。
+    if (
+      /svg_output|SVG\s*预览|预览.{0,12}(?:未|没有|为空|尚未)|验证.{0,12}(?:未通过|失败|错误)|校验.{0,12}(?:未通过|失败|错误)|是否继续|请确认是否继续/.test(
+        assistantText,
+      )
+    ) {
+      return uniqueThree(PPT_INCOMPLETE_FALLBACK, PPT_FALLBACK);
+    }
     if (/修改内容|调整样式/.test(assistantText)) {
       return uniqueThree(PPT_OFFER_FALLBACK, PPT_FALLBACK);
     }

@@ -16,14 +16,14 @@ describe('brand / shell 默认（无产品注入）', () => {
 describe('brand / setProductBrand 注入（产品组装根 products/<id>/active.ts 的入口）', () => {
   it('注入后 getBrand 反映产品品牌；重复注入抛错', () => {
     setProductBrand({
-      displayName: 'DomainTool智能助手',
-      agentName: 'DomainTool智能助手',
-      tagline: 'domain解释智能助手',
-      defaultAgentId: 'domain_tool-operator',
+      displayName: '测试助手',
+      agentName: '测试助手',
+      tagline: '通用智能助手',
+      defaultAgentId: 'test-operator',
     });
     const brand = getBrand();
-    expect(brand.displayName).toBe('DomainTool智能助手');
-    expect(brand.defaultAgentId).toBe('domain_tool-operator');
+    expect(brand.displayName).toBe('测试助手');
+    expect(brand.defaultAgentId).toBe('test-operator');
     expect(() =>
       setProductBrand({
         displayName: 'x',

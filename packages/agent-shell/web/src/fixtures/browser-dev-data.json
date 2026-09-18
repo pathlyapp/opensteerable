@@ -1,0 +1,315 @@
+{
+  "version": 1,
+  "exportedAt": null,
+  "source": "hand-curated neutral fixtures",
+  "agents": [
+    {
+      "id": "local-assistant",
+      "slug": "local-assistant",
+      "name": "电脑操作员",
+      "icon": "Cpu",
+      "color": "#4f46e5",
+      "description": "默认本地助手，可调用 shell、文件与 MCP 工具。",
+      "rolePrompt": "你是 **电脑操作员**，本地离线助手，回答时清晰、可执行。",
+      "forbiddenPrompt": null,
+      "skillIds": [],
+      "toolPolicy": {
+        "mode": "all",
+        "tools": []
+      },
+      "allowExternalSkills": true,
+      "isBuiltin": true,
+      "isArchived": false,
+      "sortOrder": 0,
+      "createdAt": "2026-06-22T03:32:30.256Z",
+      "updatedAt": "2026-06-22T03:32:30.256Z"
+    },
+    {
+      "id": "data-analyst",
+      "slug": "data-analyst",
+      "name": "数据分析助手",
+      "icon": "Activity",
+      "color": "#0ea5e9",
+      "description": "处理本地 CSV 与日志文件：清洗、统计、出图与汇总报告。",
+      "rolePrompt": "你是 **数据分析助手**，专注本地数据文件的清洗、统计与可视化。\n工作语言：中文。回答简洁、结论先行。\n\n工作纪律：\n1) 先探查文件结构再动手；\n2) 每一步都说明做了什么；\n3) 结果用表格或要点呈现。",
+      "forbiddenPrompt": null,
+      "skillIds": [],
+      "toolPolicy": {
+        "mode": "all",
+        "tools": []
+      },
+      "allowExternalSkills": true,
+      "isBuiltin": true,
+      "isArchived": false,
+      "sortOrder": 1,
+      "createdAt": "2026-06-22T03:32:30.256Z",
+      "updatedAt": "2026-06-22T03:32:30.256Z"
+    },
+    {
+      "id": "all-round-assistant",
+      "slug": "all-round-assistant",
+      "name": "智能助手",
+      "icon": "🔮",
+      "color": "#a855f7",
+      "description": "全能智能体，自动加载全部已安装本地技能和工具，无需限定条件。",
+      "rolePrompt": "你是 **智能助手**，一个具备高权限且集成了全部本地技能（Skills）的行动体。\n你具备完整的本地命令执行（local_exec_shell）、文件读写与数据分析能力。\n你的系统提示词中已经无条件加载了所有已安装的本地技能与工具。\n请根据用户的需求，直接、高效地调用最合适的本地工具或执行脚本来解决任务。",
+      "forbiddenPrompt": null,
+      "skillIds": [],
+      "toolPolicy": {
+        "mode": "all",
+        "tools": []
+      },
+      "allowExternalSkills": true,
+      "isBuiltin": true,
+      "isArchived": false,
+      "sortOrder": 2,
+      "createdAt": "2026-06-22T03:32:30.256Z",
+      "updatedAt": "2026-06-22T03:32:30.256Z"
+    }
+  ],
+  "chats": [
+    {
+      "id": "8286e3c8-2d83-409e-930a-3e99b2004d41",
+      "projectId": null,
+      "userId": "local",
+      "title": "你好",
+      "agentId": "local-assistant",
+      "createdAt": "2026-07-01T10:05:58.604Z",
+      "updatedAt": "2026-07-01T10:06:06.736Z",
+      "isPinned": false,
+      "systemPrompt": null,
+      "pinnedRefs": null
+    },
+    {
+      "id": "8b13a92e-4b3e-4bac-885f-879ddd9e4835",
+      "projectId": null,
+      "userId": "local",
+      "title": "启用 csv-data-tools 技能",
+      "agentId": "all-round-assistant",
+      "createdAt": "2026-06-22T04:30:54.662Z",
+      "updatedAt": "2026-06-22T04:32:12.657Z",
+      "isPinned": false,
+      "systemPrompt": null,
+      "pinnedRefs": null
+    },
+    {
+      "id": "d536659c-6492-424d-97e8-2f701a9ce5d8",
+      "projectId": null,
+      "userId": "local",
+      "title": "新对话",
+      "agentId": "all-round-assistant",
+      "createdAt": "2026-06-22T04:19:52.607Z",
+      "updatedAt": "2026-06-22T04:20:00.151Z",
+      "isPinned": false,
+      "systemPrompt": null,
+      "pinnedRefs": null
+    },
+    {
+      "id": "4845b527-c9c9-467c-9d72-5fc5f8763aa5",
+      "projectId": null,
+      "userId": "local",
+      "title": "新对话",
+      "agentId": "all-round-assistant",
+      "createdAt": "2026-06-22T04:12:17.151Z",
+      "updatedAt": "2026-06-22T04:12:22.038Z",
+      "isPinned": false,
+      "systemPrompt": null,
+      "pinnedRefs": null
+    },
+    {
+      "id": "405f5964-f01c-4ece-9c8f-02a73d539469",
+      "projectId": null,
+      "userId": "local",
+      "title": "启用 csv-data-tools 技能",
+      "agentId": "all-round-assistant",
+      "createdAt": "2026-06-22T04:06:21.745Z",
+      "updatedAt": "2026-06-22T04:11:42.782Z",
+      "isPinned": false,
+      "systemPrompt": null,
+      "pinnedRefs": null
+    },
+    {
+      "id": "19a1d8e7-7e9c-425b-8509-0fe9dd292971",
+      "projectId": null,
+      "userId": "local",
+      "title": "启用 csv-data-tools 技能",
+      "agentId": "all-round-assistant",
+      "createdAt": "2026-06-22T04:01:21.158Z",
+      "updatedAt": "2026-06-22T04:05:08.801Z",
+      "isPinned": false,
+      "systemPrompt": null,
+      "pinnedRefs": null
+    },
+    {
+      "id": "492c1a80-85b2-486a-b365-3d668c9ad7e6",
+      "projectId": null,
+      "userId": "local",
+      "title": "新对话",
+      "agentId": "all-round-assistant",
+      "createdAt": "2026-06-22T03:44:47.381Z",
+      "updatedAt": "2026-06-22T03:44:54.479Z",
+      "isPinned": false,
+      "systemPrompt": null,
+      "pinnedRefs": null
+    },
+    {
+      "id": "4e997d62-20ef-4937-a866-27778dee3a17",
+      "projectId": null,
+      "userId": "local",
+      "title": "hi",
+      "agentId": "all-round-assistant",
+      "createdAt": "2026-06-22T03:34:36.892Z",
+      "updatedAt": "2026-06-22T03:37:37.601Z",
+      "isPinned": false,
+      "systemPrompt": null,
+      "pinnedRefs": null
+    }
+  ],
+  "messagesByChatId": {
+    "8286e3c8-2d83-409e-930a-3e99b2004d41": [
+      {
+        "id": "ea36a5de-e2e0-428b-b882-f5e67ca326b0",
+        "chatId": "8286e3c8-2d83-409e-930a-3e99b2004d41",
+        "role": "assistant",
+        "content": "你好！我是**本地智能助手**，运行在你的本地机器上。\n\n我可以帮你做这些事情：\n\n**💻 本地终端操作**\n- 执行 shell 命令、读写文件\n- 搜索代码库、批量替换\n\n**📊 数据处理**\n- 清洗 CSV / 日志文件\n- 生成统计汇总\n\n直接输入需求即可开始。",
+        "createdAt": "2026-07-01T10:06:06.733Z",
+        "messageMetadata": "{\"traceId\":\"tr_269aa1b0f5244962b3279304d6f26323\",\"completionStatus\":\"completed\",\"trace\":{\"traceId\":\"tr_269aa1b0f5244962b3279304d6f26323\",\"sessionId\":\"8286e3c8-2d83-409e-930a-3e99b2004d41\",\"chatId\":\"8286e3c8-2d83-409e-930a-3e99b2004d41\",\"startedAtMs\":1782900364396,\"eventCount\":3,\"spanCount\":1,\"events\":[{\"name\":\"stream_start\",\"timestampMs\":1782900364396,\"data\":{\"path\":\"/api/v2/chats/8286e3c8-2d83-409e-930a-3e99b2004d41/run\",\"method\":\"POST\"}},{\"name\":\"completion_decision\",\"timestampMs\":1782900366733,\"data\":{\"status\":\"completed\",\"reason\":\"assistant produced final response with no pending tools\",\"confidence\":0.85,\"evidence\":[{\"textLength\":218,\"toolCalls\":[],\"toolErrorCount\":0}]}},{\"name\":\"stream_complete\",\"timestampMs\":1782900366733,\"data\":{\"usedTool\":false,\"completionStatus\":\"completed\",\"assistantLength\":218}}],\"spans\":[{\"name\":\"llm_call\",\"stepId\":\"step_1\",\"startMs\":1782900364396,\"endMs\":1782900366733,\"status\":\"ok\",\"data\":{\"turn\":0,\"model\":\"default\",\"tokensUsed\":{\"prompt\":8596,\"completion\":130,\"total\":8726},\"toolCalls\":0},\"durationMs\":2337}]},\"executedActions\":[]}"
+      },
+      {
+        "id": "ab1387a6-5c43-4d4b-986d-073d98b3f5e2",
+        "chatId": "8286e3c8-2d83-409e-930a-3e99b2004d41",
+        "role": "user",
+        "content": "你好",
+        "createdAt": "2026-07-01T10:06:04.392Z",
+        "messageMetadata": null
+      }
+    ],
+    "8b13a92e-4b3e-4bac-885f-879ddd9e4835": [
+      {
+        "id": "6599eb84-515c-4f58-bec8-0f37fcfbb234",
+        "chatId": "8b13a92e-4b3e-4bac-885f-879ddd9e4835",
+        "role": "assistant",
+        "content": "好的，我先查看 `csv-data-tools` 技能的可用模块。\n\n**`csv-data-tools`** 技能已就绪。以下是它的能力概览：\n\n---\n\n## 📦 csv-data-tools\n\n- `csv_stats` — 列级统计（行数、缺失、分布）\n- `csv_filter` — 条件过滤与导出\n- `csv_plot` — 快速出图\n\n告诉我文件路径即可开始。",
+        "createdAt": "2026-06-22T04:32:11.576Z",
+        "messageMetadata": null
+      },
+      {
+        "id": "a6d5f510-e26c-4fd5-878b-74ea98a977f9",
+        "chatId": "8b13a92e-4b3e-4bac-885f-879ddd9e4835",
+        "role": "user",
+        "content": "/csv-data-tools",
+        "createdAt": "2026-06-22T04:31:01.151Z",
+        "messageMetadata": null
+      }
+    ],
+    "d536659c-6492-424d-97e8-2f701a9ce5d8": [
+      {
+        "id": "9b04bf0c-2d90-4e27-b891-9871207d177e",
+        "chatId": "d536659c-6492-424d-97e8-2f701a9ce5d8",
+        "role": "user",
+        "content": "/csv-data-tools",
+        "createdAt": "2026-06-22T04:20:00.151Z",
+        "messageMetadata": null
+      }
+    ],
+    "4845b527-c9c9-467c-9d72-5fc5f8763aa5": [
+      {
+        "id": "abb7c501-67d1-4ca4-8d94-708bbd55646f",
+        "chatId": "4845b527-c9c9-467c-9d72-5fc5f8763aa5",
+        "role": "user",
+        "content": "/csv-data-tools",
+        "createdAt": "2026-06-22T04:12:22.038Z",
+        "messageMetadata": null
+      }
+    ],
+    "405f5964-f01c-4ece-9c8f-02a73d539469": [
+      {
+        "id": "c8dc9e96-642b-4232-8c3c-c8abc32a615c",
+        "chatId": "405f5964-f01c-4ece-9c8f-02a73d539469",
+        "role": "assistant",
+        "content": "我来查看当前可用的 MCP 工具，找到 `csv-data-tools` 的相关信息。\n\n看起来 `csv-data-tools` 没有作为独立的 MCP 服务器注册。换个方式，先扫描本地脚本和可执行工具。\n\n结论：该技能当前未安装，可通过技能设置页导入。",
+        "createdAt": "2026-06-22T04:11:42.077Z",
+        "messageMetadata": null
+      },
+      {
+        "id": "d4c21f8f-b4ab-4dc0-bc48-611bc66847a4",
+        "chatId": "405f5964-f01c-4ece-9c8f-02a73d539469",
+        "role": "user",
+        "content": "/csv-data-tools",
+        "createdAt": "2026-06-22T04:06:27.797Z",
+        "messageMetadata": null
+      }
+    ],
+    "19a1d8e7-7e9c-425b-8509-0fe9dd292971": [
+      {
+        "id": "cfb0f03c-7faa-4594-b29f-f4c11fb09105",
+        "chatId": "19a1d8e7-7e9c-425b-8509-0fe9dd292971",
+        "role": "assistant",
+        "content": "本地模型调用失败：无法连接 OpenAI 兼容网关 (https://api.deepseek.com)，请检查 baseUrl / 网络。原始错误: fetch failed",
+        "createdAt": "2026-06-22T04:05:06.751Z",
+        "messageMetadata": null
+      },
+      {
+        "id": "2d7469fc-1a58-488b-beb8-c372e54e3def",
+        "chatId": "19a1d8e7-7e9c-425b-8509-0fe9dd292971",
+        "role": "user",
+        "content": "/csv-data-tools",
+        "createdAt": "2026-06-22T04:01:55.866Z",
+        "messageMetadata": null
+      }
+    ],
+    "492c1a80-85b2-486a-b365-3d668c9ad7e6": [
+      {
+        "id": "6ca59f0c-6df7-4747-9c96-80812d459a96",
+        "chatId": "492c1a80-85b2-486a-b365-3d668c9ad7e6",
+        "role": "user",
+        "content": "/csv-data-tools",
+        "createdAt": "2026-06-22T03:44:54.479Z",
+        "messageMetadata": null
+      }
+    ],
+    "4e997d62-20ef-4937-a866-27778dee3a17": [
+      {
+        "id": "c5d6136b-eaa4-4cc7-878b-450099b7d226",
+        "chatId": "4e997d62-20ef-4937-a866-27778dee3a17",
+        "role": "assistant",
+        "content": "我来查看当前可用的 MCP 工具，找到 `csv-data-tools` 的相关信息。\n\n看起来 `csv-data-tools` 没有作为独立的 MCP 服务器注册。换个方式，先扫描本地脚本和可执行工具。\n\n结论：该技能当前未安装，可通过技能设置页导入。",
+        "createdAt": "2026-06-22T03:37:37.601Z",
+        "messageMetadata": null
+      },
+      {
+        "id": "68f12c35-7de5-49f3-af14-ca5deae13dee",
+        "chatId": "4e997d62-20ef-4937-a866-27778dee3a17",
+        "role": "user",
+        "content": "/csv-data-tools",
+        "createdAt": "2026-06-22T03:36:49.529Z",
+        "messageMetadata": null
+      },
+      {
+        "id": "fa89030e-5db1-4d04-9320-e796baeb89e2",
+        "chatId": "4e997d62-20ef-4937-a866-27778dee3a17",
+        "role": "assistant",
+        "content": "你好！我是**本地智能助手**，运行在你的本地机器上。\n\n我可以帮你做这些事情：\n\n**💻 本地终端操作**\n- 执行 shell 命令、读写文件\n- 搜索代码库、批量替换\n\n**📊 数据处理**\n- 清洗 CSV / 日志文件\n- 生成统计汇总\n\n直接输入需求即可开始。",
+        "createdAt": "2026-06-22T03:34:48.778Z",
+        "messageMetadata": "{\"traceId\":\"tr_f53c2142bbd347b5888f9d50c5444478\",\"completionStatus\":\"completed\",\"trace\":{\"traceId\":\"tr_f53c2142bbd347b5888f9d50c5444478\",\"sessionId\":\"4e997d62-20ef-4937-a866-27778dee3a17\",\"chatId\":\"4e997d62-20ef-4937-a866-27778dee3a17\",\"startedAtMs\":1782099286405,\"eventCount\":3,\"spanCount\":1,\"events\":[{\"name\":\"stream_start\",\"timestampMs\":1782099286405,\"data\":{\"path\":\"/api/v2/chats/4e997d62-20ef-4937-a866-27778dee3a17/run\",\"method\":\"POST\"}},{\"name\":\"completion_decision\",\"timestampMs\":1782099288778,\"data\":{\"status\":\"completed\",\"reason\":\"assistant produced final response with no pending tools\",\"confidence\":0.85,\"evidence\":[{\"textLength\":224,\"toolCalls\":[],\"toolErrorCount\":0}]}},{\"name\":\"stream_complete\",\"timestampMs\":1782099288778,\"data\":{\"usedTool\":false,\"completionStatus\":\"completed\",\"assistantLength\":224}}],\"spans\":[{\"name\":\"llm_call\",\"stepId\":\"step_1\",\"startMs\":1782099286405,\"endMs\":1782099288777,\"status\":\"ok\",\"data\":{\"turn\":0,\"model\":\"default\",\"tokensUsed\":{\"prompt\":2234,\"completion\":130,\"total\":2364},\"toolCalls\":0},\"durationMs\":2372}]},\"executedActions\":[]}"
+      },
+      {
+        "id": "82c95340-1d74-49fe-abe7-2184aeab9f8c",
+        "chatId": "4e997d62-20ef-4937-a866-27778dee3a17",
+        "role": "user",
+        "content": "hi",
+        "createdAt": "2026-06-22T03:34:46.403Z",
+        "messageMetadata": null
+      }
+    ]
+  },
+  "llmSettings": {
+    "provider": "openai-compat",
+    "model": "deepseek-chat",
+    "baseUrl": "https://api.deepseek.com",
+    "apiKey": "",
+    "temperature": 0.3,
+    "systemPrompt": "你是一款本地行动助手，优先给出可执行建议并在需要时调用本地工具。"
+  },
+  "skills": []
+}

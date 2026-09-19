@@ -45,7 +45,57 @@ python -m evals.run --agent claude-code-glm --split loss-34 --dry-run
 python -m evals.run --agent codex --split cheap-12 --tasks fix-git
 ```
 
-`--split cheap-12` is the live weekly gate (12 ids). `--split failed-prev` reruns remaining catalog-89 zeros (31 ids, 24 shards) for harness iteration. `--split catalog` is all 89; GitHub Actions runs it via `Evals weekly` `workflow_dispatch` with split `catalog` (49 shards). `--split flaky` is the 27 coin-toss tasks for paired A/B (six-run rebuild). `--split loss-34` is those 27 plus the 7 stable reds — use it for Claude Code GLM reruns, not for GHA sharding.
+`--split cheap-12` is the live weekly gate (12 ids). `--split failed-prev` reruns remaining catalog-89 zeros (31 ids, 24 shards) for harness iteration. `--split catalog` is all 89; GitHub Actions runs it via `Evals weekly` `workflow_dispatch` with split `catalog` (49 shards). `--split flaky` is the 27 coin-toss tasks sampled three times on two Rust arms (not a Python/Rust engine A/B). `--split loss-34` is those 27 plus the 7 stable reds — use it for Claude Code GLM reruns, not for GHA sharding.
+
+An explicit-task catalog dispatch also applies `arm_b_env`, restricted to
+`STEERABLE_*` assignments. This is the failed-task experiment path: keep the
+committed implementation fixed, select only the ids under investigation with
+`tasks`, and vary an opt-in runtime mechanism without creating another branch.
+Whole-catalog dispatches ignore these overrides.
+
+Set `replicate` to a distinct label (`1`, `2`, `3`, …) for independent
+samples that should run concurrently. The label participates only in the
+GitHub concurrency key; it is not forwarded to Harbor or the model.
+
+The Steerable Harbor jobs download both manylinux and musllinux `cp310-abi3`
+native wheels from PyPI and select by trial libc. Local Harbor runs must
+provide both verified wheels explicitly:
+
+```bash
+python scripts/fetch_verified_artifacts.py wheel \
+  --lockstep --platform manylinux-x64 --out dist/native
+python scripts/fetch_verified_artifacts.py wheel \
+  --lockstep --platform musllinux-x64 --out dist/native
+export STEERABLE_NATIVE_WHEEL="$(
+  python -c 'from pathlib import Path; print(next(p for p in Path("dist/native").glob("*.whl") if "manylinux" in p.name and "musllinux" not in p.name).resolve())'
+)"
+export STEERABLE_NATIVE_WHEEL_MUSL="$(
+  python -c 'from pathlib import Path; print(next(Path("dist/native").glob("*musllinux*.whl")).resolve())'
+)"
+python -m evals.run --agent steerable --split cheap-12
+```
+
+The wheel must match the Harbor container platform; catalog includes Alpine
+QEMU tasks that require `STEERABLE_NATIVE_WHEEL_MUSL`. A macOS wheel cannot be
+installed into a Linux trial. The adapter fails before the paid model run if
+either catalog wheel is missing.
+
+Agent setup injects host-provided `uv` and Python before creating its private
+venv. It does not apt-install Python or pip into the task image; doing so can
+partially upgrade old Debian images and break the verifier's later dependency
+install.
+
+Before Harbor starts the verifier, the adapter checks the Debian package
+database. If agent setup left an interrupted apt transaction, it runs
+`dpkg --configure -a` and `apt-get -f install` before the verifier installs
+its declared tools. Healthy images are untouched; this prevents missing
+verifier binaries from being scored as agent failures.
+
+Debian 11 reached EOL on 2026-08-31 and its security package files no longer
+match the published index. For Bullseye images, verifier preparation switches
+the main repositories to `archive.debian.org`, disables the withdrawn
+`debian-security` source, and rebuilds apt lists. This applies by OS release,
+not by task id.
 
 ## Claude Code on GLM (same-model comparison)
 

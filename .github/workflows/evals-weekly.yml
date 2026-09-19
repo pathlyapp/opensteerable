@@ -483,7 +483,8 @@ jobs:
   # trial: 150 separate single-trial jobs would queue three deep behind the 50
   # GHA has been seen to run at once. Both arms run the same commit and differ
   # only in the forwarded tunables, which keeps the task set, the model, and
-  # the sampling identical between them.
+  # the sampling identical between them. Arm A is the Python control and arm
+  # B is the Rust candidate; `arm_b_env` must stay empty for this engine A/B.
   flaky:
     name: TB 2.1 flaky arm ${{ matrix.arm }} shard ${{ matrix.shard }}/27
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.split == 'flaky' }}
@@ -500,7 +501,7 @@ jobs:
       - run: uv sync
       - uses: ./.github/actions/setup-harbor
         with:
-          rust-coreloop: "true"
+          rust-coreloop: ${{ matrix.arm == 'b' }}
       - run: docker info
       - name: Arm B overrides
         if: ${{ matrix.arm == 'b' }}
@@ -692,10 +693,11 @@ jobs:
               title = "开始 · GHA failed-prev"
               body = "产品 steerable × 上次 catalog 失败题（23），24 分片。用来迭代 harness，不是正式分。"
           elif split == "flaky":
-              title = "开始 · GHA flaky A/B"
+              title = "开始 · GHA flaky Python/Rust A/B"
               overrides = (os.environ.get("ARM_B_ENV") or "").strip() or "(none)"
               body = (
-                  "15 题 × 2 臂 × 3 次，单题 85 分钟上限。判断 harness 改动，不是正式分。"
+                  "27 题 × 2 臂 × 3 次，Arm A=Python、Arm B=Rust。"
+                  "单题 85 分钟上限；判断 CoreLoop 差异，不是正式分。"
                   f"\nArm B:\n{overrides}"
               )
           else:
@@ -796,7 +798,7 @@ jobs:
           elif [ "$EVAL_SPLIT" = "failed-prev" ]; then
             label="GHA failed-prev"
           elif [ "$EVAL_SPLIT" = "flaky" ]; then
-            label="GHA flaky A/B"
+            label="GHA flaky Python/Rust A/B"
           elif [ "$EVAL_SPLIT" = "cheap-12" ] && [ -n "$EVAL_MODEL" ]; then
             label="cheap-12 probe × $EVAL_MODEL · $CORELOOP"
             if [ -n "$EVAL_EFFORT" ]; then

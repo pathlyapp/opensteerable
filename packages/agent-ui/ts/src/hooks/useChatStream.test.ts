@@ -204,6 +204,26 @@ describe('useChatStream', () => {
     expect(result.current.isStreaming).toBe(false);
   });
 
+  it('notifies onStreamError when the transport rejects', async () => {
+    const onStreamError = vi.fn();
+    const transport: ChatStreamTransport = {
+      stream: async () => {
+        throw new Error('network error');
+      },
+    };
+    const { result } = renderHook(() => useChatStream({ transport, onStreamError }));
+
+    await act(async () => {
+      await result.current.sendUserMessage({ content: 'hi' });
+    });
+
+    await waitFor(() => {
+      expect(onStreamError).toHaveBeenCalledTimes(1);
+      expect(onStreamError.mock.calls[0]?.[0]).toBeInstanceOf(Error);
+      expect(onStreamError.mock.calls[0]?.[0].message).toBe('network error');
+    });
+  });
+
   it('renders error events from the protocol as inline overlays', async () => {
     const { transport } = makeTransport([
       [

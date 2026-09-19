@@ -629,6 +629,15 @@ function AgentChatView({
     // 是 fire-and-forget 的，所以这边不需要也不应该处理 chat_title_updated。
   }, []);
 
+  // 前端流式连接断开（浏览器/网络层）时，后端回合可能仍在运行。不要停在
+  // 「请求失败：network error」；立即 remount 做一次对账：
+  //   - 后端仍 active → 新 mount 从 /live-stream 快照继续展示；
+  //   - 后端已结束 → 新 mount 从 /messages 拉最终落库消息。
+  // 这样就不需要用户手动刷新页面。
+  const handleStreamError = useCallback(() => {
+    onBranchTick();
+  }, [onBranchTick]);
+
   const {
     messages,
     isStreaming,
@@ -644,6 +653,7 @@ function AgentChatView({
     transport,
     initialMessages,
     onUnknownEvent: handleUnknownEvent,
+    onStreamError: handleStreamError,
   });
 
   // ── 切回恢复：远端回合仍在跑，但本 mount 不是发起者 ──────────────────

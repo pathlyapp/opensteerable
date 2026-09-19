@@ -478,6 +478,8 @@ def test_gha_forwards_steerable_gateway_not_official_openai() -> None:
     assert "coreloop:" in weekly
     assert "github.event.inputs.coreloop != 'python'" in weekly
     assert "CORELOOP: ${{ github.event.inputs.coreloop || 'rust' }}" in weekly
+    assert "rust-coreloop: ${{ matrix.arm == 'b' }}" in weekly
+    assert "Arm A=Python、Arm B=Rust" in weekly
     assert "python3 -m evals.feishu" in weekly
     assert "python3 -m evals.feishu" in oracle
     assert "if: ${{ !cancelled() }}" in oracle

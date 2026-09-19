@@ -6,7 +6,6 @@ inputs:
     description: Harbor version (keep in sync with evals/suite.yaml run.harbor_version)
     required: false
     default: "0.22.0"
-
 runs:
   using: composite
   steps:
@@ -15,6 +14,29 @@ runs:
       run: |
         uv tool install "harbor==${{ inputs.version }}"
         echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+    - name: Download verified Rust CoreLoop wheels
+      shell: bash
+      run: |
+        python3 scripts/fetch_verified_artifacts.py wheel \
+          --lockstep --platform manylinux-x64 --out dist/native
+        python3 scripts/fetch_verified_artifacts.py wheel \
+          --lockstep --platform musllinux-x64 --out dist/native
+        readarray -t wheels < <(python3 - <<'PY'
+        from pathlib import Path
+        wheels = sorted(Path("dist/native").glob("*.whl"))
+        manylinux = [wheel for wheel in wheels if "manylinux" in wheel.name and "musllinux" not in wheel.name]
+        musllinux = [wheel for wheel in wheels if "musllinux" in wheel.name]
+        if len(manylinux) != 1 or len(musllinux) != 1:
+            raise SystemExit(
+                "expected one manylinux and one musllinux Rust CoreLoop wheel, "
+                f"found manylinux={manylinux}, musllinux={musllinux}"
+            )
+        print(manylinux[0].resolve())
+        print(musllinux[0].resolve())
+        PY
+        )
+        echo "STEERABLE_NATIVE_WHEEL=${wheels[0]}" >> "$GITHUB_ENV"
+        echo "STEERABLE_NATIVE_WHEEL_MUSL=${wheels[1]}" >> "$GITHUB_ENV"
     - name: Prefetch musl uv for qemu trials
       shell: bash
       run: |

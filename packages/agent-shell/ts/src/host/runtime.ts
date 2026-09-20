@@ -301,7 +301,13 @@ export async function createHostRuntime(options: HostRuntimeOptions): Promise<Ho
           (await localBackendRouter.resolveChatProject(chatId))?.folderPath ?? null,
         // 项目模式下文件读写被围栏在项目目录内；会话附件目录是额外放行的
         // 只读根，保证用户上传的文件即使在项目会话里也能被 agent 读回。
-        resolveAdditionalReadRoots: (chatId) => [getChatAttachmentsDir(chatId)],
+        resolveAdditionalReadRoots: async (chatId) => {
+          const project = await localBackendRouter.resolveChatProject(chatId);
+          return [
+            getChatAttachmentsDir(chatId),
+            ...(project?.sourceFolders ?? []),
+          ];
+        },
         approvalHandler: approvalBridge.handler,
         askUserHandler: askUserBridge.handler,
         // P2b: resume 时 sidecar 把记录里的读证据推给 LocalExecutor 的

@@ -10,7 +10,7 @@
  *   - 副作用：进入会话路由同步 selectedAgentId、菜单 Cmd+N / Cmd+T 订阅与
  *     退订、滚动接近底部自动加载下一页；
  *   - 项目模式（Electron）：项目分组与折叠、孤儿会话回落日期分组、
- *     新建（文件夹名即项目名）/ 内联重命名 / 换文件夹 / 两段确认删除。
+ *     新建（弹窗填名称 + 可选源文件夹）/ 内联重命名 / 换文件夹 / 两段确认删除。
  * 智能体挑选列表已迁到 ChatInput（见组件头注释），侧栏只剩同步副作用可测。
  */
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -354,11 +354,11 @@ describe('AgentSidebar 会话列表渲染', () => {
     expect(screen.getByRole('alert').textContent).toContain('列表加载失败');
   });
 
-  it('头部计数与底部汇总随会话数变化', () => {
+  it('底部汇总随会话数变化', () => {
     renderSidebar('/agent', vi.fn(), {
       data: { chats: [existingChat, makeChat({ id: 'c-2', title: '第二条' })] },
     });
-    expect(screen.getByText('· 2')).toBeTruthy();
+    expect(screen.queryByText('· 2')).toBeNull();
     expect(screen.getByText('共 2 个会话')).toBeTruthy();
   });
 
@@ -673,39 +673,26 @@ describe('AgentSidebar 项目模式（Electron）', () => {
     expect(screen.getByTestId('loc').textContent).toBe('/agent?projectId=proj-1');
   });
 
-  it('新建项目：选中文件夹后以文件夹名建项目并刷新列表', async () => {
-    const { selectDirectory } = enterElectron([]);
-    selectDirectory.mockResolvedValue({ canceled: false, filePaths: ['/tmp/演示项目'] });
+  it('新建项目：打开弹窗填名称后创建并刷新列表', async () => {
+    enterElectron([]);
     createProject.mockResolvedValue({ success: true, project: makeProject() });
     renderSidebar('/agent');
 
     fireEvent.click(screen.getByLabelText('新建项目'));
-    await waitFor(() =>
-      expect(createProject).toHaveBeenCalledWith({ name: '演示项目', folderPath: '/tmp/演示项目' }),
-    );
-    expect(selectDirectory).toHaveBeenCalledWith({ title: '选择项目文件夹' });
-    // 挂载时拉一次，建完再拉一次。
+    expect(screen.getByTestId('create-project-dialog')).toBeTruthy();
+    fireEvent.change(screen.getByTestId('create-project-name'), { target: { value: '演示项目' } });
+    fireEvent.click(screen.getByTestId('create-project-submit'));
+    await waitFor(() => expect(createProject).toHaveBeenCalledWith({ name: '演示项目' }));
     await waitFor(() => expect(listProjects).toHaveBeenCalledTimes(2));
   });
 
-  it('新建项目：文件夹路径尾部分隔符被剥掉再取名', async () => {
-    const { selectDirectory } = enterElectron([]);
-    selectDirectory.mockResolvedValue({ canceled: false, filePaths: ['/tmp/演示目录/'] });
-    createProject.mockResolvedValue({ success: true, project: makeProject() });
+  it('新建项目：取消弹窗则不建项目', async () => {
+    enterElectron([]);
     renderSidebar('/agent');
 
     fireEvent.click(screen.getByLabelText('新建项目'));
-    await waitFor(() =>
-      expect(createProject).toHaveBeenCalledWith({ name: '演示目录', folderPath: '/tmp/演示目录/' }),
-    );
-  });
-
-  it('新建项目：取消目录选择则不建项目', async () => {
-    const { selectDirectory } = enterElectron([]);
-    renderSidebar('/agent');
-
-    fireEvent.click(screen.getByLabelText('新建项目'));
-    await waitFor(() => expect(selectDirectory).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole('button', { name: '取消' }));
+    expect(screen.queryByTestId('create-project-dialog')).toBeNull();
     expect(createProject).not.toHaveBeenCalled();
   });
 

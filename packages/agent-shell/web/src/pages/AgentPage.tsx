@@ -1234,18 +1234,18 @@ function EmptyChatGate() {
   useEffect(() => {
     setSelectedProjectId(projectIdFromUrl);
   }, [projectIdFromUrl]);
-  useEffect(() => {
+  const fetchProjects = useCallback(async () => {
     if (!isElectron()) return;
-    let cancelled = false;
-    listProjects()
-      .then((res) => {
-        if (!cancelled) setProjects(res.projects ?? []);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
+    try {
+      const res = await listProjects();
+      setProjects(res.projects ?? []);
+    } catch {
+      /* 列表失败保持旧数据 */
+    }
   }, []);
+  useEffect(() => {
+    void fetchProjects();
+  }, [fetchProjects]);
 
   useEffect(() => {
     inputRef.current?.focusAtEnd();
@@ -1382,6 +1382,7 @@ function EmptyChatGate() {
                   projects={projects}
                   value={selectedProjectId}
                   onChange={setSelectedProjectId}
+                  onProjectsChanged={fetchProjects}
                 />
               ) : undefined
             }

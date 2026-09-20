@@ -63,7 +63,7 @@
  *   │ ⬡ 智能体管理                     │ ← /settings?section=agents（独立页）
  *   │ ⬡ Skill 设置                    │ ← /settings?section=skills（独立页）
  *   │ 🔌 MCP 设置                     │ ← /settings?section=mcp（独立页）
- *   │  v 会话 · 12                📁+ │ ← 📁+ 新建项目
+ *   │  会话 v                     📁+ │ ← 📁+ 打开新建项目弹窗
  *   │  v 📁 项目A · 3      (hover: +✏📂🗑)│ ← 项目组：折叠/新建/重命名/换文件夹/删
  *   │   ...（项目内对话）              │
  *   │   今天                          │
@@ -73,9 +73,8 @@
  *   │ ⚙ 设置                          │ ← /settings（模型 + 洞察/遥测/用量/搜索/安全）
  *   └─────────────────────────────────┘
  *
- * 项目模式：项目 = 名字 + 绑定文件夹（ProjectRegistry，electron-store）。
- * 项目内对话的 agent 文件读写与命令执行被硬沙箱在该文件夹内（见
- * tool-router.ts ToolExecContext.projectRoot）；无项目对话不沙箱。
+ * 项目模式：项目 = 名字 + 托管家目录（Documents/<应用名>/<项目名>/）+
+ * 可选源文件夹。写入/命令围栏在家目录；源文件夹只放宽读取。
  */
 
 import {
@@ -121,6 +120,7 @@ import type { UseChatsAndAgentsResult } from '@/hooks/useChatsAndAgents';
 import type { PackChatSlotContribution } from '@/packs/registry';
 import type { RightPanelState } from '@/layouts/AgentLayout';
 import { BrandLockup } from '@/components/BrandLockup';
+import { CreateProjectModal } from '@/components/CreateProjectModal';
 
 const DEFAULT_DOT_COLOR = '#7c3aed';
 
@@ -222,6 +222,7 @@ export function AgentSidebar({
   const [confirmDeleteProjectId, setConfirmDeleteProjectId] = useState<string | null>(null);
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
   const [projectError, setProjectError] = useState<string | null>(null);
+  const [createProjectOpen, setCreateProjectOpen] = useState(false);
 
   const fetchProjects = useCallback(async () => {
     if (!isElectron()) return;
@@ -238,24 +239,23 @@ export function AgentSidebar({
     void fetchProjects();
   }, [fetchProjects]);
 
-  const handleCreateProject = useCallback(async () => {
-    if (!isElectron()) return;
-    setProjectError(null);
-    try {
-      const result = await bridge?.local?.selectDirectory({
-        title: '选择项目文件夹',
-      });
-      if (!result || result.canceled || result.filePaths.length === 0) return;
-      const folderPath = result.filePaths[0];
-      // 默认用文件夹名做项目名，用户可随后内联重命名。
-      const baseName =
-        folderPath.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || '新项目';
-      await createProject({ name: baseName, folderPath });
-      await fetchProjects();
-    } catch (err) {
-      setProjectError(err instanceof Error ? err.message : String(err));
-    }
-  }, [bridge, fetchProjects]);
+  const handleCreateProject = useCallback(
+    async (input: { name: string; sourceFolders: string[] }) => {
+      setProjectError(null);
+      try {
+        await createProject({
+          name: input.name,
+          ...(input.sourceFolders.length > 0 ? { sourceFolders: input.sourceFolders } : {}),
+        });
+        await fetchProjects();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setProjectError(message);
+        throw err instanceof Error ? err : new Error(message);
+      }
+    },
+    [fetchProjects],
+  );
 
   const handleRenameProject = useCallback(
     async (projectId: string) => {
@@ -706,28 +706,22 @@ export function AgentSidebar({
             onClick={() => setChatsExpanded((v) => !v)}
             className="flex h-6 items-center rounded-full px-2.5 text-xs font-semibold tracking-wider text-agent-muted-foreground transition-colors hover:bg-agent-foreground/5 hover:text-agent-foreground"
           >
-            <span className="mr-1">
+            会话
+            <span className="ml-1">
               {chatsExpanded ? (
                 <LuChevronUp className="h-3 w-3" />
               ) : (
                 <LuChevronDown className="h-3 w-3" />
               )}
             </span>
-            会话
-            {normalizedChats.length > 0 && (
-              <span className="ml-1.5 text-[10px] font-normal text-agent-muted-foreground/70">
-                · {normalizedChats.length}
-              </span>
-            )}
           </button>
           <div className="flex items-center gap-1">
-            {/* 新建项目：选文件夹 → 以文件夹名建项目，之后可在组头重命名 */}
             {hasElectron && (
               <button
                 type="button"
-                onClick={() => void handleCreateProject()}
+                onClick={() => setCreateProjectOpen(true)}
                 className="flex h-6 w-6 items-center justify-center rounded-full text-agent-muted-foreground transition-colors duration-200 hover:bg-agent-foreground/5 hover:text-agent-foreground"
-                title="新建项目（绑定文件夹，项目内对话的文件操作被限制在该文件夹）"
+                title="新建项目"
                 aria-label="新建项目"
               >
                 <LuFolderPlus className="h-3.5 w-3.5" />
@@ -984,6 +978,12 @@ export function AgentSidebar({
           <span>设置</span>
         </button>
       </div>
+
+      <CreateProjectModal
+        open={createProjectOpen}
+        onClose={() => setCreateProjectOpen(false)}
+        onCreate={handleCreateProject}
+      />
     </div>
   );
 }

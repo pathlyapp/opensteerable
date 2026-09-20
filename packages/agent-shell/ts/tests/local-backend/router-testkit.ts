@@ -539,6 +539,8 @@ vi.mock('../../src/llm/index.js', () => ({
 
 vi.mock('../../src/runtime.js', () => ({
   getAppRootDir: () => '/tmp/app-root',
+  getDocumentsDir: () =>
+    process.env.STEERABLE_DOCUMENTS_DIR || `${process.env.HOME ?? '/tmp'}/Documents`,
   shellOpenPath: (target: string) => h.shellOpenPath(target),
 }));
 
@@ -765,6 +767,7 @@ export interface FakeProject {
   name: string;
   folderPath: string;
   trusted: boolean;
+  sourceFolders?: string[];
 }
 
 /** 项目注册表内存实现：create/update/delete/setTrusted 语义镜像 ProjectRegistry。 */
@@ -775,7 +778,7 @@ export function makeProjectRegistry(initial: FakeProject[] = []) {
     projects,
     get: vi.fn((id: string) => projects.get(id) ?? null),
     list: vi.fn(() => [...projects.values()]),
-    create: vi.fn((input: { name: string; folderPath: string }) => {
+    create: vi.fn((input: { name: string; folderPath: string; sourceFolders?: string[] }) => {
       if (!input.name.trim()) throw new Error('项目名称不能为空');
       if (!input.folderPath.trim()) throw new Error('项目路径不能为空');
       const project: FakeProject = {
@@ -783,15 +786,19 @@ export function makeProjectRegistry(initial: FakeProject[] = []) {
         name: input.name,
         folderPath: input.folderPath,
         trusted: false,
+        ...(input.sourceFolders && input.sourceFolders.length > 0
+          ? { sourceFolders: input.sourceFolders }
+          : {}),
       };
       projects.set(project.id, project);
       return project;
     }),
-    update: vi.fn((id: string, patch: { name?: string; folderPath?: string }) => {
+    update: vi.fn((id: string, patch: { name?: string; folderPath?: string; sourceFolders?: string[] }) => {
       const project = projects.get(id);
       if (!project) throw new Error('项目不存在');
       if (patch.name !== undefined) project.name = patch.name;
       if (patch.folderPath !== undefined) project.folderPath = patch.folderPath;
+      if (patch.sourceFolders !== undefined) project.sourceFolders = patch.sourceFolders;
       return project;
     }),
     delete: vi.fn((id: string) => projects.delete(id)),

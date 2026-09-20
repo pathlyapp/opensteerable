@@ -5,7 +5,9 @@ import type { ChatMessage } from '@steerable/agent-protocol';
 import type { LocalChat, LocalChatAgent } from '@/lib/local-api';
 import { Markdown } from './Markdown';
 import { ExecutedActionsCard, type ExecutedAction } from './ExecutedActionsCard';
-import { OrchestrationChildrenCard, type ChildInfo } from './OrchestrationChildrenCard';
+import type { ChildInfo } from './OrchestrationChildrenCard';
+import { collectTurnParticipants, extractMentionedAgentIds } from './executed-actions-model';
+import type { InspectTaskInput } from './executed-actions-model';
 import { StreamingStatus } from './StreamingStatus';
 import { getFriendlyDate } from './timestamp';
 import { useCopy } from './useCopy';
@@ -13,6 +15,12 @@ import type { TurnBlock } from './turn-timeline';
 import { TurnProcessGroup } from './TurnProcessGroup';
 import { TurnFilesCard } from './TurnFilesCard';
 import type { TurnFile } from './turn-files';
+import { stripNextStepsTags } from './next-steps-tags';
+import {
+  formatTokenSpeed,
+  llmRequestElapsedMs,
+  type LlmSpeedSnapshot,
+} from './process-status';
 
 /**
  * AssistantMessage — Tier-1 port of `deeppath`'s assistant-bubble.
@@ -77,8 +85,15 @@ interface AssistantMessageProps {
    * `content` keep the legacy stacked layout.
    */
   timeline?: TurnBlock[];
-  /** P3.1: live child-agent list for this turn (orchestration card). */
+  /**
+   * P3.1 子代理生命周期。看板卡片已不再渲染——每个 `委派 · X` 工具行从
+   * 「执行中」到「已完成」本身就是同一份进度，还能展开看任务书与回报。
+   * 这份列表现在喂两处：顶栏参与者徽章（没有 `@提及` 时的回落来源），
+   * 以及委派行跳转右侧过程栏所需的子代理 record。
+   */
   orchestrationChildren?: ChildInfo[];
+  /** 上一轮用户消息：顶栏按里面的 `@提及` 画参与的智能体。 */
+  previousUser?: Pick<ChatMessage, 'content'> & { messageMetadata?: string | null };
   /**
    * Current round number for the in-flight turn (1-based). Only meaningful
    * when `isStreaming === true` and this is the tail message — used by
@@ -99,6 +114,12 @@ interface AssistantMessageProps {
   /** Frozen wall-clock of a finished turn. */
   durationMs?: number;
   /**
+   * Model-request generation speed (reasoning + reply + any other LLM
+   * output). Elapsed excludes tool waits. Live snapshots keep ticking
+   * while `live` is true.
+   */
+  llmSpeed?: LlmSpeedSnapshot;
+  /**
    * 本回合产生/修改的文件列表（local-backend 回合收尾时收集，经
    * `turn_files` SSE + messageMetadata.turnFiles 持久化）。渲染在回答
    * 气泡之下，点击用系统默认应用打开。空/undefined = 不渲染。
@@ -109,37 +130,42 @@ interface AssistantMessageProps {
    * 行上，跟复制 / 重新生成同一排。
    */
   onShare?: () => Promise<boolean>;
+  onInspectTask?: (task: InspectTaskInput) => void;
 }
 
-function agentInitial(agent: LocalChatAgent | null): string {
-  if (!agent?.name) return 'A';
-  return agent.name.trim()[0]?.toUpperCase() ?? 'A';
+function agentInitial(name: string): string {
+  return name.trim()[0]?.toUpperCase() ?? 'A';
 }
 
 function AgentBadge({
-  agent,
+  name,
+  color,
+  title,
   isStreaming,
 }: {
-  agent: LocalChatAgent;
-  isStreaming: boolean;
+  name: string;
+  color: string;
+  title?: string;
+  isStreaming?: boolean;
 }) {
   return (
     <div
       className="inline-flex items-center gap-1.5 text-[11px] leading-none text-agent-muted-foreground"
-      title={agent.description || agent.name}
+      title={title || name}
     >
       <span
+        data-agent-color-dot=""
         className="inline-flex items-center justify-center rounded-full text-[9px] font-semibold text-white"
         style={{
           width: 14,
           height: 14,
-          backgroundColor: agent.color || '#7c3aed',
+          backgroundColor: color,
         }}
       >
-        {agentInitial(agent)}
+        {agentInitial(name)}
       </span>
       <span className="max-w-[160px] truncate rounded bg-agent-canvas/90 px-1">
-        {agent.name}
+        {name}
       </span>
       {isStreaming && (
         <span className="ml-1 inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-agent-foreground/30" />
@@ -152,11 +178,7 @@ const META_ACTION =
   'inline-flex items-center gap-0.5 rounded transition-all duration-200 hover:text-agent-foreground opacity-0 focus:opacity-100 group-hover/message:opacity-100';
 
 function bubbleClass(isPlanMode: boolean): string {
-  return `rounded-agent-lg border p-3 shadow-sm transition-all duration-200 ${
-    isPlanMode
-      ? 'border-amber-400/50 dark:border-amber-500/30 bg-amber-50/10 dark:bg-amber-950/5 shadow-amber-500/5'
-      : 'border-agent-border bg-agent-canvas'
-  }`;
+  return isPlanMode ? 'rounded-agent-lg bg-amber-50/10 dark:bg-amber-950/5' : '';
 }
 
 // 框架 useChatStream 收到 SSE error 事件时把最后一条助手消息的内容打成
@@ -192,9 +214,20 @@ function readTurnFailure(
   return null;
 }
 
+function readPersistedAgentId(message: ChatMessage): string | undefined {
+  const raw = (message as { messageMetadata?: unknown }).messageMetadata;
+  if (typeof raw !== 'string' || !raw) return undefined;
+  try {
+    const agentId = (JSON.parse(raw) as { agentId?: unknown }).agentId;
+    return typeof agentId === 'string' && agentId ? agentId : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function TurnErrorBubble({ reason }: { reason: string }) {
   return (
-    <div className="rounded-agent-lg border border-agent-destructive/40 bg-agent-destructive/5 p-3 text-sm leading-relaxed text-agent-destructive shadow-sm">
+    <div className="rounded-agent-lg border border-agent-destructive/40 bg-agent-destructive/5 px-2.5 py-2 text-xs leading-relaxed text-agent-destructive shadow-sm">
       请求失败：{reason}
     </div>
   );
@@ -204,6 +237,17 @@ function StreamingCursor() {
   return (
     <span className="ml-0.5 inline-block h-3.5 w-[3px] animate-agent-cursor-blink bg-agent-foreground/60 align-text-bottom" />
   );
+}
+
+function useLiveNow(enabled: boolean): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!enabled) return;
+    setNow(Date.now());
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [enabled]);
+  return now;
 }
 
 export function AssistantMessage({
@@ -216,34 +260,56 @@ export function AssistantMessage({
   executedActions,
   timeline,
   orchestrationChildren,
+  previousUser,
   currentRound = 1,
   isPlanMode = false,
   onRegenerate,
   startedAtMs,
   durationMs,
+  llmSpeed,
   turnFiles,
   onShare,
+  onInspectTask,
 }: AssistantMessageProps) {
   const content = message.content || '';
   const failure = readTurnFailure(message, content);
   // live 错误文本（"[stream error] ..."）不当正文渲染；落库的失败回合可能
   // 留有部分正文，此时正文与错误气泡都展示。
   const displayContent = failure?.contentIsError ? '' : content;
-  const { copied, copy } = useCopy(content);
+  const { copied, copy } = useCopy(stripNextStepsTags(content));
   const [regenerating, setRegenerating] = useState(false);
   const [regenerateError, setRegenerateError] = useState<string | null>(null);
-  const persistedAgent = message.agentId
-    ? agents.find((a) => a.id === message.agentId) ?? null
+  const persistedAgentId =
+    typeof message.agentId === 'string' && message.agentId
+      ? message.agentId
+      : readPersistedAgentId(message);
+  const persistedAgent = persistedAgentId
+    ? agents.find((a) => a.id === persistedAgentId) ?? null
     : null;
   // Stream-time fallback: only allow the chat-level agent to "claim" a turn
   // while it's actively streaming and hasn't flushed agentId to the DB yet.
   const displayAgent = persistedAgent ?? (isStreaming ? currentAgent : null);
   const useTimeline = timeline !== undefined;
   const blocks = timeline ?? [];
+  const toolActions = [
+    ...(executedActions ?? []),
+    ...blocks.flatMap((block) => (block.type === 'tools' ? block.actions : [])),
+  ];
+  const participants = collectTurnParticipants(displayAgent, {
+    agents,
+    children: orchestrationChildren,
+    actions: toolActions,
+    mentionedAgentIds: extractMentionedAgentIds(previousUser, agents),
+  });
+  const now = useLiveNow(Boolean(isStreaming && llmSpeed?.live));
+  const tokenSpeed = formatTokenSpeed(
+    llmSpeed?.tokens ?? 0,
+    llmRequestElapsedMs(llmSpeed, now),
+  );
 
   return (
     <motion.div
-      className="group/message mb-2"
+      className="group/message"
       data-message-role="assistant"
       data-message-id={message.id}
       initial={{ opacity: 0, y: 8 }}
@@ -251,10 +317,22 @@ export function AssistantMessage({
       transition={{ duration: 0.25 }}
     >
       <div className="mx-auto w-full max-w-[var(--chat-input-box-width)] px-1">
-        {(displayAgent || isPlanMode) && (
-          <div className="flex items-center justify-between mb-1.5 min-h-[18px]">
-            {displayAgent ? (
-              <AgentBadge agent={displayAgent} isStreaming={isStreaming} />
+        {(participants.length > 0 || isPlanMode) && (
+          <div className="mb-1 flex min-h-4 items-center justify-between gap-2">
+            {participants.length > 0 ? (
+              <div
+                data-testid="turn-agent-badges"
+                className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"
+              >
+                {participants.map((agent, index) => (
+                  <AgentBadge
+                    key={agent.key}
+                    name={agent.name}
+                    color={agent.color}
+                    isStreaming={isStreaming && index === 0}
+                  />
+                ))}
+              </div>
             ) : (
               <div />
             )}
@@ -266,9 +344,6 @@ export function AssistantMessage({
             )}
           </div>
         )}
-        {orchestrationChildren && orchestrationChildren.length > 0 && (
-          <OrchestrationChildrenCard children={orchestrationChildren} />
-        )}
         {useTimeline ? (
           <>
           <TurnProcessGroup
@@ -279,6 +354,8 @@ export function AssistantMessage({
             agents={agents}
             chats={chats}
             chatId={chatId}
+            onInspectTask={onInspectTask}
+            orchestrationChildren={orchestrationChildren}
             emptyFallback={
               failure ? (
                 <TurnErrorBubble reason={failure.reason} />
@@ -291,7 +368,7 @@ export function AssistantMessage({
                   />
                 </div>
               ) : (
-                <div className={`${bubbleClass(isPlanMode)} text-sm italic text-agent-muted-foreground`}>
+                <div className={`${bubbleClass(isPlanMode)} text-xs italic text-agent-muted-foreground`}>
                   (空消息)
                 </div>
               )
@@ -305,7 +382,7 @@ export function AssistantMessage({
             }
             renderAnswer={(block, isLast) => (
               <div className={bubbleClass(isPlanMode)}>
-                <div className="markdown-content text-sm leading-relaxed text-agent-foreground">
+                <div className="markdown-content text-xs leading-relaxed text-agent-foreground">
                   <Markdown agents={agents} chats={chats} chatId={chatId}>{block.content}</Markdown>
                 </div>
                 {isStreaming && isLast && <StreamingCursor />}
@@ -323,11 +400,17 @@ export function AssistantMessage({
         ) : (
           <>
             {executedActions && executedActions.length > 0 && (
-              <ExecutedActionsCard actions={executedActions} />
+              <ExecutedActionsCard
+                actions={executedActions}
+                agents={agents}
+                chatId={chatId}
+                onInspectTask={onInspectTask}
+                orchestrationChildren={orchestrationChildren}
+              />
             )}
             {displayContent ? (
               <div className={bubbleClass(isPlanMode)}>
-                <div className="markdown-content text-sm leading-relaxed text-agent-foreground">
+                <div className="markdown-content text-xs leading-relaxed text-agent-foreground">
                   <Markdown agents={agents} chats={chats} chatId={chatId}>{displayContent}</Markdown>
                 </div>
                 {isStreaming && <StreamingCursor />}
@@ -343,7 +426,7 @@ export function AssistantMessage({
                 />
               </div>
             ) : (
-              <div className={`${bubbleClass(isPlanMode)} text-sm italic text-agent-muted-foreground`}>
+              <div className={`${bubbleClass(isPlanMode)} text-xs italic text-agent-muted-foreground`}>
                 (空消息)
               </div>
             )}
@@ -357,16 +440,19 @@ export function AssistantMessage({
         {/* 回合产物文件列表：钉在回答之下、时间戳行之上（Codex 式收尾）。
             回合收尾才有数据，流式期间天然为空。 */}
         {!isStreaming && turnFiles && turnFiles.length > 0 && (
-          <div className="mt-1.5">
+          <div className="mt-2.5 mb-1">
             <TurnFilesCard files={turnFiles} />
           </div>
         )}
-        <div className="mt-1 flex items-center gap-2 text-[11px] text-agent-muted-foreground">
+        <div className="mt-2 flex items-center gap-2 text-[11px] text-agent-muted-foreground/80">
           <span>
             {message.createdAt
               ? getFriendlyDate(new Date(message.createdAt))
               : ''}
           </span>
+          {tokenSpeed ? (
+            <span data-testid="turn-token-speed">{tokenSpeed}</span>
+          ) : null}
           {content && !isStreaming && (
             <button
               type="button"

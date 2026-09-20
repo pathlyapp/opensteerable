@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import platform
@@ -240,6 +241,7 @@ def install_sidecar(
                 [str(py), "-m", "pip", "install", "--no-warn-script-location", str(wheel)],
                 check=True,
             )
+        install_native_coreloop(py, target, wheels_dir=wheels_dir)
         return
 
     pkg_paths = (
@@ -255,6 +257,50 @@ def install_sidecar(
             [str(py), "-m", "pip", "install", "--no-warn-script-location", str(path)],
             check=True,
         )
+    install_native_coreloop(py, target, wheels_dir=None)
+
+
+def verify_native_wheel(wheel: Path) -> None:
+    """Reject a native wheel whose bytes do not match the PyPI digest."""
+    fetcher_path = ROOT / "scripts" / "fetch_verified_artifacts.py"
+    spec = importlib.util.spec_from_file_location("fetch_verified_artifacts", fetcher_path)
+    if spec is None or spec.loader is None:
+        raise SystemExit(f"cannot load {fetcher_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.verify_wheel_file(wheel)
+
+
+def install_native_coreloop(
+    py: Path,
+    target: Target,
+    *,
+    wheels_dir: Path | None = None,
+) -> None:
+    """Install a verified PyO3 wheel into the embedded interpreter.
+
+    The bundle never builds the CoreLoop. ``wheels_dir`` must contain a
+    ``steerable_agent_runtime_native`` wheel whose SHA-256 matches PyPI.
+    """
+    del target
+    if wheels_dir is None:
+        raise SystemExit(
+            "sidecar bundle requires a verified steerable_agent_runtime_native "
+            "wheel passed via --from-wheels"
+        )
+    matches = sorted(wheels_dir.glob("steerable_agent_runtime_native-*.whl"))
+    if not matches:
+        raise SystemExit(
+            f"--from-wheels {wheels_dir} is missing a wheel for "
+            "steerable_agent_runtime_native"
+        )
+    wheel = matches[-1]
+    verify_native_wheel(wheel)
+    print(f"[pip] install (native wheel) {wheel.name}")
+    subprocess.run(
+        [str(py), "-m", "pip", "install", "--no-warn-script-location", str(wheel)],
+        check=True,
+    )
 
 
 def python_binary(out_dir: Path, target: Target) -> Path:

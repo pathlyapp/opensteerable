@@ -8,8 +8,15 @@
  * select, remediate, ...) flow through props -- apps stay in charge of state.
  */
 export { OrchestrationPlanCard } from './OrchestrationPlanCard.js';
+// Row-level status vocabulary, exported so a host that overrides `renderTaskRow`
+// keeps the card's own labels and dot colors instead of copying them.
+export {
+  ORCHESTRATION_STATUS_LABEL,
+  ORCHESTRATION_DOT_CLASS,
+} from './OrchestrationPlanCard.js';
 export type {
   OrchestrationPlanCardProps,
+  OrchestrationTask,
   OrchestrationTaskStatus,
 } from './OrchestrationPlanCard.js';
 

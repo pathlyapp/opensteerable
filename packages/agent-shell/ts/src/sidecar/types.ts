@@ -32,6 +32,8 @@ export interface SidecarSandboxPosture {
 export interface SidecarStartOptions {
   /** Override the python binary; defaults to the bundled portable runtime. */
   pythonExecutable?: string;
+  /** Optional Rust sidecar binary; used when STEERABLE_RUST_SIDECAR is on. */
+  rustSidecarBin?: string;
   /** Override the entrypoint module; defaults to ``steerable_sidecar``. */
   entryModule?: string;
   /** Extra arguments appended after ``-m <entryModule>``. */
@@ -356,16 +358,26 @@ export interface SidecarChatStreamRequest {
   subagent?: boolean | {
     toolFilter?: string[];
     maxParallel?: number;
+    /** Child round / tool-error walls; default to the parent loop's. */
+    maxRounds?: number;
+    maxToolErrors?: number;
     profiles?: Record<string, {
       toolFilter?: string[];
       model?: string;
       maxRounds?: number;
+      maxToolErrors?: number;
       concurrent?: boolean;
       description?: string;
       /** Profile system prompt, seeded as the child loop's first message
        * (CC `.claude/agents` body parity). */
       systemPrompt?: string;
     }>;
+    /**
+     * Profiles that MUST each receive a delegation this turn (the host's
+     * `@` mentions). A `completed` turn that skipped one is retried — the
+     * dispatch instruction alone is prompt text a model can narrate past.
+     */
+    requiredProfiles?: string[];
   };
   /** A6 layered skill disclosure: the sidecar injects the catalog layer
    * (first-round pre_step, recorded as a hook_action event) and answers
@@ -490,7 +502,7 @@ export interface SidecarStreamChunk {
     /** W4-2: `data._sandbox` marker lifted out of the result for the card. */
     sandbox?: { backend?: string; enforcement: string };
   };
-  /** CoreLoop notices: soft_timeout / budget_exhausted. */
+  /** CoreLoop notices: soft_timeout / budget_exhausted / round_end / hook_action. */
   notice?: { kind: string; [key: string]: unknown };
   finishReason?: string;
   usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
@@ -544,6 +556,12 @@ export interface SidecarChildEvent {
   status?: string;
   error?: string;
   profile?: string;
+  /**
+   * The child's own durable record (`<parent record>:child:<lineage id>`),
+   * present on `child_spawned` when the host wired a history store. Read it
+   * back to render the delegation's reasoning + tool calls.
+   */
+  recordId?: string;
 }
 
 export interface SidecarChatStreamHandlers {

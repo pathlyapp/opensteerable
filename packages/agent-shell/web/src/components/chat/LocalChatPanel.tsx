@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { ChatMessage } from '@steerable/agent-protocol';
 import { ChatPanel } from '@steerable/agent-ui';
 import type { SteerOutcome } from '@steerable/agent-ui';
@@ -13,9 +13,13 @@ import {
 import { EmptyChat } from './EmptyChat';
 import { MessageList } from './MessageList';
 import type { ExecutedAction } from './ExecutedActionsCard';
+import type { InspectTaskInput } from './executed-actions-model';
 import type { ChildInfo } from './OrchestrationChildrenCard';
 import type { TurnBlock } from './turn-timeline';
 import type { TurnFile } from './turn-files';
+import type { LlmSpeedSnapshot } from './process-status';
+import { SessionTodoList } from './SessionTodoList';
+import { resolveLatestSessionTodos } from './todo-list-model';
 import {
   appendAttachmentRefs,
   collectImageAttachments,
@@ -100,6 +104,8 @@ export interface LocalChatPanelProps {
   currentTurnTimeline?: TurnBlock[];
   currentTurnStartedAtMs?: number;
   durationByMessageId?: Record<string, number>;
+  currentLlmSpeed?: LlmSpeedSnapshot;
+  llmSpeedByMessageId?: Record<string, LlmSpeedSnapshot>;
   /** 回合产物文件列表（按落库消息 id 键控），转发给 MessageList。 */
   turnFilesByMessageId?: Record<string, TurnFile[]>;
   /** 当轮产物文件（流尾声到达、尚未归档到落库 id 的尾部消息用）。 */
@@ -143,7 +149,7 @@ export interface LocalChatPanelProps {
   /** 本次挂载期间跑完的后台任务——消息列尾部的终态通知卡。 */
   finishedTasks?: LocalTask[];
   /** 终态卡「查看过程」：在右侧栏打开该任务的推理过程。 */
-  onInspectTask?: (task: LocalTask) => void;
+  onInspectTask?: (task: InspectTaskInput) => void;
   /** 终态卡「忽略」（本次挂载内隐藏，不落库）。 */
   onDismissFinishedTask?: (taskId: string) => void;
   /** 分享当前对话（截图）。落到最近一条助手消息的时间戳行。 */
@@ -178,6 +184,8 @@ export function LocalChatPanel({
   currentTurnTimeline,
   currentTurnStartedAtMs,
   durationByMessageId,
+  currentLlmSpeed,
+  llmSpeedByMessageId,
   turnFilesByMessageId,
   currentTurnFiles,
   currentTurnChildren,
@@ -301,9 +309,26 @@ export function LocalChatPanel({
   // 空会话 hero：messages 为空且未在流式时整面板切到居中首屏布局。
   const showEmptyHero = Boolean(emptyHero) && messages.length === 0 && !isStreaming;
 
+  const sessionTodos = useMemo(
+    () =>
+      resolveLatestSessionTodos({
+        messages,
+        executedActionsByMessageId,
+        currentTurnActions,
+        timelineByMessageId,
+        currentTurnTimeline,
+      }),
+    [
+      messages,
+      executedActionsByMessageId,
+      currentTurnActions,
+      timelineByMessageId,
+      currentTurnTimeline,
+    ],
+  );
+
   // Sync `chat-input-box-width` CSS var so bubbles match the input width
-  // (cloud product uses 95% of the input box; we mirror that here so message
-  // bubbles + input visually align in a column).
+  // (mirrors the rendered input box width so message bubbles + input visually align in a column).
   const containerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const containerEl = containerRef.current;
@@ -316,7 +341,7 @@ export function LocalChatPanel({
       if (width > 0) {
         containerEl.style.setProperty(
           '--chat-input-box-width',
-          `${Math.round(width * 0.95)}px`,
+          `${Math.round(width)}px`,
         );
       }
     };
@@ -365,6 +390,7 @@ export function LocalChatPanel({
         onOpenSettings={onOpenSettings}
         toolbarExtras={inputToolbarExtras}
         leadingChrome={inputLeadingChrome}
+        trailingChrome={sessionTodos ? <SessionTodoList todos={sessionTodos} /> : undefined}
         mode={mode}
         onModeChange={onModeChange}
         execPolicy={execPolicy}
@@ -387,14 +413,14 @@ export function LocalChatPanel({
     >
       <ChatPanel.Root className="flex h-full flex-col overflow-hidden" unstyled>
         {showEmptyHero ? (
-          <div className="flex min-h-0 flex-1 items-center justify-center p-4 sm:p-8">
-            <div className="flex w-full max-w-2xl flex-col items-center gap-6">
+          <div className="flex min-h-0 flex-1 items-center justify-center p-3 sm:p-5">
+            <div className="flex w-full max-w-3xl flex-col items-center gap-4">
               <div className="text-center">
                 <h1 className="text-xl font-semibold tracking-tight text-agent-foreground">
                   {emptyHero?.title}
                 </h1>
                 {emptyHero?.subtitle && (
-                  <p className="mt-1.5 text-sm text-agent-muted-foreground">
+                  <p className="mt-1.5 text-xs text-agent-muted-foreground">
                     {emptyHero.subtitle}
                   </p>
                 )}
@@ -427,6 +453,8 @@ export function LocalChatPanel({
                 currentTurnTimeline={currentTurnTimeline}
                 currentTurnStartedAtMs={currentTurnStartedAtMs}
                 durationByMessageId={durationByMessageId}
+                currentLlmSpeed={currentLlmSpeed}
+                llmSpeedByMessageId={llmSpeedByMessageId}
                 turnFilesByMessageId={turnFilesByMessageId}
                 currentTurnFiles={currentTurnFiles}
                 currentTurnChildren={currentTurnChildren}
@@ -445,8 +473,10 @@ export function LocalChatPanel({
                 suggestedReplies={suggestedReplies}
                 onSelectSuggestion={onSelectSuggestion}
               />
-              {inputBanner}
-              {chatInputNode}
+              <div className="mx-auto w-full max-w-3xl">
+                {inputBanner}
+                {chatInputNode}
+              </div>
             </div>
           </>
         )}

@@ -6,8 +6,10 @@ import {
   fallbackTimeline,
   parseTurnBlocks,
   processHasReasoning,
+  sealLastBlock,
   splitTurnProcess,
   syncTools,
+  timelineContentSignature,
 } from './turn-timeline';
 
 const tool = (name: string, result?: unknown): ExecutedAction => ({
@@ -16,16 +18,39 @@ const tool = (name: string, result?: unknown): ExecutedAction => ({
   ...(result === undefined ? {} : { result }),
 });
 
+// 过程面板靠这份指纹决定要不要把视口重新钉到底部——任何会让屏上长高的
+// 变化都必须改变它，否则跟随会失灵。
+describe('timelineContentSignature', () => {
+  it('工具结果落回时指纹变化（条数没变但行会长高）', () => {
+    const before = timelineContentSignature([{ type: 'tools', actions: [tool('ls')] }]);
+    const after = timelineContentSignature([
+      { type: 'tools', actions: [tool('ls', { success: true })] },
+    ]);
+    expect(after).not.toBe(before);
+  });
+
+  it('文本增长与新块都改变指纹，内容不变则稳定', () => {
+    const base = timelineContentSignature([{ type: 'text', content: '排好了' }]);
+    expect(timelineContentSignature([{ type: 'text', content: '排好了。' }])).not.toBe(base);
+    expect(
+      timelineContentSignature([
+        { type: 'text', content: '排好了' },
+        { type: 'tools', actions: [tool('ls')] },
+      ]),
+    ).not.toBe(base);
+    expect(timelineContentSignature([{ type: 'text', content: '排好了' }])).toBe(base);
+  });
+});
+
 describe('turn-timeline', () => {
   it('merges consecutive deltas of the same kind and splits on kind change', () => {
     let blocks = appendDelta([], 'reasoning', '想');
     blocks = appendDelta(blocks, 'reasoning', '一下');
     blocks = appendDelta(blocks, 'text', '先读文件');
     blocks = appendDelta(blocks, 'text', '。');
-    expect(blocks).toEqual([
-      { type: 'reasoning', content: '想一下' },
-      { type: 'text', content: '先读文件。' },
-    ]);
+    expect(blocks[0]).toMatchObject({ type: 'reasoning', content: '想一下' });
+    expect(blocks[1]).toEqual({ type: 'text', content: '先读文件。' });
+    expect(typeof (blocks[0] as { durationMs?: number }).durationMs).toBe('number');
   });
 
   it('places tools after the text that preceded them, then more text', () => {
@@ -50,6 +75,26 @@ describe('turn-timeline', () => {
 
   it('ignores empty deltas', () => {
     expect(appendDelta([], 'text', '')).toEqual([]);
+  });
+
+  it('starts a new reasoning block after sealLastBlock so rounds stay separate', () => {
+    let blocks = appendDelta([], 'reasoning', '第一轮');
+    blocks = sealLastBlock(blocks);
+    blocks = appendDelta(blocks, 'reasoning', '第二轮');
+    expect(blocks[0]).toMatchObject({
+      type: 'reasoning',
+      content: '第一轮',
+      sealed: true,
+    });
+    expect(typeof (blocks[0] as { durationMs?: number }).durationMs).toBe('number');
+    expect(blocks[1]).toMatchObject({ type: 'reasoning', content: '第二轮' });
+  });
+
+  it('is a no-op when the last block is already tools or sealed', () => {
+    const tools = sealLastBlock([{ type: 'tools', actions: [tool('read')] }]);
+    expect(tools).toEqual([{ type: 'tools', actions: [tool('read')] }]);
+    const once = sealLastBlock([{ type: 'reasoning', content: '想', sealed: true }]);
+    expect(once).toMatchObject([{ type: 'reasoning', content: '想', sealed: true }]);
   });
 
   it('falls back to tools-then-text for history without a timeline', () => {
@@ -84,13 +129,31 @@ describe('turn-timeline', () => {
     expect(processHasReasoning(blocks.slice(0, 4))).toBe(true);
   });
 
+  it('keeps every text block in the process until the turn is finalized', () => {
+    const blocks = [
+      { type: 'reasoning' as const, content: '想' },
+      { type: 'text' as const, content: '我先搜' },
+      { type: 'reasoning' as const, content: '再写' },
+    ];
+    expect(splitTurnProcess(blocks, { finalize: false })).toEqual({
+      process: blocks,
+      answer: [],
+    });
+  });
+
   it('parses persisted timeline JSON and rejects unknown kinds', () => {
     const parsed = parseTurnBlocks([
-      { type: 'reasoning', content: 'hmm' },
+      { type: 'reasoning', content: 'hmm', durationMs: 8000, sealed: true },
       { type: 'tools', actions: [tool('read')] },
       { type: 'text', content: 'ok' },
     ]);
     expect(parsed).toHaveLength(3);
+    expect(parsed?.[0]).toEqual({
+      type: 'reasoning',
+      content: 'hmm',
+      sealed: true,
+      durationMs: 8000,
+    });
     expect(parseTurnBlocks([{ type: 'image' }])).toBeNull();
     expect(parseTurnBlocks([])).toBeNull();
   });

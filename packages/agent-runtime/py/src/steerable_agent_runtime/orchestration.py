@@ -384,16 +384,16 @@ class OrchestrationExecutor:
         return bool(inner_exempt and inner_exempt(call))
 
     def concurrency_safe(self, call: ToolCall) -> bool:
-        # spawn/wait/list mutate nothing themselves (the pool task does the
-        # work), so they may batch; send/close/interrupt are serialized with
-        # siblings.
+        # Spawn consumes the bounded parallel-capacity pool, so batching two
+        # spawns makes which call succeeds scheduler-dependent. Wait/list only
+        # observe pool state and may batch.
         if call.name in {
-            self._config.spawn_tool,
             self._config.wait_tool,
             self._config.list_tool,
         }:
             return True
         if call.name in {
+            self._config.spawn_tool,
             self._config.send_tool,
             self._config.close_tool,
             self._config.interrupt_tool,

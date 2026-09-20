@@ -7,7 +7,7 @@ import { getElectronBridge, isElectron } from '@/lib/electron-bridge';
  *
  * 每轮 CoreLoop 结束后,local-backend 把该轮的累计 token 用量(以及按
  * framework pricing 单价表估算的 USD 成本)落进 `usage_events` 表;本面板
- * 按 model 分桶聚合展示近 N 天的用量与成本。
+ * 按 model 分桶聚合展示近 N 天的用量,成本按固定汇率换算为人民币。
  *
  * 成本口径:只统计有单价的模型(framework `MODEL_PRICES`);本地/未知模型
  * 无单价,token 照常计入但成本列渲染为 "—",不计入总成本。
@@ -52,10 +52,14 @@ function formatTokens(n: number): string {
   return String(n);
 }
 
+/** 展示用估算汇率。底层仍存 USD,仅在面板换成人民币。 */
+const USD_TO_CNY = 7.2;
+
 function formatCost(usd: number | null): string {
   if (usd === null) return '—';
-  if (usd < 0.01) return `$${usd.toFixed(4)}`;
-  return `$${usd.toFixed(2)}`;
+  const cny = usd * USD_TO_CNY;
+  if (cny < 0.01) return `¥${cny.toFixed(4)}`;
+  return `¥${cny.toFixed(2)}`;
 }
 
 export function UsagePanel() {
@@ -86,8 +90,8 @@ export function UsagePanel() {
   }, [fetchSummary, days]);
 
   return (
-    <div className="space-y-4">
-      <div className="bg-agent-muted/30 border border-agent-border/60 rounded-agent-md p-3.5 space-y-3">
+    <div className="space-y-3">
+      <div className="bg-agent-muted/30 border border-agent-border/60 rounded-agent-md p-2.5 space-y-2">
         <div className="flex items-center justify-between">
           <h4 className="text-xs font-semibold text-agent-foreground flex items-center gap-1.5">
             <LuChartBar className="h-3.5 w-3.5 text-agent-muted-foreground" />
@@ -135,19 +139,19 @@ export function UsagePanel() {
             <div className="grid grid-cols-4 gap-2">
               <div className="rounded-agent-md border border-agent-border bg-agent-canvas px-2.5 py-2">
                 <div className="text-[10px] text-agent-muted-foreground">总轮次</div>
-                <div className="text-sm font-semibold text-agent-foreground">{summary.totals.turns}</div>
+                <div className="text-xs font-semibold text-agent-foreground">{summary.totals.turns}</div>
               </div>
               <div className="rounded-agent-md border border-agent-border bg-agent-canvas px-2.5 py-2">
                 <div className="text-[10px] text-agent-muted-foreground">总 Token</div>
-                <div className="text-sm font-semibold text-agent-foreground">{formatTokens(summary.totals.totalTokens)}</div>
+                <div className="text-xs font-semibold text-agent-foreground">{formatTokens(summary.totals.totalTokens)}</div>
               </div>
               <div className="rounded-agent-md border border-agent-border bg-agent-canvas px-2.5 py-2">
                 <div className="text-[10px] text-agent-muted-foreground">缓存命中</div>
-                <div className="text-sm font-semibold text-agent-foreground">{formatTokens(summary.totals.cachedPromptTokens)}</div>
+                <div className="text-xs font-semibold text-agent-foreground">{formatTokens(summary.totals.cachedPromptTokens)}</div>
               </div>
               <div className="rounded-agent-md border border-agent-border bg-agent-canvas px-2.5 py-2">
                 <div className="text-[10px] text-agent-muted-foreground">估算成本</div>
-                <div className="text-sm font-semibold text-agent-foreground">{formatCost(summary.totals.costUsd)}</div>
+                <div className="text-xs font-semibold text-agent-foreground">{formatCost(summary.totals.costUsd)}</div>
               </div>
             </div>
 
@@ -180,7 +184,7 @@ export function UsagePanel() {
             </div>
 
             <p className="text-[10px] text-agent-muted-foreground">
-              成本按 framework 单价表估算,只统计有单价的模型;"—" 表示该模型无单价(本地/未知)。缓存命中为命中 prompt 缓存的 token 数。
+              成本按 framework 单价表估算后按约 1 美元 = 7.2 元换算为人民币,只统计有单价的模型;"—" 表示该模型无单价(本地/未知)。缓存命中为命中 prompt 缓存的 token 数。
             </p>
           </>
         )}

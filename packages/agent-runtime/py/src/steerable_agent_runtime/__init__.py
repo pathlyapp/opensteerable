@@ -51,6 +51,7 @@ from .todo import (
     make_todo_write_tool,
     todo_write_tool_descriptor,
 )
+from .delegation_gate import RequiredDelegationGate
 from .config import (
     DEFAULT_CONFIG_PATH,
     ConfigError,
@@ -387,6 +388,7 @@ __all__ = [
     "RecordingProvider",
     "RegisteredTool",
     "RequestSink",
+    "RequiredDelegationGate",
     "RetryAction",
     "RetryHooks",
     "RewriteRequest",

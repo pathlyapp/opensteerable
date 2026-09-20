@@ -783,6 +783,13 @@ def test_hard_timeout_abandon_exits_the_process() -> None:
     assert "os._exit" in src
 
 
+def test_hard_timeout_abandons_before_teardown() -> None:
+    import inspect
+
+    src = inspect.getsource(headless_mod._run)
+    assert src.index("if timed_out:") < src.index("for client in mcp_clients:")
+
+
 @pytest.mark.asyncio
 async def test_run_swallows_loop_errors(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys

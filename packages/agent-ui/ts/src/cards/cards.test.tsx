@@ -513,6 +513,56 @@ describe('ToolExecutionCard', () => {
     expect(screen.getByText(/"q": "foo"/)).toBeTruthy();
     expect(screen.getByText('timeout')).toBeTruthy();
   });
+
+  it('onActivate 接管标题点击，箭头仍展开', () => {
+    const onActivate = vi.fn();
+    render(
+      <ToolExecutionCard
+        payload={{
+          id: 't',
+          name: 'search.web',
+          status: 'failed',
+          summary: '搜索失败',
+          args: { q: 'foo' },
+          output: null,
+          error: 'timeout',
+          durationMs: 1200,
+          icon: null,
+          expandable: true,
+        }}
+        onActivate={onActivate}
+      />,
+    );
+    fireEvent.click(screen.getByText('search.web'));
+    expect(onActivate).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/"q": "foo"/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '展开详情' }));
+    expect(screen.getByText(/"q": "foo"/)).toBeTruthy();
+  });
+
+  it('renders label and lead instead of the payload name', () => {
+    render(
+      <ToolExecutionCard
+        payload={{
+          id: 't',
+          name: 'delegate_subagent',
+          status: 'running',
+          summary: '探环境',
+          args: null,
+          output: null,
+          error: null,
+          durationMs: null,
+          icon: null,
+          expandable: true,
+        }}
+        label="委派 · 调研员"
+        lead={<span data-testid="lead-dot" />}
+      />,
+    );
+    expect(screen.getByText('委派 · 调研员')).toBeTruthy();
+    expect(screen.queryByText('delegate_subagent')).toBeNull();
+    expect(screen.getByTestId('lead-dot')).toBeTruthy();
+  });
 });
 
 describe('ActionSegmentCard', () => {

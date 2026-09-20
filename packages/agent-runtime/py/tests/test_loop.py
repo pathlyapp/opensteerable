@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 from collections.abc import AsyncIterator
 from typing import Any
@@ -623,3 +624,82 @@ async def test_native_bridge_forwards_generation_controls_and_stream_hook(
     assert events[-1].data["status"] == "completed"
     assert provider.kwargs == {"temperature": 0.7, "max_tokens": 1234}
     assert len(hooks.chunks) == 2
+
+
+@pytest.mark.asyncio
+async def test_native_content_delta_arrives_before_provider_finishes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pytest.importorskip("steerable_agent_runtime_native")
+    monkeypatch.setenv("STEERABLE_RUST_CORELOOP", "1")
+
+    class _Provider:
+        name = "streaming"
+        model = "streaming-model"
+
+        def __init__(self) -> None:
+            self.waiting_for_release = asyncio.Event()
+            self.release = asyncio.Event()
+            self.finished = False
+
+        def stream(self, messages, *, tools=None, **kwargs):
+            async def _gen():
+                yield LLMStreamChunk(content_delta="first")
+                self.waiting_for_release.set()
+                await self.release.wait()
+                yield LLMStreamChunk(content_delta=" second")
+                yield LLMStreamChunk(finish_reason="stop")
+                self.finished = True
+
+            return _gen()
+
+    provider = _Provider()
+    loop = CoreLoop(provider, RouterToolExecutor(ToolRouter()))
+    host_received_delta = asyncio.Event()
+    events: list[LoopEvent] = []
+
+    async def consume() -> None:
+        async for event in loop.run([LLMMessage.text_of("user", "go")]):
+            events.append(event)
+            if event.kind == "content_delta":
+                host_received_delta.set()
+
+    task = asyncio.create_task(consume())
+    await asyncio.wait_for(provider.waiting_for_release.wait(), timeout=1)
+    await asyncio.wait_for(host_received_delta.wait(), timeout=1)
+    assert provider.finished is False
+    provider.release.set()
+    await asyncio.wait_for(task, timeout=1)
+    assert "".join(
+        event.data["delta"] for event in events if event.kind == "content_delta"
+    ) == "first second"
+
+
+@pytest.mark.asyncio
+async def test_native_mid_stream_error_keeps_partial_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pytest.importorskip("steerable_agent_runtime_native")
+    monkeypatch.setenv("STEERABLE_RUST_CORELOOP", "1")
+
+    class _Provider:
+        name = "partial-error"
+        model = "partial-error-model"
+
+        def stream(self, messages, *, tools=None, **kwargs):
+            async def _gen():
+                yield LLMStreamChunk(content_delta="partial answer")
+                raise RuntimeError("stream failed")
+
+            return _gen()
+
+    loop = CoreLoop(_Provider(), RouterToolExecutor(ToolRouter()))
+
+    events = await collect(loop.run([LLMMessage.text_of("user", "go")]))
+
+    assert [
+        event.data["delta"] for event in events if event.kind == "content_delta"
+    ] == ["partial answer"]
+    assert events[-1].data["status"] == "failed"
+    assert events[-1].data["textLength"] == len("partial answer")
+    assert loop.history.projection[-1].content_text == "partial answer"

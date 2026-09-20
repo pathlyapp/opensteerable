@@ -63,7 +63,7 @@
  *   │ ⬡ 智能体管理                     │ ← /settings?section=agents（独立页）
  *   │ ⬡ Skill 设置                    │ ← /settings?section=skills（独立页）
  *   │ 🔌 MCP 设置                     │ ← /settings?section=mcp（独立页）
- *   │  v 会话 · 12                📁+ │ ← 📁+ 新建项目
+ *   │  会话 v                     📁+ │ ← 📁+ 打开新建项目弹窗
  *   │  v 📁 项目A · 3      (hover: +✏📂🗑)│ ← 项目组：折叠/新建/重命名/换文件夹/删
  *   │   ...（项目内对话）              │
  *   │   今天                          │
@@ -73,19 +73,12 @@
  *   │ ⚙ 设置                          │ ← /settings（模型 + 洞察/遥测/用量/搜索/安全）
  *   └─────────────────────────────────┘
  *
- * 项目模式：项目 = 名字 + 绑定文件夹（ProjectRegistry，electron-store）。
- * 项目内对话的 agent 文件读写与命令执行被硬沙箱在该文件夹内（见
- * tool-router.ts ToolExecContext.projectRoot）；无项目对话不沙箱。
+ * 项目模式：项目 = 名字 + 托管家目录（Documents/<应用名>/<项目名>/）+
+ * 可选源文件夹。写入/命令围栏在家目录；源文件夹只放宽读取。
  */
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   LuChevronDown,
   LuChevronUp,
@@ -104,10 +97,10 @@ import {
   LuFolderPlus,
   LuPencil,
   LuPlug,
-} from 'react-icons/lu';
-import { parseChatTitle } from '@/lib/chat-title';
-import { getDateGroupLabel, getDateGroupPriority } from '@/lib/date-groups';
-import { getElectronBridge, isElectron } from '@/lib/electron-bridge';
+} from "react-icons/lu";
+import { parseChatTitle } from "@/lib/chat-title";
+import { getDateGroupLabel, getDateGroupPriority } from "@/lib/date-groups";
+import { getElectronBridge, isElectron } from "@/lib/electron-bridge";
 import {
   createProject,
   deleteProject,
@@ -116,17 +109,18 @@ import {
   type LocalChat,
   type LocalChatAgent,
   type LocalProject,
-} from '@/lib/local-api';
-import type { UseChatsAndAgentsResult } from '@/hooks/useChatsAndAgents';
-import type { PackChatSlotContribution } from '@/packs/registry';
-import type { RightPanelState } from '@/layouts/AgentLayout';
-import { BrandLockup } from '@/components/BrandLockup';
+} from "@/lib/local-api";
+import type { UseChatsAndAgentsResult } from "@/hooks/useChatsAndAgents";
+import type { PackChatSlotContribution } from "@/packs/registry";
+import type { RightPanelState } from "@/layouts/AgentLayout";
+import { BrandLockup } from "@/components/BrandLockup";
+import { CreateProjectModal } from "@/components/CreateProjectModal";
 
-const DEFAULT_DOT_COLOR = '#7c3aed';
+const DEFAULT_DOT_COLOR = "#7c3aed";
 
 function agentInitial(agent: LocalChatAgent | null): string {
-  const name = (agent?.name || '').trim();
-  return name ? name[0].toUpperCase() : 'A';
+  const name = (agent?.name || "").trim();
+  return name ? name[0].toUpperCase() : "A";
 }
 
 function AgentDot({
@@ -170,17 +164,17 @@ export function AgentSidebar({
   const location = useLocation();
   const { chatId: currentChatId } = useParams<{ chatId?: string }>();
   const bridge = getElectronBridge();
-  const onSettingsPage = location.pathname === '/settings';
+  const onSettingsPage = location.pathname === "/settings";
   // /settings?section=skills|mcp|agents|（缺省 = 综合设置）—— 各自高亮。
   const settingsSection = useMemo(
-    () => new URLSearchParams(location.search).get('section'),
+    () => new URLSearchParams(location.search).get("section"),
     [location.search],
   );
   const onGeneralSettings =
     onSettingsPage &&
-    settingsSection !== 'skills' &&
-    settingsSection !== 'mcp' &&
-    settingsSection !== 'agents';
+    settingsSection !== "skills" &&
+    settingsSection !== "mcp" &&
+    settingsSection !== "agents";
   const onNewChatHome = !currentChatId && !onSettingsPage;
 
   const {
@@ -198,7 +192,7 @@ export function AgentSidebar({
   const [isMac, setIsMac] = useState(false);
 
   useEffect(() => {
-    if (typeof navigator !== 'undefined') {
+    if (typeof navigator !== "undefined") {
       setIsMac(/Mac|iPod|iPhone|iPad/.test(navigator.platform));
     }
   }, []);
@@ -217,11 +211,18 @@ export function AgentSidebar({
   const [collapsedProjectIds, setCollapsedProjectIds] = useState<Set<string>>(
     () => new Set(),
   );
-  const [renamingProjectId, setRenamingProjectId] = useState<string | null>(null);
-  const [renamingValue, setRenamingValue] = useState('');
-  const [confirmDeleteProjectId, setConfirmDeleteProjectId] = useState<string | null>(null);
-  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
+  const [renamingProjectId, setRenamingProjectId] = useState<string | null>(
+    null,
+  );
+  const [renamingValue, setRenamingValue] = useState("");
+  const [confirmDeleteProjectId, setConfirmDeleteProjectId] = useState<
+    string | null
+  >(null);
+  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(
+    null,
+  );
   const [projectError, setProjectError] = useState<string | null>(null);
+  const [createProjectOpen, setCreateProjectOpen] = useState(false);
 
   const fetchProjects = useCallback(async () => {
     if (!isElectron()) return;
@@ -229,7 +230,7 @@ export function AgentSidebar({
       const res = await listProjects();
       setProjects(res.projects || []);
     } catch (err) {
-      console.error('获取项目列表失败:', err);
+      console.error("获取项目列表失败:", err);
       setProjectError(err instanceof Error ? err.message : String(err));
     }
   }, []);
@@ -238,24 +239,25 @@ export function AgentSidebar({
     void fetchProjects();
   }, [fetchProjects]);
 
-  const handleCreateProject = useCallback(async () => {
-    if (!isElectron()) return;
-    setProjectError(null);
-    try {
-      const result = await bridge?.local?.selectDirectory({
-        title: '选择项目文件夹',
-      });
-      if (!result || result.canceled || result.filePaths.length === 0) return;
-      const folderPath = result.filePaths[0];
-      // 默认用文件夹名做项目名，用户可随后内联重命名。
-      const baseName =
-        folderPath.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || '新项目';
-      await createProject({ name: baseName, folderPath });
-      await fetchProjects();
-    } catch (err) {
-      setProjectError(err instanceof Error ? err.message : String(err));
-    }
-  }, [bridge, fetchProjects]);
+  const handleCreateProject = useCallback(
+    async (input: { name: string; sourceFolders: string[] }) => {
+      setProjectError(null);
+      try {
+        await createProject({
+          name: input.name,
+          ...(input.sourceFolders.length > 0
+            ? { sourceFolders: input.sourceFolders }
+            : {}),
+        });
+        await fetchProjects();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setProjectError(message);
+        throw err instanceof Error ? err : new Error(message);
+      }
+    },
+    [fetchProjects],
+  );
 
   const handleRenameProject = useCallback(
     async (projectId: string) => {
@@ -278,7 +280,7 @@ export function AgentSidebar({
       setProjectError(null);
       try {
         const result = await bridge?.local?.selectDirectory({
-          title: '重新选择项目文件夹',
+          title: "重新选择项目文件夹",
         });
         if (!result || result.canceled || result.filePaths.length === 0) return;
         await updateProject(projectId, { folderPath: result.filePaths[0] });
@@ -350,7 +352,7 @@ export function AgentSidebar({
         navigate(`/agent?projectId=${encodeURIComponent(projectId)}`);
         return;
       }
-      navigate('/agent');
+      navigate("/agent");
     },
     [navigate],
   );
@@ -369,7 +371,7 @@ export function AgentSidebar({
         const { displayTitle, isAutomation } = parseChatTitle(chat.title);
         return {
           id: chat.id,
-          title: displayTitle || '新会话',
+          title: displayTitle || "新会话",
           isAutomation,
           isPinned: chat.isPinned,
           sortDate,
@@ -420,7 +422,7 @@ export function AgentSidebar({
     // 分组，「5 天前置顶的会话」会排在「今天」的普通会话之后，置顶语义
     // 就只剩组内有效——与用户点图钉时的预期不符。
     noProjectChats.forEach((chat) => {
-      const label = chat.isPinned ? '置顶' : getDateGroupLabel(chat.sortDate);
+      const label = chat.isPinned ? "置顶" : getDateGroupLabel(chat.sortDate);
       if (!map.has(label)) {
         map.set(label, {
           label,
@@ -448,7 +450,7 @@ export function AgentSidebar({
         const ok = await deleteChat(id);
         if (ok) {
           setConfirmDeleteChatId(null);
-          if (id === currentChatId) navigate('/agent');
+          if (id === currentChatId) navigate("/agent");
         }
       } finally {
         setDeletingChatId(null);
@@ -477,22 +479,17 @@ export function AgentSidebar({
             navigate(`/agent/${chat.id}`);
           }}
           className={[
-            'flex h-7 w-full min-w-0 items-center gap-1.5 rounded-full px-2.5 text-xs transition-colors duration-200',
+            "flex h-7 w-full min-w-0 items-center gap-1.5 rounded-full px-2.5 text-xs transition-colors duration-200",
             isCurrent
-              ? 'bg-agent-foreground/10 font-medium text-agent-foreground'
-              : 'text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-agent-foreground',
-          ].join(' ')}
+              ? "bg-agent-foreground/10 font-medium text-agent-foreground"
+              : "text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-agent-foreground",
+          ].join(" ")}
           title={
-            chat.isAutomation
-              ? `[由自动化触发] ${chat.title}`
-              : chat.title
+            chat.isAutomation ? `[由自动化触发] ${chat.title}` : chat.title
           }
         >
           {chat.isPinned && (
-            <span
-              className="shrink-0 text-[10px]"
-              aria-label="已置顶"
-            >
+            <span className="shrink-0 text-[10px]" aria-label="已置顶">
               📌
             </span>
           )}
@@ -503,9 +500,7 @@ export function AgentSidebar({
             />
           )}
           <AgentDot agent={chatAgent} size={16} />
-          <span className="min-w-0 truncate leading-none">
-            {chat.title}
-          </span>
+          <span className="min-w-0 truncate leading-none">{chat.title}</span>
         </button>
         {/* Gradient mask so the trash button doesn't paint
             over the chat title — fade matches the row's
@@ -514,15 +509,15 @@ export function AgentSidebar({
         <div
           aria-hidden="true"
           className={[
-            'pointer-events-none absolute inset-y-0 right-0 w-12 rounded-r-full transition-opacity duration-200',
+            "pointer-events-none absolute inset-y-0 right-0 w-12 rounded-r-full transition-opacity duration-200",
             isConfirmingDelete
               ? isCurrent
-                ? 'bg-gradient-to-l from-agent-canvas via-agent-canvas/95 to-transparent opacity-100'
-                : 'bg-gradient-to-l from-agent-muted via-agent-muted/95 to-transparent opacity-100'
+                ? "bg-gradient-to-l from-agent-canvas via-agent-canvas/95 to-transparent opacity-100"
+                : "bg-gradient-to-l from-agent-muted via-agent-muted/95 to-transparent opacity-100"
               : isCurrent
-                ? 'bg-gradient-to-l from-agent-canvas via-agent-canvas/95 to-transparent opacity-0 group-hover/item:opacity-100'
-                : 'bg-gradient-to-l from-agent-muted via-agent-muted/95 to-transparent opacity-0 group-hover/item:opacity-100',
-          ].join(' ')}
+                ? "bg-gradient-to-l from-agent-canvas via-agent-canvas/95 to-transparent opacity-0 group-hover/item:opacity-100"
+                : "bg-gradient-to-l from-agent-muted via-agent-muted/95 to-transparent opacity-0 group-hover/item:opacity-100",
+          ].join(" ")}
         />
         <button
           type="button"
@@ -532,29 +527,20 @@ export function AgentSidebar({
           }}
           disabled={isDeleting}
           className={[
-            'absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full transition-all duration-200',
+            "absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full transition-all duration-200",
             isConfirmingDelete
-              ? 'bg-agent-destructive/10 text-agent-destructive opacity-100 hover:bg-agent-destructive/20'
-              : 'text-agent-muted-foreground opacity-0 hover:bg-agent-foreground/5 hover:text-agent-destructive group-hover/item:opacity-100 focus:opacity-100',
-            'disabled:cursor-not-allowed disabled:opacity-100',
-          ].join(' ')}
-          title={
-            isConfirmingDelete
-              ? '再次点击确认删除'
-              : '删除会话'
-          }
-          aria-label={
-            isConfirmingDelete
-              ? '再次点击确认删除'
-              : '删除会话'
-          }
+              ? "bg-agent-destructive/10 text-agent-destructive opacity-100 hover:bg-agent-destructive/20"
+              : "text-agent-muted-foreground opacity-0 hover:bg-agent-foreground/5 hover:text-agent-destructive group-hover/item:opacity-100 focus:opacity-100",
+            "disabled:cursor-not-allowed disabled:opacity-100",
+          ].join(" ")}
+          title={isConfirmingDelete ? "再次点击确认删除" : "删除会话"}
+          aria-label={isConfirmingDelete ? "再次点击确认删除" : "删除会话"}
           data-testid="sidebar-chat-delete"
         >
           <LuTrash2
-            className={[
-              'h-3.5 w-3.5',
-              isDeleting ? 'animate-pulse' : '',
-            ].join(' ')}
+            className={["h-3.5 w-3.5", isDeleting ? "animate-pulse" : ""].join(
+              " ",
+            )}
           />
         </button>
       </div>
@@ -587,10 +573,10 @@ export function AgentSidebar({
         container.scrollHeight - 60;
       if (nearBottom) void loadMoreChats();
     };
-    container.addEventListener('scroll', maybeLoadMore, { passive: true });
+    container.addEventListener("scroll", maybeLoadMore, { passive: true });
     const tickId = window.requestAnimationFrame(maybeLoadMore);
     return () => {
-      container.removeEventListener('scroll', maybeLoadMore);
+      container.removeEventListener("scroll", maybeLoadMore);
       window.cancelAnimationFrame(tickId);
     };
   }, [
@@ -608,7 +594,7 @@ export function AgentSidebar({
   useEffect(() => {
     if (!bridge?.onMenuOpenTerminal) return;
     bridge.onMenuOpenTerminal(() => {
-      onToggleRightPanel('terminal');
+      onToggleRightPanel("terminal");
     });
     return () => {
       bridge.offMenuOpenTerminal?.();
@@ -620,7 +606,7 @@ export function AgentSidebar({
   return (
     <div className="flex h-full w-full flex-col border-r border-agent-border/60 bg-agent-muted/70 backdrop-blur-md">
       {/* ───── Brand + actions ───── */}
-      <div className="flex h-9 flex-shrink-0 items-center justify-between px-2.5">
+      <div className="flex h-11 flex-shrink-0 items-center justify-between px-2.5">
         <BrandLockup onClick={() => handleOpenNewChat()} />
         <div className="flex items-center gap-1">
           <button
@@ -643,11 +629,11 @@ export function AgentSidebar({
             type="button"
             onClick={() => handleOpenNewChat()}
             className={[
-              'flex h-7 w-full items-center gap-1.5 rounded-full px-2.5 text-xs transition-colors',
+              "flex h-7 w-full items-center gap-1.5 rounded-full px-2.5 text-xs transition-colors",
               onNewChatHome
-                ? 'bg-agent-foreground/10 font-medium text-agent-foreground'
-                : 'text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-agent-foreground',
-            ].join(' ')}
+                ? "bg-agent-foreground/10 font-medium text-agent-foreground"
+                : "text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-agent-foreground",
+            ].join(" ")}
             title="新建对话"
             data-testid="sidebar-new-chat"
           >
@@ -656,13 +642,13 @@ export function AgentSidebar({
           </button>
           <button
             type="button"
-            onClick={() => navigate('/settings?section=agents')}
+            onClick={() => navigate("/settings?section=agents")}
             className={[
-              'flex h-7 w-full items-center gap-1.5 rounded-full px-2.5 text-xs transition-colors',
-              onSettingsPage && settingsSection === 'agents'
-                ? 'bg-agent-foreground/10 font-medium text-agent-foreground'
-                : 'text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-agent-foreground',
-            ].join(' ')}
+              "flex h-7 w-full items-center gap-1.5 rounded-full px-2.5 text-xs transition-colors",
+              onSettingsPage && settingsSection === "agents"
+                ? "bg-agent-foreground/10 font-medium text-agent-foreground"
+                : "text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-agent-foreground",
+            ].join(" ")}
             title="智能体管理"
             data-testid="sidebar-agent-settings"
           >
@@ -671,13 +657,13 @@ export function AgentSidebar({
           </button>
           <button
             type="button"
-            onClick={() => navigate('/settings?section=skills')}
+            onClick={() => navigate("/settings?section=skills")}
             className={[
-              'flex h-7 w-full items-center gap-1.5 rounded-full px-2.5 text-xs transition-colors',
-              onSettingsPage && settingsSection === 'skills'
-                ? 'bg-agent-foreground/10 font-medium text-agent-foreground'
-                : 'text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-agent-foreground',
-            ].join(' ')}
+              "flex h-7 w-full items-center gap-1.5 rounded-full px-2.5 text-xs transition-colors",
+              onSettingsPage && settingsSection === "skills"
+                ? "bg-agent-foreground/10 font-medium text-agent-foreground"
+                : "text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-agent-foreground",
+            ].join(" ")}
             title="Skill 设置"
             data-testid="sidebar-skill-settings"
           >
@@ -686,13 +672,13 @@ export function AgentSidebar({
           </button>
           <button
             type="button"
-            onClick={() => navigate('/settings?section=mcp')}
+            onClick={() => navigate("/settings?section=mcp")}
             className={[
-              'flex h-7 w-full items-center gap-1.5 rounded-full px-2.5 text-xs transition-colors',
-              onSettingsPage && settingsSection === 'mcp'
-                ? 'bg-agent-foreground/10 font-medium text-agent-foreground'
-                : 'text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-agent-foreground',
-            ].join(' ')}
+              "flex h-7 w-full items-center gap-1.5 rounded-full px-2.5 text-xs transition-colors",
+              onSettingsPage && settingsSection === "mcp"
+                ? "bg-agent-foreground/10 font-medium text-agent-foreground"
+                : "text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-agent-foreground",
+            ].join(" ")}
             title="MCP 设置"
             data-testid="sidebar-mcp-settings"
           >
@@ -706,28 +692,22 @@ export function AgentSidebar({
             onClick={() => setChatsExpanded((v) => !v)}
             className="flex h-6 items-center rounded-full px-2.5 text-xs font-semibold tracking-wider text-agent-muted-foreground transition-colors hover:bg-agent-foreground/5 hover:text-agent-foreground"
           >
-            <span className="mr-1">
+            会话
+            <span className="ml-1">
               {chatsExpanded ? (
                 <LuChevronUp className="h-3 w-3" />
               ) : (
                 <LuChevronDown className="h-3 w-3" />
               )}
             </span>
-            会话
-            {normalizedChats.length > 0 && (
-              <span className="ml-1.5 text-[10px] font-normal text-agent-muted-foreground/70">
-                · {normalizedChats.length}
-              </span>
-            )}
           </button>
           <div className="flex items-center gap-1">
-            {/* 新建项目：选文件夹 → 以文件夹名建项目，之后可在组头重命名 */}
             {hasElectron && (
               <button
                 type="button"
-                onClick={() => void handleCreateProject()}
+                onClick={() => setCreateProjectOpen(true)}
                 className="flex h-6 w-6 items-center justify-center rounded-full text-agent-muted-foreground transition-colors duration-200 hover:bg-agent-foreground/5 hover:text-agent-foreground"
-                title="新建项目（绑定文件夹，项目内对话的文件操作被限制在该文件夹）"
+                title="新建项目"
                 aria-label="新建项目"
               >
                 <LuFolderPlus className="h-3.5 w-3.5" />
@@ -768,10 +748,13 @@ export function AgentSidebar({
                           <input
                             autoFocus
                             value={renamingValue}
-                            onChange={(event) => setRenamingValue(event.target.value)}
+                            onChange={(event) =>
+                              setRenamingValue(event.target.value)
+                            }
                             onBlur={() => void handleRenameProject(project.id)}
                             onKeyDown={(event) => {
-                              if (event.key === 'Escape') setRenamingProjectId(null);
+                              if (event.key === "Escape")
+                                setRenamingProjectId(null);
                             }}
                             className="h-6 w-full rounded-agent-md border border-agent-border bg-agent-canvas px-2 text-xs text-agent-foreground focus:outline-none focus:ring-2 focus:ring-agent-foreground/30"
                           />
@@ -824,7 +807,9 @@ export function AgentSidebar({
                             </button>
                             <button
                               type="button"
-                              onClick={() => void handleChangeProjectFolder(project.id)}
+                              onClick={() =>
+                                void handleChangeProjectFolder(project.id)
+                              }
                               className="flex h-5 w-5 items-center justify-center rounded-full text-agent-muted-foreground hover:bg-agent-foreground/10 hover:text-agent-foreground"
                               title="更换绑定文件夹"
                             >
@@ -832,21 +817,23 @@ export function AgentSidebar({
                             </button>
                             <button
                               type="button"
-                              onClick={() => void handleDeleteProject(project.id)}
+                              onClick={() =>
+                                void handleDeleteProject(project.id)
+                              }
                               disabled={deletingProjectId === project.id}
                               className={`flex h-5 w-5 items-center justify-center rounded-full transition-colors ${
                                 confirmDeleteProjectId === project.id
-                                  ? 'bg-agent-destructive/10 text-agent-destructive hover:bg-agent-destructive/20'
-                                  : 'text-agent-muted-foreground hover:bg-agent-foreground/10 hover:text-agent-destructive'
+                                  ? "bg-agent-destructive/10 text-agent-destructive hover:bg-agent-destructive/20"
+                                  : "text-agent-muted-foreground hover:bg-agent-foreground/10 hover:text-agent-destructive"
                               }`}
                               title={
                                 confirmDeleteProjectId === project.id
-                                  ? '再次点击确认删除（会话会保留为无项目对话）'
-                                  : '删除项目（会话保留为无项目对话）'
+                                  ? "再次点击确认删除（会话会保留为无项目对话）"
+                                  : "删除项目（会话保留为无项目对话）"
                               }
                             >
                               <LuTrash2
-                                className={`h-3 w-3 ${deletingProjectId === project.id ? 'animate-pulse' : ''}`}
+                                className={`h-3 w-3 ${deletingProjectId === project.id ? "animate-pulse" : ""}`}
                               />
                             </button>
                           </div>
@@ -887,7 +874,7 @@ export function AgentSidebar({
                     加载更多...
                   </span>
                 ) : hasMoreChats ? (
-                  '继续下滑加载更多'
+                  "继续下滑加载更多"
                 ) : (
                   `共 ${normalizedChats.length} 个会话`
                 )}
@@ -911,20 +898,20 @@ export function AgentSidebar({
         {chatSlots.length === 0 ? (
           <button
             type="button"
-            onClick={() => onToggleRightPanel('terminal')}
+            onClick={() => onToggleRightPanel("terminal")}
             className={[
-              'flex h-7 w-full items-center gap-1.5 rounded-full px-2.5 text-xs transition-colors',
-              rightPanel === 'terminal'
-                ? 'bg-agent-foreground/10 font-medium text-agent-foreground'
-                : 'text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-foreground',
-            ].join(' ')}
-            title={`${rightPanel === 'terminal' ? '关闭' : '打开'}终端面板 (${isMac ? '⌘T' : 'Ctrl+T'})`}
+              "flex h-7 w-full items-center gap-1.5 rounded-full px-2.5 text-xs transition-colors",
+              rightPanel === "terminal"
+                ? "bg-agent-foreground/10 font-medium text-agent-foreground"
+                : "text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-foreground",
+            ].join(" ")}
+            title={`${rightPanel === "terminal" ? "关闭" : "打开"}终端面板 (${isMac ? "⌘T" : "Ctrl+T"})`}
             data-testid="sidebar-terminal"
           >
             <LuTerminal className="h-3.5 w-3.5" />
             <span>终端</span>
             <span className="ml-auto text-[10px] text-agent-muted-foreground/70">
-              {isMac ? '⌘T' : 'Ctrl+T'}
+              {isMac ? "⌘T" : "Ctrl+T"}
             </span>
           </button>
         ) : (
@@ -935,14 +922,14 @@ export function AgentSidebar({
           >
             <button
               type="button"
-              onClick={() => onToggleRightPanel('terminal')}
+              onClick={() => onToggleRightPanel("terminal")}
               className={[
-                'flex h-7 flex-1 items-center justify-center gap-1.5 rounded-full text-xs font-medium transition-colors',
-                rightPanel === 'terminal'
-                  ? 'bg-agent-foreground/10 text-agent-foreground'
-                  : 'text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-agent-foreground',
-              ].join(' ')}
-              title={`${rightPanel === 'terminal' ? '关闭' : '打开'}终端面板`}
+                "flex h-7 flex-1 items-center justify-center gap-1.5 rounded-full text-xs font-medium transition-colors",
+                rightPanel === "terminal"
+                  ? "bg-agent-foreground/10 text-agent-foreground"
+                  : "text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-agent-foreground",
+              ].join(" ")}
+              title={`${rightPanel === "terminal" ? "关闭" : "打开"}终端面板`}
               data-testid="sidebar-terminal"
             >
               <LuTerminal className="h-3.5 w-3.5" />
@@ -954,12 +941,12 @@ export function AgentSidebar({
                 type="button"
                 onClick={() => onToggleRightPanel(slot.slotId)}
                 className={[
-                  'flex h-7 flex-1 items-center justify-center gap-1.5 rounded-full text-xs font-medium transition-colors',
+                  "flex h-7 flex-1 items-center justify-center gap-1.5 rounded-full text-xs font-medium transition-colors",
                   rightPanel === slot.slotId
-                    ? 'bg-agent-foreground/10 text-agent-foreground'
-                    : 'text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-agent-foreground',
-                ].join(' ')}
-                title={`${rightPanel === slot.slotId ? '关闭' : '打开'}${slot.title}`}
+                    ? "bg-agent-foreground/10 text-agent-foreground"
+                    : "text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-agent-foreground",
+                ].join(" ")}
+                title={`${rightPanel === slot.slotId ? "关闭" : "打开"}${slot.title}`}
                 data-testid={`sidebar-slot-${slot.slotId}`}
               >
                 <slot.Icon className="h-3.5 w-3.5" />
@@ -970,13 +957,13 @@ export function AgentSidebar({
         )}
         <button
           type="button"
-          onClick={() => navigate('/settings')}
+          onClick={() => navigate("/settings")}
           className={[
-            'mt-0.5 flex h-7 w-full items-center gap-1.5 rounded-full px-2.5 text-xs transition-colors',
+            "mt-0.5 flex h-7 w-full items-center gap-1.5 rounded-full px-2.5 text-xs transition-colors",
             onGeneralSettings
-              ? 'bg-agent-foreground/10 font-medium text-agent-foreground'
-              : 'text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-agent-foreground',
-          ].join(' ')}
+              ? "bg-agent-foreground/10 font-medium text-agent-foreground"
+              : "text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-agent-foreground",
+          ].join(" ")}
           title="设置"
           data-testid="sidebar-llm-settings"
         >
@@ -984,6 +971,12 @@ export function AgentSidebar({
           <span>设置</span>
         </button>
       </div>
+
+      <CreateProjectModal
+        open={createProjectOpen}
+        onClose={() => setCreateProjectOpen(false)}
+        onCreate={handleCreateProject}
+      />
     </div>
   );
 }

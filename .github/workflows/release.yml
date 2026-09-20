@@ -11,13 +11,15 @@ name: Release
 # This workflow then:
 #   1. Resolves the version from the pushed tag (or `inputs.version` for
 #      `workflow_dispatch` re-runs).
-#   2. Validates that ALL 7 publishable packages report exactly that
-#      version — `scripts/check_lockstep_versions.py --expected X.Y.Z`.
+#   2. Validates that every lockstep package (TS, Py, Rust crate,
+#      native wheel) reports exactly that version —
+#      `scripts/check_lockstep_versions.py --expected X.Y.Z`.
 #      Refuses to proceed if even one is out of sync.
 #   3. Creates a GitHub Release for the tag (auto-generated notes).
-#   4. Chains publish-npm.yml + publish-pypi.yml. Those workflows are
-#      idempotent — they skip any package whose version is already on
-#      the registry — so re-tagging after a partial failure is safe.
+#   4. Chains publish-npm.yml + publish-pypi.yml + publish-native.yml.
+#      Those workflows are idempotent — they skip any package whose
+#      version is already on the registry — so re-tagging after a
+#      partial failure is safe.
 #   5. Posts a Feishu card (success or failure) via FEISHU_BOT_WEBHOOK.
 #
 # Why tag-driven instead of release-please?
@@ -76,7 +78,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Lockstep gate (all 7 packages must equal the tag version)
+      - name: Lockstep gate (TS + Py + Rust crates must equal the tag version)
         env:
           EXPECTED: ${{ steps.version.outputs.value }}
         run: |
@@ -100,7 +102,7 @@ jobs:
               --generate-notes
           fi
 
-  # Chained publish jobs. `if: success()` is implicit on `needs:`. Both
+  # Chained publish jobs. `if: success()` is implicit on `needs:`. The
   # workflows are idempotent — re-running them on a partially-published
   # tag only uploads what's missing.
   publish-npm:
@@ -119,11 +121,19 @@ jobs:
       contents: read
       id-token: write
 
+  publish-native:
+    needs: validate
+    uses: ./.github/workflows/publish-native.yml
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+
   # Always runs so a half-published or lockstep-rejected tag still pages
   # the team. A missing webhook (or a Feishu outage) is a warning, not a
   # failed release — the registries are already the source of truth.
   notify:
-    needs: [validate, publish-npm, publish-pypi]
+    needs: [validate, publish-npm, publish-pypi, publish-native]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -134,6 +144,7 @@ jobs:
           VALIDATE: ${{ needs.validate.result }}
           NPM: ${{ needs.publish-npm.result }}
           PYPI: ${{ needs.publish-pypi.result }}
+          NATIVE: ${{ needs.publish-native.result }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           RELEASE_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/v${{ needs.validate.outputs.version }}
           ACTOR: ${{ github.actor }}
@@ -151,7 +162,13 @@ jobs:
           validate = os.environ.get("VALIDATE") or "unknown"
           npm = os.environ.get("NPM") or "unknown"
           pypi = os.environ.get("PYPI") or "unknown"
-          ok = validate == "success" and npm == "success" and pypi == "success"
+          native = os.environ.get("NATIVE") or "unknown"
+          ok = (
+              validate == "success"
+              and npm == "success"
+              and pypi == "success"
+              and native == "success"
+          )
           tag = f"v{version}"
           title = f"{'成功' if ok else '失败'} · Steerable {tag}"
           lines = [
@@ -161,6 +178,7 @@ jobs:
               f"validate：{validate}",
               f"npm：{npm}",
               f"PyPI：{pypi}",
+              f"native：{native}",
               f"[GHA run]({os.environ.get('RUN_URL', '')})",
           ]
           if version != "(unknown)":

@@ -30,7 +30,7 @@ export function BrandLockup({ className, onClick }: BrandLockupProps = {}) {
         draggable={false}
       />
       {title ? (
-        <span className="truncate text-xs font-semibold tracking-tight text-agent-foreground leading-none">
+        <span className="truncate text-sm font-semibold tracking-tight text-agent-foreground leading-none">
           {title}
         </span>
       ) : null}

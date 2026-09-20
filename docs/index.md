@@ -66,7 +66,7 @@ Local, quantized, and cheap models break the structured-`tool_calls` assumptions
 </div>
 <div class="sf-card" markdown>
 ### One wire protocol
-One JSON Schema → generated **TypeScript types + Pydantic models**. `content`, `tool_call`, `tool_result`, `error`, `done`, `budget_exhausted` — all standardised, with a conformance suite keeping both SDKs byte-compatible. All 8 published packages share one lockstep `X.Y.Z`; npm tarballs ship **sigstore provenance** attestations.
+One JSON Schema → generated **TypeScript types + Pydantic models**. `content`, `tool_call`, `tool_result`, `error`, `done`, `budget_exhausted` — all standardised, with a conformance suite keeping both SDKs byte-compatible. All 13 published packages share one lockstep `X.Y.Z` (including the Rust CoreLoop wheel); npm tarballs ship **sigstore provenance** attestations.
 </div>
 <div class="sf-card" markdown>
 ### Pure-function harness

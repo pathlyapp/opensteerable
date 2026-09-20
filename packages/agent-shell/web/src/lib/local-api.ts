@@ -369,6 +369,8 @@ export interface LocalProject {
   id: string;
   name: string;
   folderPath: string;
+  /** 附加源文件夹（只读）。缺省空。 */
+  sourceFolders?: string[];
   /** W6-5: 信任后该项目目录里的规则文件才会注入模型上下文。缺省 false。 */
   trusted?: boolean;
   createdAt: string;
@@ -473,7 +475,11 @@ export async function listProjects() {
   });
 }
 
-export async function createProject(input: { name: string; folderPath: string }) {
+export async function createProject(input: {
+  name: string;
+  folderPath?: string;
+  sourceFolders?: string[];
+}) {
   return bridge().localBackend.request<{ success: boolean; project: LocalProject }>({
     method: 'POST',
     path: '/api/v2/projects',

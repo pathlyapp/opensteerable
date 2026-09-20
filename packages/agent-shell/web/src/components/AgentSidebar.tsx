@@ -620,7 +620,7 @@ export function AgentSidebar({
   return (
     <div className="flex h-full w-full flex-col border-r border-agent-border/60 bg-agent-muted/70 backdrop-blur-md">
       {/* ───── Brand + actions ───── */}
-      <div className="flex h-9 flex-shrink-0 items-center justify-between px-2.5">
+      <div className="flex h-11 flex-shrink-0 items-center justify-between px-2.5">
         <BrandLockup onClick={() => handleOpenNewChat()} />
         <div className="flex items-center gap-1">
           <button

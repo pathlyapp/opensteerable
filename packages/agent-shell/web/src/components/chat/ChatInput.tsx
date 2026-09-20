@@ -141,6 +141,8 @@ export interface ChatInputProps {
   /** Slot in the composer meta row above the input box, before the agent
    * picker (e.g. the project badge). */
   leadingChrome?: ReactNode;
+  /** Slot in the composer meta row above the input box, right-aligned (e.g. SessionTodoList). */
+  trailingChrome?: ReactNode;
   /** Current chat mode. When unset the toggle is hidden (defaults to 'agent'). */
   mode?: ChatMode;
   /** Called when the user switches between Agent / Plan mode. */
@@ -696,6 +698,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       onOpenSettings,
       toolbarExtras,
       leadingChrome,
+      trailingChrome,
       mode,
       onModeChange,
       execPolicy,
@@ -1549,10 +1552,10 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     return (
       // @container：底栏元素的显隐/宽度用容器查询（@sm = 384px）而不是
       // 视口断点——侧边栏占宽后，视口够宽但输入框本身可能已经很窄。
-      <div className="chat-input-container @container relative px-2.5 pb-2 pt-0.5">
-        {(leadingChrome || selectedAgent) && (
+      <div className="chat-input-container @container relative px-2.5 pb-2.5 pt-1">
+        {(leadingChrome || selectedAgent || trailingChrome) && (
           <div
-            className="relative mb-1 flex min-w-0 items-center gap-1.5"
+            className="relative mb-1.5 flex min-w-0 items-center gap-1.5"
             data-testid="composer-meta-row"
           >
             {leadingChrome}
@@ -1567,6 +1570,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                 onSelect={handleSelectAgent}
                 mentionReferences={mentionReferences}
               />
+            )}
+            {trailingChrome && (
+              <div className="ml-auto flex items-center min-w-0">
+                {trailingChrome}
+              </div>
             )}
           </div>
         )}

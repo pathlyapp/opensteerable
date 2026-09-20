@@ -268,7 +268,7 @@ export function AssistantMessage({
 
   return (
     <motion.div
-      className="group/message mb-1"
+      className="group/message"
       data-message-role="assistant"
       data-message-id={message.id}
       initial={{ opacity: 0, y: 8 }}
@@ -382,11 +382,11 @@ export function AssistantMessage({
         {/* 回合产物文件列表：钉在回答之下、时间戳行之上（Codex 式收尾）。
             回合收尾才有数据，流式期间天然为空。 */}
         {!isStreaming && turnFiles && turnFiles.length > 0 && (
-          <div className="mt-1.5">
+          <div className="mt-2.5 mb-1">
             <TurnFilesCard files={turnFiles} />
           </div>
         )}
-        <div className="mt-1 flex items-center gap-2 text-[11px] text-agent-muted-foreground">
+        <div className="mt-2 flex items-center gap-2 text-[11px] text-agent-muted-foreground/80">
           <span>
             {message.createdAt
               ? getFriendlyDate(new Date(message.createdAt))

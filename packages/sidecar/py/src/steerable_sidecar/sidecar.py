@@ -77,6 +77,7 @@ from steerable_agent_runtime import (
     PluginLoadError,
     PluginStateError,
     PolicyDeniedError,
+    RequiredDelegationGate,
     RouterToolExecutor,
     SandboxedToolExecutor,
     SessionApprovalCache,
@@ -1885,6 +1886,7 @@ class Sidecar:
         # Children run as pooled AgentPool runs: lifecycle lands on the
         # agent.child notification stream, and a concurrent profile's
         # same-round delegations execute in parallel under the pool budget.
+        loop_config = _build_loop_config(params)
         subagent_param = params.get("subagent", True)
         subagent_executor: SubagentExecutor | None = None
         if subagent_param:
@@ -1899,6 +1901,9 @@ class Sidecar:
             # "...", "maxRounds": N, "concurrent": bool}}}`` and the tool
             # schema advertises the names as a ``subagent_type`` enum. An
             # unknown name fails closed listing the registered ones.
+            # Round / tool-error walls inherit the parent loop unless a
+            # profile pins its own — a child must not die at 8/12 rounds
+            # while the parent still has the spec's 80.
             registry = None
             profiles = subagent_opts.get("profiles")
             if isinstance(profiles, dict) and profiles:
@@ -1913,7 +1918,14 @@ class Sidecar:
                     registry.register(
                         str(name),
                         SubagentConfig(
-                            max_rounds=int(p.get("maxRounds", 8)),
+                            max_rounds=int(
+                                p.get("maxRounds", loop_config.max_rounds)
+                            ),
+                            max_tool_errors=int(
+                                p.get(
+                                    "maxToolErrors", loop_config.max_tool_errors
+                                )
+                            ),
                             tool_filter=p_filter,
                             model=(
                                 str(p["model"]) if p.get("model") is not None else None
@@ -1946,9 +1958,24 @@ class Sidecar:
                 SubagentConfig(
                     tool_filter=tool_filter,
                     max_parallel=int(subagent_opts.get("maxParallel", 4)),
+                    max_rounds=int(
+                        subagent_opts.get("maxRounds", loop_config.max_rounds)
+                    ),
+                    max_tool_errors=int(
+                        subagent_opts.get(
+                            "maxToolErrors", loop_config.max_tool_errors
+                        )
+                    ),
                 ),
                 registry=registry,
                 provider_factory=_subagent_provider_factory,
+                # Each child writes its own durable record
+                # (``<parent>:child:<lineage id>``) so the host can render
+                # the delegation's process; the id rides child_spawned.
+                history_store=self.storage,
+                record_id_prefix=(
+                    params.get("recordId") or params.get("chatId") or None
+                ),
                 # Children advertise the host tool surface (minus the
                 # delegation tool itself), narrowed per profile; the
                 # descriptor appended below is deliberately not in the
@@ -1963,6 +1990,22 @@ class Sidecar:
                 *(tools or []),
                 subagent_tool_descriptor(registry=registry),
             ]
+            # requiredProfiles: the host named these sub-agents for the turn
+            # (desktop ``@`` mentions), so finishing without delegating to
+            # one is a skipped instruction, not a choice. The prompt alone
+            # cannot enforce that — a turn that ran other tools and narrated
+            # the hand-off passes every other discipline guard.
+            required_profiles = [
+                str(name) for name in subagent_opts.get("requiredProfiles") or []
+            ]
+            if required_profiles:
+                hooks = ChainHooks(
+                    RequiredDelegationGate(
+                        required_profiles,
+                        tool_name=SubagentConfig().tool_name,
+                    ),
+                    hooks,
+                )
         # worldState: slow-changing host context (time, workspace, git
         # branch, …) as plain per-section data. The loop injects it once as
         # a <world-state> fragment; later turns diff against the snapshot
@@ -2159,7 +2202,7 @@ class Sidecar:
         loop = CoreLoop(
             provider,
             executor,
-            _build_loop_config(params),
+            loop_config,
             hooks=hooks,
             # Wave 1 durable record: the continuous per-chat log. An
             # explicit recordId (the fork path's fresh log) wins over the

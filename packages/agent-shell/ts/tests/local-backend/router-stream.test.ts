@@ -5,8 +5,8 @@
  * SSE 行为：路由匹配、会话自动补建、regenerate 截断/fork、resume 续跑、
  * sidecar 缺失 503、SSE chunk 序列（content/executed_actions/message_id/
  * [DONE]/error）、turn_active 中断标记生命周期、usage/trace 落库、
- * 后台标题生成、plan 模式工具过滤、工具策略、@提及人设、项目围栏提示、
- * "/技能" 显式触发与图片附件注入。
+ * 后台标题生成、plan 模式工具过滤、工具策略、项目围栏提示、
+ * "/技能" 显式触发与图片附件注入。@提及委派见 router-mention-delegate.test.ts。
  *
  * streamCoreLoopTurn（sidecar 流边界）按用例脚本回放；localStore 为内存
  * 假实现；不起 HTTP 服务器、不访问网络。
@@ -298,6 +298,43 @@ describe('流式回合 SSE 序列', () => {
       childId: 'sub-1',
       status: 'spawned',
     });
+  });
+
+  it('子代理生命周期写入助手 metadata.orchestrationChildEvents', async () => {
+    const chat = await seedChat();
+    installStream((opts) => {
+      opts.onChildEvent?.({
+        kind: 'child_spawned',
+        childId: '0.1',
+        task: '调研 PDF 方案',
+        profile: 'researcher',
+      });
+      opts.onChildEvent?.({
+        kind: 'child_completed',
+        childId: '0.1',
+        status: 'completed',
+      });
+      opts.onText('done');
+    });
+    await makeRouter().handleStream(
+      { method: 'POST', path: `/api/v2/chats/${chat.id}/send`, body: { message: '干活' } },
+      makeEmitCapture().emit,
+    );
+    const assistant = (await h.store.listMessages(chat.id, 10))[0];
+    const metadata = JSON.parse(assistant.messageMetadata!);
+    expect(metadata.orchestrationChildEvents).toEqual([
+      {
+        kind: 'child_spawned',
+        childId: '0.1',
+        task: '调研 PDF 方案',
+        profile: 'researcher',
+      },
+      {
+        kind: 'child_completed',
+        childId: '0.1',
+        status: 'completed',
+      },
+    ]);
   });
 
   it('turn_active 标记：流式期间存在、回合落库后清除', async () => {
@@ -713,21 +750,30 @@ describe('流式回合的提示词与工具面', () => {
     });
   });
 
-  it('@提及带 rolePrompt 的智能体 → 系统提示词含人设前言', async () => {
-    const agent = await h.store.createChatAgent({ name: '审稿人', rolePrompt: '你是严格的审稿人' });
-    const chat = await seedChat();
+  it('@提及不再换人设：绑定智能体仍是本轮自称', async () => {
+    const parent = await h.store.createChatAgent({
+      name: '电脑操作员',
+      rolePrompt: '你是电脑操作员',
+    });
+    const reviewer = await h.store.createChatAgent({
+      name: '审稿人',
+      slug: 'reviewer',
+      rolePrompt: '你是严格的审稿人',
+    });
+    const chat = await h.store.createChat('新对话', parent.id, null);
     const { seen } = installStream(() => {});
     await makeRouter().handleStream(
       {
         method: 'POST',
         path: `/api/v2/chats/${chat.id}/send`,
-        body: { message: '看看这篇', mentionedAgentId: agent.id },
+        body: { message: '看看这篇', mentionedAgentId: reviewer.id },
       },
       makeEmitCapture().emit,
     );
-    expect(seen[0].systemPrompt).toContain('【当前角色】审稿人');
-    expect(seen[0].systemPrompt).toContain('你是严格的审稿人');
-    expect(seen[0].systemPrompt).toContain('你是 审稿人');
+    expect(seen[0].systemPrompt).toContain('【当前角色】电脑操作员');
+    expect(seen[0].systemPrompt).not.toContain('【当前角色】审稿人');
+    expect(seen[0].subagent.profiles.reviewer).toBeDefined();
+    expect(seen[0].messages.at(-1).content).toContain('delegate_subagent');
   });
 
   it('绑定智能体即使没有 rolePrompt，系统提示词自称也用智能体显示名', async () => {

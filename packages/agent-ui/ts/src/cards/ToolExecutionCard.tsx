@@ -42,8 +42,15 @@ export interface ToolExecutionCardProps {
   payload: ToolExecutionPayload;
   className?: string;
   defaultExpanded?: boolean;
+  /** Replaces the default zap icon before the tool name. */
+  lead?: React.ReactNode;
+  /** Header title; defaults to `payload.name`. */
+  label?: string;
   renderArgs?: (args: unknown) => React.ReactNode;
   renderOutput?: (output: unknown) => React.ReactNode;
+  /** Header body click (chevron still toggles expand). */
+  onActivate?: () => void;
+  activateTitle?: string;
 }
 
 function StatusIcon({ status }: { status: Status }) {
@@ -81,12 +88,17 @@ export const ToolExecutionCard: React.FC<ToolExecutionCardProps> = ({
   payload,
   className,
   defaultExpanded = false,
+  lead,
+  label,
   renderArgs,
   renderOutput,
+  onActivate,
+  activateTitle,
 }) => {
   const expandable = payload.expandable !== false;
   const [expanded, setExpanded] = React.useState(defaultExpanded);
   const status = (payload.status ?? 'pending') as Status;
+  const title = label ?? payload.name;
 
   return (
     <div
@@ -95,36 +107,50 @@ export const ToolExecutionCard: React.FC<ToolExecutionCardProps> = ({
         className,
       ].filter(Boolean).join(' ')}
     >
-      <button
-        type="button"
-        onClick={() => expandable && setExpanded((v) => !v)}
-        className="flex w-full items-center gap-1.5 px-2.5 py-1 text-left"
-        aria-expanded={expanded}
-        aria-disabled={!expandable}
-      >
-        {expandable &&
-          (expanded ? (
-            <ChevronDownIcon size={12} className="shrink-0" />
-          ) : (
-            <ChevronRightIcon size={12} className="shrink-0" />
-          ))}
-        <ZapIcon size={12} className="shrink-0 text-[var(--agent-muted-foreground,#6b7280)]" />
-        <span className="shrink-0 font-medium text-[var(--agent-foreground,#111827)]">
-          {payload.name}
-        </span>
-        {payload.summary && (
-          <span className="min-w-0 flex-1 truncate text-[var(--agent-muted-foreground,#6b7280)]">
-            {payload.summary}
-          </span>
+      <div className="flex w-full items-stretch">
+        {expandable && (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="flex shrink-0 items-center px-2.5 py-1 text-[var(--agent-muted-foreground,#6b7280)]"
+            aria-expanded={expanded}
+            aria-label={expanded ? '收起详情' : '展开详情'}
+          >
+            {expanded ? <ChevronDownIcon size={12} /> : <ChevronRightIcon size={12} />}
+          </button>
         )}
-        <span className="ml-auto inline-flex shrink-0 items-center gap-1 whitespace-nowrap">
-          <StatusIcon status={status} />
-          <span className={STATUS_TONE[status]}>{STATUS_LABEL[status]}</span>
-          {typeof payload.durationMs === 'number' && (
-            <span className="text-[var(--agent-muted-foreground,#9ca3af)]">· {payload.durationMs}ms</span>
+        <button
+          type="button"
+          onClick={() => {
+            if (onActivate) onActivate();
+            else if (expandable) setExpanded((v) => !v);
+          }}
+          className={`flex min-w-0 flex-1 items-center gap-1.5 py-1 pr-2.5 text-left ${expandable ? '' : 'pl-2.5'} ${onActivate ? 'cursor-pointer hover:bg-[var(--agent-muted,#f3f4f6)]/60' : ''}`}
+          aria-expanded={onActivate ? undefined : expanded}
+          aria-label={onActivate ? activateTitle : undefined}
+          title={onActivate ? activateTitle : undefined}
+          data-testid={onActivate ? 'tool-activate' : undefined}
+        >
+          {lead ?? (
+            <ZapIcon size={12} className="shrink-0 text-[var(--agent-muted-foreground,#6b7280)]" />
           )}
-        </span>
-      </button>
+          <span className="shrink-0 font-medium text-[var(--agent-foreground,#111827)]">
+            {title}
+          </span>
+          {payload.summary && (
+            <span className="min-w-0 flex-1 truncate text-[var(--agent-muted-foreground,#6b7280)]">
+              {payload.summary}
+            </span>
+          )}
+          <span className="ml-auto inline-flex shrink-0 items-center gap-1 whitespace-nowrap">
+            <StatusIcon status={status} />
+            <span className={STATUS_TONE[status]}>{STATUS_LABEL[status]}</span>
+            {typeof payload.durationMs === 'number' && (
+              <span className="text-[var(--agent-muted-foreground,#9ca3af)]">· {payload.durationMs}ms</span>
+            )}
+          </span>
+        </button>
+      </div>
       {expandable && expanded && (
         <div className="space-y-1.5 border-t border-[var(--agent-border,#e5e7eb)] px-2.5 py-1.5">
           {payload.args !== undefined && (

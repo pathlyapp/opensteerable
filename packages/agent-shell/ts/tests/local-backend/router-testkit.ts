@@ -299,7 +299,7 @@ class FakeLocalStore {
     const now = this.now();
     const agent: ChatAgentRecord = {
       id: `agent-${++this.seq}`,
-      slug: null,
+      slug: input.slug ?? null,
       name: input.name,
       icon: input.icon ?? null,
       color: input.color ?? null,
@@ -514,6 +514,8 @@ const harness = vi.hoisted(() => {
     uploadInsightsBundle: vi.fn(async () => true),
     /** open-path 路由的宿主打开能力（'' = 成功，非空 = 错误消息）。 */
     shellOpenPath: vi.fn(async (_target: string) => ''),
+    /** sidecar durable history 的替身：recordId → 条目（子代理过程路由用）。 */
+    sidecarHistory: new Map<string, unknown[]>(),
   };
 });
 
@@ -619,6 +621,18 @@ vi.mock('../../src/local-backend/pack-backend-routes.js', () => ({
   matchPackBackendRoute: () => h.packRoute,
 }));
 
+// task-process：`readSidecarHistoryEntries` 直读 sidecar 的 sqlite 文件
+// （better-sqlite3，plain vitest 下不可用）。换成内存表；时间线重建保留
+// 真实实现，它是纯函数。
+vi.mock('../../src/local-backend/task-process.js', async () => {
+  const actual = await import('../../src/local-backend/task-process.js');
+  return {
+    ...actual,
+    readSidecarHistoryEntries: (recordId: string) =>
+      h.sidecarHistory.get(recordId) ?? [],
+  };
+});
+
 vi.mock('../../src/insights/record.js', () => ({
   recordInsightEvent: h.recordInsightEvent,
   recordInsightTurn: h.recordInsightTurn,
@@ -647,6 +661,7 @@ export function resetRouterTestkit(): void {
   h.activeStreamIds.clear();
   h.streamImpl = null;
   h.packRoute = null;
+  h.sidecarHistory.clear();
   h.userSkillsDir = '/tmp/router-test-user-skills';
   h.llmSettings = {
     provider: 'openai-compat',

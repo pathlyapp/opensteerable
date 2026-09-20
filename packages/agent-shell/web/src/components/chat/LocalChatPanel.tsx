@@ -13,6 +13,7 @@ import {
 import { EmptyChat } from './EmptyChat';
 import { MessageList } from './MessageList';
 import type { ExecutedAction } from './ExecutedActionsCard';
+import type { InspectTaskInput } from './executed-actions-model';
 import type { ChildInfo } from './OrchestrationChildrenCard';
 import type { TurnBlock } from './turn-timeline';
 import type { TurnFile } from './turn-files';
@@ -146,7 +147,7 @@ export interface LocalChatPanelProps {
   /** 本次挂载期间跑完的后台任务——消息列尾部的终态通知卡。 */
   finishedTasks?: LocalTask[];
   /** 终态卡「查看过程」：在右侧栏打开该任务的推理过程。 */
-  onInspectTask?: (task: LocalTask) => void;
+  onInspectTask?: (task: InspectTaskInput) => void;
   /** 终态卡「忽略」（本次挂载内隐藏，不落库）。 */
   onDismissFinishedTask?: (taskId: string) => void;
   /** 分享当前对话（截图）。落到最近一条助手消息的时间戳行。 */
@@ -232,7 +233,8 @@ export function LocalChatPanel({
     // 把上传的文件持久化到会话空间：成功项用落盘路径（稳定、可被 agent
     // 读回），失败项退回原源路径。落地页（无 chatId）由调用方创建会话后
     // 自行持久化，这里 chatId 为空时原样用源路径。
-    const resolvedFiles = chatId ? await saveChatAttachments(chatId, files) : files;
+    const resolvedFiles =
+      chatId && files.length > 0 ? await saveChatAttachments(chatId, files) : files;
 
     // Append file references to the user message content
     if (resolvedFiles.length > 0) {

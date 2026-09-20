@@ -23,8 +23,12 @@ import {
   type ExecPolicy,
 } from "@/lib/exec-policy";
 import type { ExecutedAction } from "@/components/chat/ExecutedActionsCard";
+import { inspectTaskTitle, type InspectTaskInput } from "@/components/chat/executed-actions-model";
 import type { ChildInfo } from "@/components/chat/OrchestrationChildrenCard";
-import { foldOrchestrationChildEvents } from "@/components/chat/orchestration-children-model";
+import {
+  extractPersistedOrchestrationChildren,
+  foldOrchestrationChildEvents,
+} from "@/components/chat/orchestration-children-model";
 import { parseTurnBlocks, type TurnBlock } from "@/components/chat/turn-timeline";
 import {
   parseLlmSpeedPayload,
@@ -50,7 +54,6 @@ import {
   type ChatLiveStream,
   type LocalChatMessage,
   type LocalProject,
-  type LocalTask,
 } from "@/lib/local-api";
 import type { AgentOutletContext } from "@/layouts/AgentLayout";
 import {
@@ -237,6 +240,8 @@ function AgentChatLoader({
   const [initialTurnFiles, setInitialTurnFiles] = useState<
     Record<string, TurnFile[]>
   >({});
+  const [initialOrchestrationChildren, setInitialOrchestrationChildren] =
+    useState<Record<string, ChildInfo[]>>({});
   const [initialSuggestedReplies, setInitialSuggestedReplies] =
     useState<SuggestedRepliesState | null>(null);
   // W7-1: 后端在 messages 响应里下发 interrupted（上一轮崩溃/强杀中断）。
@@ -274,6 +279,9 @@ function AgentChatLoader({
         setInitialTimelines(extractPersistedTimelines(response.messages));
         setInitialDurations(extractPersistedDurations(response.messages));
         setInitialTurnFiles(extractPersistedTurnFiles(response.messages));
+        setInitialOrchestrationChildren(
+          extractPersistedOrchestrationChildren(response.messages),
+        );
         setInitialSuggestedReplies(
           extractLatestSuggestedReplies(
             ordered as ChatMessageWithMetadata[],
@@ -289,6 +297,7 @@ function AgentChatLoader({
         setInitialTimelines({});
         setInitialDurations({});
         setInitialTurnFiles({});
+        setInitialOrchestrationChildren({});
         setInitialSuggestedReplies(null);
         setInitialInterrupted(false);
         setInitialLiveStream({ active: false });
@@ -315,6 +324,7 @@ function AgentChatLoader({
       initialTimelines={initialTimelines}
       initialDurations={initialDurations}
       initialTurnFiles={initialTurnFiles}
+      initialOrchestrationChildren={initialOrchestrationChildren}
       initialSuggestedReplies={initialSuggestedReplies}
       initialInterrupted={initialInterrupted}
       initialLiveStream={initialLiveStream}
@@ -331,6 +341,7 @@ interface AgentChatViewProps {
   initialTimelines: Record<string, TurnBlock[]>;
   initialDurations: Record<string, number>;
   initialTurnFiles: Record<string, TurnFile[]>;
+  initialOrchestrationChildren: Record<string, ChildInfo[]>;
   initialSuggestedReplies: SuggestedRepliesState | null;
   /** W7-1: 打开会话时上一轮处于中断态（崩溃/强杀，无完成记录）。 */
   initialInterrupted: boolean;
@@ -347,6 +358,7 @@ function AgentChatView({
   initialTimelines,
   initialDurations,
   initialTurnFiles,
+  initialOrchestrationChildren,
   initialSuggestedReplies,
   initialInterrupted,
   initialLiveStream,
@@ -390,8 +402,14 @@ function AgentChatView({
     dismissFinished,
   } = useChatTasks(chatId);
   const handleInspectTask = useCallback(
-    (task: LocalTask) => {
-      ctx.inspectTask({ id: task.id, chatId: task.chatId, title: task.task });
+    (task: InspectTaskInput) => {
+      ctx.inspectTask({
+        id: task.id,
+        chatId: task.chatId,
+        title: inspectTaskTitle(task),
+        ...(task.recordId ? { recordId: task.recordId } : {}),
+        ...(task.live ? { live: true } : {}),
+      });
     },
     [ctx],
   );
@@ -464,7 +482,7 @@ function AgentChatView({
   // 与 currentTurnActions 同款 reconcile 模式（message_id 落库后按键归档）。
   const [currentTurnChildren, setCurrentTurnChildren] = useState<ChildInfo[]>([]);
   const [orchestrationChildrenByMessageId, setOrchestrationChildrenByMessageId] =
-    useState<Record<string, ChildInfo[]>>({});
+    useState<Record<string, ChildInfo[]>>(initialOrchestrationChildren);
   const pendingChildrenRef = useRef<ChildInfo[]>([]);
   // Round counter for the in-flight turn. Bumped on every `round_end` event
   // emitted by chat-transport (was previously suppressed). Driving this state
@@ -572,6 +590,8 @@ function AgentChatView({
               task: ev.payload?.task as string | undefined,
               depth: ev.payload?.depth as number | undefined,
               profile: ev.payload?.profile as string | undefined,
+              // 子代理自己的 durable record：委派行靠它跳转右侧过程栏。
+              recordId: ev.payload?.recordId as string | undefined,
               status: "running",
             },
           ];
@@ -1049,6 +1069,7 @@ function AgentChatView({
         pendingFollowUps={pendingFollowUps.map((m) => m.content)}
         onRemoveFollowUp={removeFollowUp}
         className="flex-1"
+        chatId={chatId}
         emptyHero={{
           title: BRAND_NAME,
           subtitle: '输入消息，直接开始一段新对话。',

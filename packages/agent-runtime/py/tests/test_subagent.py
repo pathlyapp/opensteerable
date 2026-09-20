@@ -33,6 +33,80 @@ def _tool_results(events):
     return [e.data for e in events if e.kind == "tool_call_result"]
 
 
+class _MemoryHistory:
+    """Minimal HistoryStore: records per id, enough for the child-record test."""
+
+    def __init__(self) -> None:
+        self.records: dict[str, list[dict]] = {}
+
+    async def append_history(self, record_id, entries) -> None:
+        self.records.setdefault(record_id, []).extend(entries)
+
+    async def list_history(
+        self, record_id, *, after_seq=None, until_seq=None, limit=None, reverse=False
+    ):
+        return list(self.records.get(record_id, []))
+
+
+@pytest.mark.asyncio
+async def test_child_writes_its_own_durable_record_and_publishes_the_id() -> None:
+    """With a store + prefix the child logs under `<prefix>:child:<lineage>`,
+    and `child_spawned` carries that id so a host can read the process back.
+    The parent's own record stays free of the child's internals."""
+    provider = make_provider(
+        [
+            {"tool_calls": [tc("delegate_subagent", {"task": "查一下磁盘"})]},
+            {"content": "child done"},
+            {"content": "parent done"},
+        ]
+    )
+    history = _MemoryHistory()
+    spawned: list[dict] = []
+    executor = SubagentExecutor(
+        RouterToolExecutor(ToolRouter()),
+        provider,
+        history_store=history,
+        record_id_prefix="chat-1",
+        event_sink=lambda kind, data: (
+            spawned.append(data) if kind == "child_spawned" else None
+        ),
+    )
+    loop = CoreLoop(provider, executor, LoopConfig())
+    async for _ in loop.run([LLMMessage.text_of("user", "go")]):
+        pass
+
+    assert spawned and spawned[0]["recordId"] == "chat-1:child:0.1"
+    assert history.records["chat-1:child:0.1"]
+    assert "chat-1" not in history.records
+
+
+@pytest.mark.asyncio
+async def test_child_stays_storage_free_without_a_prefix() -> None:
+    provider = make_provider(
+        [
+            {"tool_calls": [tc("delegate_subagent", {"task": "查一下磁盘"})]},
+            {"content": "child done"},
+            {"content": "parent done"},
+        ]
+    )
+    history = _MemoryHistory()
+    spawned: list[dict] = []
+    executor = SubagentExecutor(
+        RouterToolExecutor(ToolRouter()),
+        provider,
+        history_store=history,
+        event_sink=lambda kind, data: (
+            spawned.append(data) if kind == "child_spawned" else None
+        ),
+    )
+    loop = CoreLoop(provider, executor, LoopConfig())
+    async for _ in loop.run([LLMMessage.text_of("user", "go")]):
+        pass
+
+    assert spawned and "recordId" not in spawned[0]
+    assert history.records == {}
+
+
 @pytest.mark.asyncio
 async def test_delegation_runs_child_loop_and_returns_its_answer() -> None:
     # call 1: parent delegates; call 2: the child answers; call 3: the

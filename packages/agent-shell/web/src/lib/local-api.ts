@@ -439,6 +439,17 @@ export async function getTaskProcess(taskId: string) {
   });
 }
 
+/**
+ * 子代理（`delegate_subagent`）的推理过程：子回合写自己的 durable record，
+ * 这里按 record 读回它的思考与工具调用。
+ */
+export async function getChildProcess(recordId: string) {
+  return bridge().localBackend.request<{ recordId: string; timeline: unknown[] }>({
+    method: 'GET',
+    path: `/api/v2/child-process?recordId=${encodeURIComponent(recordId)}`,
+  });
+}
+
 /** 把已完成 worktree 任务的分支合并回主仓当前分支（4.6c）。 */
 export async function mergeTaskWorktree(taskId: string) {
   return bridge().localBackend.request<{ success: boolean; task: LocalTask }>({

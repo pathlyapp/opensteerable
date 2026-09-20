@@ -358,16 +358,26 @@ export interface SidecarChatStreamRequest {
   subagent?: boolean | {
     toolFilter?: string[];
     maxParallel?: number;
+    /** Child round / tool-error walls; default to the parent loop's. */
+    maxRounds?: number;
+    maxToolErrors?: number;
     profiles?: Record<string, {
       toolFilter?: string[];
       model?: string;
       maxRounds?: number;
+      maxToolErrors?: number;
       concurrent?: boolean;
       description?: string;
       /** Profile system prompt, seeded as the child loop's first message
        * (CC `.claude/agents` body parity). */
       systemPrompt?: string;
     }>;
+    /**
+     * Profiles that MUST each receive a delegation this turn (the host's
+     * `@` mentions). A `completed` turn that skipped one is retried — the
+     * dispatch instruction alone is prompt text a model can narrate past.
+     */
+    requiredProfiles?: string[];
   };
   /** A6 layered skill disclosure: the sidecar injects the catalog layer
    * (first-round pre_step, recorded as a hook_action event) and answers
@@ -546,6 +556,12 @@ export interface SidecarChildEvent {
   status?: string;
   error?: string;
   profile?: string;
+  /**
+   * The child's own durable record (`<parent record>:child:<lineage id>`),
+   * present on `child_spawned` when the host wired a history store. Read it
+   * back to render the delegation's reasoning + tool calls.
+   */
+  recordId?: string;
 }
 
 export interface SidecarChatStreamHandlers {

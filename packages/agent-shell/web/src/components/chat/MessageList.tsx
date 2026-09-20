@@ -15,6 +15,7 @@ import { InterruptedTurnCard } from './InterruptedTurnCard';
 import { TaskOutcomeCards } from './TaskOutcomeCards';
 import { SuggestedReplies } from './SuggestedReplies';
 import type { ExecutedAction } from './ExecutedActionsCard';
+import type { InspectTaskInput } from './executed-actions-model';
 import type { ChildInfo } from './OrchestrationChildrenCard';
 import type { ChatMode } from './ChatInput';
 import type { TurnBlock } from './turn-timeline';
@@ -134,7 +135,7 @@ interface MessageListProps {
    */
   finishedTasks?: LocalTask[];
   /** 点「查看过程」：在右侧栏打开该任务的推理过程。 */
-  onInspectTask?: (task: LocalTask) => void;
+  onInspectTask?: (task: InspectTaskInput) => void;
   /** 点「忽略」：隐藏这条终态通知（本次挂载内，不落库）。 */
   onDismissFinishedTask?: (taskId: string) => void;
   /** 分享当前对话（截图）。只画在最近一条助手消息的时间戳行上。 */
@@ -306,10 +307,12 @@ export function MessageList({
                 typeof message.messageMetadata === 'string'
                   ? message.messageMetadata
                   : undefined;
+              let previousUser: ChatMessage | undefined;
               let previousUserCreatedAt: string | undefined;
               for (let i = index - 1; i >= 0; i -= 1) {
                 if (visibleMessages[i].role === 'user') {
-                  previousUserCreatedAt = visibleMessages[i].createdAt;
+                  previousUser = visibleMessages[i];
+                  previousUserCreatedAt = previousUser.createdAt;
                   break;
                 }
               }
@@ -336,6 +339,7 @@ export function MessageList({
                     executedActions={actions}
                     timeline={turnTimeline}
                     orchestrationChildren={childList}
+                    previousUser={previousUser}
                     currentRound={isStreamingTail ? currentRound : undefined}
                     isPlanMode={isPlanMode}
                     onRegenerate={onRegenerate}
@@ -344,6 +348,7 @@ export function MessageList({
                     llmSpeed={llmSpeed}
                     turnFiles={turnFiles}
                     onShare={message.id === lastAssistantId ? onShare : undefined}
+                    onInspectTask={onInspectTask}
                   />
                   {!isStreaming &&
                   message.id === lastAssistantId &&

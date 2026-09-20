@@ -202,6 +202,9 @@ class AgentPool:
                 "childId": child_id,
                 "depth": self._depth + 1,
                 "task": task,
+                # Present only when the factory gave the child a durable
+                # record; hosts read that record to show the child's process.
+                **({"recordId": loop.record_id} if loop.record_id else {}),
                 **(event_extra or {}),
             },
         )

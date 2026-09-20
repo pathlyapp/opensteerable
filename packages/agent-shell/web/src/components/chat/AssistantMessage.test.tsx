@@ -7,6 +7,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ChatMessage } from '@steerable/agent-protocol';
+import type { LocalChatAgent } from '@/lib/local-api';
 import { AssistantMessage } from './AssistantMessage';
 
 vi.mock('@/lib/local-api', () => ({
@@ -144,5 +145,90 @@ describe('AssistantMessage 回合产物列表', () => {
       />,
     );
     expect(container.querySelector('[data-turn-files]')).toBeNull();
+  });
+});
+
+const PARENT: LocalChatAgent = {
+  id: 'op',
+  slug: 'operator',
+  name: '电脑操作员',
+  icon: null,
+  color: '#111111',
+  description: null,
+  rolePrompt: null,
+  isBuiltin: true,
+};
+
+const RESEARCHER: LocalChatAgent = {
+  ...PARENT,
+  id: 'a1',
+  slug: 'researcher',
+  name: '调研员',
+  color: '#2563eb',
+  isBuiltin: false,
+};
+
+describe('AssistantMessage 顶栏智能体', () => {
+  it('委派多人时顶栏同时显示父代理和子代理', () => {
+    render(
+      <AssistantMessage
+        message={{ ...MESSAGE, agentId: PARENT.id }}
+        isStreaming={false}
+        agents={[PARENT, RESEARCHER]}
+        currentAgent={PARENT}
+        executedActions={[
+          {
+            tool: 'delegate_subagent',
+            arguments: { subagent_type: 'researcher', task: '调研' },
+          },
+        ]}
+        orchestrationChildren={[
+          { childId: '0.1', profile: 'explore', status: 'running' },
+        ]}
+      />,
+    );
+    const row = screen.getByTestId('turn-agent-badges');
+    expect(row.textContent).toContain('电脑操作员');
+    expect(row.textContent).toContain('调研员');
+    expect(row.textContent).toContain('探索');
+  });
+
+  it('用户 @提及了谁，顶栏就显示谁，不显示内置探索', () => {
+    const helper: LocalChatAgent = {
+      ...PARENT,
+      id: 'h1',
+      slug: 'helper',
+      name: '智能助手',
+      color: '#8b5cf6',
+      isBuiltin: false,
+    };
+    const planner: LocalChatAgent = {
+      ...PARENT,
+      id: 'p1',
+      slug: 'planner',
+      name: '日程规划',
+      color: '#f59e0b',
+      isBuiltin: false,
+    };
+    render(
+      <AssistantMessage
+        message={{ ...MESSAGE, agentId: PARENT.id }}
+        isStreaming={false}
+        agents={[PARENT, helper, planner]}
+        currentAgent={PARENT}
+        previousUser={{
+          content: '@电脑操作员 @智能助手 @日程规划 你们随便做点啥',
+        }}
+        orchestrationChildren={[{ childId: '0.1', profile: 'explore', status: 'failed' }]}
+        executedActions={[
+          { tool: 'delegate_subagent', arguments: { subagent_type: 'explore', task: '探环境' } },
+        ]}
+      />,
+    );
+    const row = screen.getByTestId('turn-agent-badges');
+    expect(row.textContent).toContain('电脑操作员');
+    expect(row.textContent).toContain('智能助手');
+    expect(row.textContent).toContain('日程规划');
+    expect(row.textContent).not.toContain('探索');
   });
 });

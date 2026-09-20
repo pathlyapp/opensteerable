@@ -5,8 +5,8 @@
  * SSE 行为：路由匹配、会话自动补建、regenerate 截断/fork、resume 续跑、
  * sidecar 缺失 503、SSE chunk 序列（content/executed_actions/message_id/
  * [DONE]/error）、turn_active 中断标记生命周期、usage/trace 落库、
- * 后台标题生成、plan 模式工具过滤、工具策略、@提及人设、项目围栏提示、
- * "/技能" 显式触发与图片附件注入。
+ * 后台标题生成、plan 模式工具过滤、工具策略、项目围栏提示、
+ * "/技能" 显式触发与图片附件注入。@提及委派见 router-mention-delegate.test.ts。
  *
  * streamCoreLoopTurn（sidecar 流边界）按用例脚本回放；localStore 为内存
  * 假实现；不起 HTTP 服务器、不访问网络。
@@ -252,6 +252,31 @@ describe('流式回合 SSE 序列', () => {
     expect(cap.byType('reasoning')[0].data).toMatchObject({ content: '思考一下' });
   });
 
+  it('round_end notice 封住思考段并转发 completion:executing', async () => {
+    const chat = await seedChat();
+    installStream((opts) => {
+      opts.onReasoning('第一轮');
+      opts.onNotice('round_end', { kind: 'round_end', status: 'executing', round: 0 });
+      opts.onReasoning('第二轮');
+      opts.onText('结论');
+    });
+    const cap = makeEmitCapture();
+    await makeRouter().handleStream(
+      { method: 'POST', path: `/api/v2/chats/${chat.id}/send`, body: { message: '想想' } },
+      cap.emit,
+    );
+    expect(cap.byType('completion')[0].data).toMatchObject({
+      type: 'completion',
+      status: 'executing',
+    });
+    const assistant = (await h.store.listMessages(chat.id, 10))[0];
+    const metadata = JSON.parse(assistant.messageMetadata!);
+    const reasoning = (metadata.timeline as Array<{ type: string; content: string }>)
+      .filter((b) => b.type === 'reasoning')
+      .map((b) => b.content);
+    expect(reasoning).toEqual(['第一轮', '第二轮']);
+  });
+
   it('budget_exhausted notice 与子代理事件分别转成 SSE', async () => {
     const chat = await seedChat();
     installStream((opts) => {
@@ -273,6 +298,43 @@ describe('流式回合 SSE 序列', () => {
       childId: 'sub-1',
       status: 'spawned',
     });
+  });
+
+  it('子代理生命周期写入助手 metadata.orchestrationChildEvents', async () => {
+    const chat = await seedChat();
+    installStream((opts) => {
+      opts.onChildEvent?.({
+        kind: 'child_spawned',
+        childId: '0.1',
+        task: '调研 PDF 方案',
+        profile: 'researcher',
+      });
+      opts.onChildEvent?.({
+        kind: 'child_completed',
+        childId: '0.1',
+        status: 'completed',
+      });
+      opts.onText('done');
+    });
+    await makeRouter().handleStream(
+      { method: 'POST', path: `/api/v2/chats/${chat.id}/send`, body: { message: '干活' } },
+      makeEmitCapture().emit,
+    );
+    const assistant = (await h.store.listMessages(chat.id, 10))[0];
+    const metadata = JSON.parse(assistant.messageMetadata!);
+    expect(metadata.orchestrationChildEvents).toEqual([
+      {
+        kind: 'child_spawned',
+        childId: '0.1',
+        task: '调研 PDF 方案',
+        profile: 'researcher',
+      },
+      {
+        kind: 'child_completed',
+        childId: '0.1',
+        status: 'completed',
+      },
+    ]);
   });
 
   it('turn_active 标记：流式期间存在、回合落库后清除', async () => {
@@ -688,21 +750,30 @@ describe('流式回合的提示词与工具面', () => {
     });
   });
 
-  it('@提及带 rolePrompt 的智能体 → 系统提示词含人设前言', async () => {
-    const agent = await h.store.createChatAgent({ name: '审稿人', rolePrompt: '你是严格的审稿人' });
-    const chat = await seedChat();
+  it('@提及不再换人设：绑定智能体仍是本轮自称', async () => {
+    const parent = await h.store.createChatAgent({
+      name: '电脑操作员',
+      rolePrompt: '你是电脑操作员',
+    });
+    const reviewer = await h.store.createChatAgent({
+      name: '审稿人',
+      slug: 'reviewer',
+      rolePrompt: '你是严格的审稿人',
+    });
+    const chat = await h.store.createChat('新对话', parent.id, null);
     const { seen } = installStream(() => {});
     await makeRouter().handleStream(
       {
         method: 'POST',
         path: `/api/v2/chats/${chat.id}/send`,
-        body: { message: '看看这篇', mentionedAgentId: agent.id },
+        body: { message: '看看这篇', mentionedAgentId: reviewer.id },
       },
       makeEmitCapture().emit,
     );
-    expect(seen[0].systemPrompt).toContain('【当前角色】审稿人');
-    expect(seen[0].systemPrompt).toContain('你是严格的审稿人');
-    expect(seen[0].systemPrompt).toContain('你是 审稿人');
+    expect(seen[0].systemPrompt).toContain('【当前角色】电脑操作员');
+    expect(seen[0].systemPrompt).not.toContain('【当前角色】审稿人');
+    expect(seen[0].subagent.profiles.reviewer).toBeDefined();
+    expect(seen[0].messages.at(-1).content).toContain('delegate_subagent');
   });
 
   it('绑定智能体即使没有 rolePrompt，系统提示词自称也用智能体显示名', async () => {
@@ -958,11 +1029,11 @@ describe('后台标题生成', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 后台追问建议（WorkBuddy 式 3 条下一轮输入）
+// 后台追问建议（只走一次 LLM，来源是 next_steps / 最后一段）
 // ---------------------------------------------------------------------------
 
 describe('后台追问建议', () => {
-  it('完成回合先广播启发式兜底，LLM 成功后再替换', async () => {
+  it('回合结束后等 LLM，只广播一次最终建议', async () => {
     const chat = await seedChat();
     installStream((opts) => opts.onText('PPT 已生成'));
     let finishLlm: (value: {
@@ -982,53 +1053,53 @@ describe('后台追问建议', () => {
     );
 
     const assistant = (await h.store.listMessages(chat.id, 10)).find((m) => m.role === 'assistant')!;
-    expect(h.fallbackSuggestedReplies).toHaveBeenCalledWith('制作自我介绍ppt', 'PPT 已生成');
-    expect(calls).toContainEqual({
-      event: 'suggested-replies',
-      payload: {
-        chatId: chat.id,
-        messageId: assistant.id,
-        suggestions: ['兜底-1', '兜底-2', '兜底-3'],
-      },
-    });
-    expect(JSON.parse(assistant.messageMetadata!)).toMatchObject({
-      suggestedReplies: ['兜底-1', '兜底-2', '兜底-3'],
-    });
+    await vi.waitFor(() => expect(h.generateSuggestedReplies).toHaveBeenCalled());
+    expect(h.generateSuggestedReplies).toHaveBeenCalledWith(
+      '制作自我介绍ppt',
+      'PPT 已生成',
+      expect.objectContaining({ perAttemptTimeoutMs: 60_000 }),
+    );
+    expect(calls.filter((c) => c.event === 'suggested-replies')).toHaveLength(0);
+    const pendingMeta = assistant.messageMetadata
+      ? (JSON.parse(assistant.messageMetadata) as { suggestedReplies?: unknown })
+      : {};
+    expect(pendingMeta.suggestedReplies).toBeUndefined();
 
     finishLlm({
       suggestions: ['llm-追问-1', 'llm-追问-2', 'llm-追问-3'],
       usedFallback: false,
     });
     await vi.waitFor(() => {
-      expect(calls).toContainEqual({
-        event: 'suggested-replies',
-        payload: {
-          chatId: chat.id,
-          messageId: assistant.id,
-          suggestions: ['llm-追问-1', 'llm-追问-2', 'llm-追问-3'],
-        },
-      });
+      expect(calls.filter((c) => c.event === 'suggested-replies')).toHaveLength(1);
+    });
+    expect(calls).toContainEqual({
+      event: 'suggested-replies',
+      payload: {
+        chatId: chat.id,
+        messageId: assistant.id,
+        suggestions: ['llm-追问-1', 'llm-追问-2', 'llm-追问-3'],
+      },
     });
     expect(JSON.parse((await h.store.getMessage(chat.id, assistant.id))!.messageMetadata!)).toMatchObject({
       suggestedReplies: ['llm-追问-1', 'llm-追问-2', 'llm-追问-3'],
     });
   });
 
-  it('LLM 走兜底时不发第二次广播', async () => {
+  it('模型判定没有下一步时不广播', async () => {
     h.generateSuggestedReplies.mockResolvedValue({
-      suggestions: ['兜底-1', '兜底-2', '兜底-3'],
-      usedFallback: true,
+      suggestions: [],
+      usedFallback: false,
     });
     const chat = await seedChat();
-    installStream((opts) => opts.onText('回答'));
+    installStream((opts) => opts.onText('PPT 已完成。\n\n**页数**：8 页'));
     const { broadcast, calls } = makeBroadcast();
     await makeRouter({ broadcast }).handleStream(
-      { method: 'POST', path: `/api/v2/chats/${chat.id}/send`, body: { message: '你好' } },
+      { method: 'POST', path: `/api/v2/chats/${chat.id}/send`, body: { message: '介绍杜甫' } },
       makeEmitCapture().emit,
     );
     await vi.waitFor(() => expect(h.generateSuggestedReplies).toHaveBeenCalled());
     await new Promise((r) => setTimeout(r, 20));
-    expect(calls.filter((c) => c.event === 'suggested-replies')).toHaveLength(1);
+    expect(calls.filter((c) => c.event === 'suggested-replies')).toHaveLength(0);
   });
 
   it('取消 / 失败 / 空回复不生成建议', async () => {
@@ -1040,25 +1111,25 @@ describe('后台追问建议', () => {
       { method: 'POST', path: `/api/v2/chats/${cancelled.id}/send`, body: { message: 'hi' } },
       makeEmitCapture().emit,
     );
-    expect(h.fallbackSuggestedReplies).not.toHaveBeenCalled();
+    expect(h.generateSuggestedReplies).not.toHaveBeenCalled();
 
-    h.fallbackSuggestedReplies.mockClear();
+    h.generateSuggestedReplies.mockClear();
     const failed = await seedChat();
     installStream(() => {}, { status: 'failed', reason: 'HTTP 401' });
     await makeRouter({ broadcast: makeBroadcast().broadcast }).handleStream(
       { method: 'POST', path: `/api/v2/chats/${failed.id}/send`, body: { message: 'hi' } },
       makeEmitCapture().emit,
     );
-    expect(h.fallbackSuggestedReplies).not.toHaveBeenCalled();
+    expect(h.generateSuggestedReplies).not.toHaveBeenCalled();
 
-    h.fallbackSuggestedReplies.mockClear();
+    h.generateSuggestedReplies.mockClear();
     const empty = await seedChat();
     installStream(() => {});
     await makeRouter({ broadcast: makeBroadcast().broadcast }).handleStream(
       { method: 'POST', path: `/api/v2/chats/${empty.id}/send`, body: { message: 'hi' } },
       makeEmitCapture().emit,
     );
-    expect(h.fallbackSuggestedReplies).not.toHaveBeenCalled();
+    expect(h.generateSuggestedReplies).not.toHaveBeenCalled();
   });
 });
 

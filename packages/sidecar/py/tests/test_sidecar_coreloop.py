@@ -1219,6 +1219,130 @@ async def test_subagent_profiles_advertise_subagent_type_enum() -> None:
 
 
 @pytest.mark.asyncio
+async def test_subagent_profile_omitting_max_rounds_inherits_parent_loop(
+    monkeypatch,
+) -> None:
+    """A profile that does not pin maxRounds uses the parent spec (80 / 16),
+    not the SubagentConfig default of 8 rounds / 3 consecutive tool errors."""
+    from steerable_agent_runtime.subagent import SubagentConfig, SubagentRegistry
+
+    captured: dict[str, SubagentConfig] = {}
+    original = SubagentRegistry.register
+
+    def spy(self: SubagentRegistry, name: str, config: SubagentConfig) -> None:
+        captured[name] = config
+        original(self, name, config)
+
+    monkeypatch.setattr(SubagentRegistry, "register", spy)
+
+    provider = _ScriptedProvider([_text_round("plain")])
+    sidecar = _make_sidecar(provider)
+    await _run_stream(
+        sidecar,
+        {
+            "provider": "openai_compat",
+            "model": "fake",
+            "messages": [{"role": "user", "content": "hi"}],
+            "useCoreLoop": True,
+            "subagent": {
+                "profiles": {
+                    "researcher": {"toolFilter": ["read_file"]},
+                    "writer": {"maxRounds": 4},
+                }
+            },
+        },
+    )
+
+    researcher = captured["researcher"]
+    writer = captured["writer"]
+    assert researcher.max_rounds == 80
+    assert researcher.max_tool_errors == 16
+    assert writer.max_rounds == 4
+
+
+@pytest.mark.asyncio
+async def test_required_profiles_retry_a_turn_that_skipped_delegation() -> None:
+    """subagent.requiredProfiles (the host's @ mentions) gate completion: a
+    turn that narrated the hand-off instead of delegating is sent back."""
+    provider = _ScriptedProvider(
+        [
+            _text_round("三位智能体已启动。"),
+            _tool_round(
+                ToolCall(
+                    id="d1",
+                    name="delegate_subagent",
+                    arguments={"task": "排今晚日程", "subagent_type": "scheduler"},
+                )
+            ),
+            _text_round("日程规划已给出结果。"),
+        ]
+    )
+    sidecar = _make_sidecar(provider)
+
+    _sid, events = await _run_stream(
+        sidecar,
+        {
+            "provider": "openai_compat",
+            "model": "fake",
+            "messages": [{"role": "user", "content": "@日程规划 排个日程"}],
+            "useCoreLoop": True,
+            "subagent": {
+                "profiles": {"scheduler": {}},
+                "requiredProfiles": ["scheduler"],
+            },
+        },
+    )
+
+    # The veto put its correction into the transcript, so the model got a
+    # second chance and delegated on the next round.
+    transcript = "".join(
+        str(getattr(message, "content_text", "") or "")
+        for message in provider.seen_messages[-1]
+    )
+    assert "还没拿到任务" in transcript
+    assert "scheduler" in transcript
+
+    chunks = [p for m, p in events if m == "stream.chunk"]
+    assert any(c.get("toolCall", {}).get("name") == "delegate_subagent" for c in chunks)
+    done = [p for m, p in events if m == "stream.done"]
+    assert done[0]["status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_delegate_child_gets_its_own_durable_record() -> None:
+    """The child logs under `<chatId>:child:<lineage id>` and the id rides
+    child_spawned, so the host can read the delegation's process back."""
+    provider = _ScriptedProvider(
+        [
+            _tool_round(
+                ToolCall(id="d1", name="delegate_subagent", arguments={"task": "查磁盘"})
+            ),
+            _text_round("child done"),
+            _text_round("parent done"),
+        ]
+    )
+    sidecar = _make_sidecar(provider)
+
+    _sid, events = await _run_stream(
+        sidecar,
+        {
+            "provider": "openai_compat",
+            "model": "fake",
+            "chatId": "chat-7",
+            "messages": [{"role": "user", "content": "delegate"}],
+            "useCoreLoop": True,
+        },
+    )
+
+    spawned = [
+        p for m, p in events if m == "agent.child" and p.get("kind") == "child_spawned"
+    ]
+    assert spawned and spawned[0]["recordId"] == "chat-7:child:0.1"
+    child_history = await sidecar.storage.list_history("chat-7:child:0.1")
+    assert child_history
+
+
+@pytest.mark.asyncio
 async def test_subagent_unknown_profile_fails_closed_naming_registered() -> None:
     """A subagent_type naming no registered profile fails closed listing the
     registered ones — never a silent fall-back to the default profile."""

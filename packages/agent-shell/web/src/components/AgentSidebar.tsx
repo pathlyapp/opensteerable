@@ -120,13 +120,7 @@ import {
 import type { UseChatsAndAgentsResult } from '@/hooks/useChatsAndAgents';
 import type { PackChatSlotContribution } from '@/packs/registry';
 import type { RightPanelState } from '@/layouts/AgentLayout';
-// 必须 import 而不是写 src="/favicon.png"：public/ 下的资源 Vite 永远按绝对路径
-// /favicon.png 输出，dev 模式下 dev server 提供根路径所以能加载，但打包成
-// Electron 后渲染进程走 file:// 协议，/favicon.png 会被解析成文件系统根目录
-// 下的 favicon.png（必然 404）。改成模块导入后，Vite 会把图片放到 dist/assets
-// 下并发出 base-relative URL，配合 vite.config.ts 的 `base: './'` 在两种模式
-// 下都能正确加载。
-import { getBrandLogoUrl, BRAND_NAME } from '@/brand';
+import { BrandLockup } from '@/components/BrandLockup';
 
 const DEFAULT_DOT_COLOR = '#7c3aed';
 
@@ -483,7 +477,7 @@ export function AgentSidebar({
             navigate(`/agent/${chat.id}`);
           }}
           className={[
-            'flex h-8 w-full min-w-0 items-center gap-1.5 rounded-full px-3 text-sm transition-colors duration-200',
+            'flex h-7 w-full min-w-0 items-center gap-1.5 rounded-full px-2.5 text-xs transition-colors duration-200',
             isCurrent
               ? 'bg-agent-foreground/10 font-medium text-agent-foreground'
               : 'text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-agent-foreground',
@@ -626,23 +620,8 @@ export function AgentSidebar({
   return (
     <div className="flex h-full w-full flex-col border-r border-agent-border/60 bg-agent-muted/70 backdrop-blur-md">
       {/* ───── Brand + actions ───── */}
-      <div className="flex h-12 flex-shrink-0 items-center justify-between px-3">
-        <div className="flex min-w-0 items-center gap-2">
-          {/*
-            品牌 logo —— src 用 module-imported asset，不要写 /favicon.png（见
-            文件顶部 import 的注释）。shell 默认是中性通用图标；产品品牌
-            logo 由激活包的 web 模块在注册时注入（getBrandLogoUrl）。
-          */}
-          <img
-            src={getBrandLogoUrl()}
-            alt={BRAND_NAME}
-            className="h-6 w-6 flex-shrink-0 select-none"
-            draggable={false}
-          />
-          <span className="truncate text-sm font-semibold tracking-tight text-agent-foreground">
-            {BRAND_NAME}
-          </span>
-        </div>
+      <div className="flex h-9 flex-shrink-0 items-center justify-between px-2.5">
+        <BrandLockup onClick={() => handleOpenNewChat()} />
         <div className="flex items-center gap-1">
           <button
             type="button"
@@ -659,12 +638,12 @@ export function AgentSidebar({
       {/* ───── 会话 ───── */}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {/* 新对话 + 智能体 / Skill / MCP 设置入口 — 横版行按钮，各自打开独立设置页 */}
-        <div className="flex-shrink-0 space-y-0.5 px-3 pb-0.5">
+        <div className="flex-shrink-0 space-y-0.5 px-2.5 pb-0.5">
           <button
             type="button"
             onClick={() => handleOpenNewChat()}
             className={[
-              'flex h-8 w-full items-center gap-2 rounded-full px-3 text-sm transition-colors',
+              'flex h-7 w-full items-center gap-1.5 rounded-full px-2.5 text-xs transition-colors',
               onNewChatHome
                 ? 'bg-agent-foreground/10 font-medium text-agent-foreground'
                 : 'text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-agent-foreground',
@@ -672,14 +651,14 @@ export function AgentSidebar({
             title="新建对话"
             data-testid="sidebar-new-chat"
           >
-            <LuPlus className="h-4 w-4" />
+            <LuPlus className="h-3.5 w-3.5" />
             <span>新对话</span>
           </button>
           <button
             type="button"
             onClick={() => navigate('/settings?section=agents')}
             className={[
-              'flex h-8 w-full items-center gap-2 rounded-full px-3 text-sm transition-colors',
+              'flex h-7 w-full items-center gap-1.5 rounded-full px-2.5 text-xs transition-colors',
               onSettingsPage && settingsSection === 'agents'
                 ? 'bg-agent-foreground/10 font-medium text-agent-foreground'
                 : 'text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-agent-foreground',
@@ -687,14 +666,14 @@ export function AgentSidebar({
             title="智能体管理"
             data-testid="sidebar-agent-settings"
           >
-            <LuBot className="h-4 w-4" />
+            <LuBot className="h-3.5 w-3.5" />
             <span>智能体管理</span>
           </button>
           <button
             type="button"
             onClick={() => navigate('/settings?section=skills')}
             className={[
-              'flex h-8 w-full items-center gap-2 rounded-full px-3 text-sm transition-colors',
+              'flex h-7 w-full items-center gap-1.5 rounded-full px-2.5 text-xs transition-colors',
               onSettingsPage && settingsSection === 'skills'
                 ? 'bg-agent-foreground/10 font-medium text-agent-foreground'
                 : 'text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-agent-foreground',
@@ -702,14 +681,14 @@ export function AgentSidebar({
             title="Skill 设置"
             data-testid="sidebar-skill-settings"
           >
-            <LuBlocks className="h-4 w-4" />
+            <LuBlocks className="h-3.5 w-3.5" />
             <span>Skill 设置</span>
           </button>
           <button
             type="button"
             onClick={() => navigate('/settings?section=mcp')}
             className={[
-              'flex h-8 w-full items-center gap-2 rounded-full px-3 text-sm transition-colors',
+              'flex h-7 w-full items-center gap-1.5 rounded-full px-2.5 text-xs transition-colors',
               onSettingsPage && settingsSection === 'mcp'
                 ? 'bg-agent-foreground/10 font-medium text-agent-foreground'
                 : 'text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-agent-foreground',
@@ -717,15 +696,15 @@ export function AgentSidebar({
             title="MCP 设置"
             data-testid="sidebar-mcp-settings"
           >
-            <LuPlug className="h-4 w-4" />
+            <LuPlug className="h-3.5 w-3.5" />
             <span>MCP 设置</span>
           </button>
         </div>
-        <div className="flex flex-shrink-0 items-center justify-between py-1.5 pl-4 pr-3">
+        <div className="flex flex-shrink-0 items-center justify-between py-1 pl-2.5 pr-2.5">
           <button
             type="button"
             onClick={() => setChatsExpanded((v) => !v)}
-            className="flex items-center text-xs font-semibold tracking-wider text-agent-muted-foreground transition-colors hover:text-agent-foreground"
+            className="flex h-6 items-center rounded-full px-2.5 text-xs font-semibold tracking-wider text-agent-muted-foreground transition-colors hover:bg-agent-foreground/5 hover:text-agent-foreground"
           >
             <span className="mr-1">
               {chatsExpanded ? (
@@ -760,7 +739,7 @@ export function AgentSidebar({
         {chatsExpanded && (
           <div
             ref={chatScrollRef}
-            className="flex-1 overflow-y-auto px-2 pb-1"
+            className="flex-1 overflow-y-auto px-2.5 pb-1"
           >
             {isChatLoading && chats.length === 0 && projects.length === 0 ? (
               <div className="flex items-center justify-center py-4 text-xs text-agent-muted-foreground">
@@ -768,7 +747,7 @@ export function AgentSidebar({
                 加载中...
               </div>
             ) : chatGroups.length === 0 && projectGroups.length === 0 ? (
-              <div className="flex flex-col items-center gap-1.5 py-6 text-xs text-agent-muted-foreground">
+              <div className="flex flex-col items-center gap-1.5 py-4 text-xs text-agent-muted-foreground">
                 <LuMessageSquare className="h-4 w-4 text-agent-muted-foreground/60" />
                 暂无会话
               </div>
@@ -780,7 +759,7 @@ export function AgentSidebar({
                     <div className="group/proj relative">
                       {renamingProjectId === project.id ? (
                         <form
-                          className="flex items-center px-3 pb-1 pt-2"
+                          className="flex items-center px-2.5 pb-1 pt-1.5"
                           onSubmit={(event) => {
                             event.preventDefault();
                             void handleRenameProject(project.id);
@@ -802,7 +781,7 @@ export function AgentSidebar({
                           <button
                             type="button"
                             onClick={() => toggleProjectCollapsed(project.id)}
-                            className="flex w-full min-w-0 items-center px-3 pb-1 pt-2 text-[10px] font-medium uppercase tracking-wider text-agent-muted-foreground/80 transition-colors hover:text-agent-foreground"
+                            className="flex w-full min-w-0 items-center px-2.5 pb-0.5 pt-1.5 text-[10px] font-medium uppercase tracking-wider text-agent-muted-foreground/80 transition-colors hover:text-agent-foreground"
                             title={`${project.name}\n${project.folderPath}`}
                           >
                             <span className="mr-1">
@@ -877,7 +856,7 @@ export function AgentSidebar({
                     {!collapsedProjectIds.has(project.id) && (
                       <div className="space-y-0.5">
                         {items.length === 0 ? (
-                          <div className="px-3 py-1 text-[11px] text-agent-muted-foreground/60">
+                          <div className="px-2.5 py-0.5 text-[11px] text-agent-muted-foreground/60">
                             暂无会话 — hover 项目名点 + 新建
                           </div>
                         ) : (
@@ -890,7 +869,7 @@ export function AgentSidebar({
                 {/* 无项目对话排在项目分组之后：保持原有日期分组 */}
                 {chatGroups.map((group) => (
                   <div key={group.label} className="mb-1">
-                    <div className="px-3 pb-1 pt-2 text-[10px] font-medium uppercase tracking-wider text-agent-muted-foreground/80">
+                    <div className="px-2.5 pb-0.5 pt-1.5 text-[10px] font-medium uppercase tracking-wider text-agent-muted-foreground/80">
                       {group.label}
                     </div>
                     <div className="space-y-0.5">
@@ -920,7 +899,7 @@ export function AgentSidebar({
 
       {(error || projectError) && (
         <div
-          className="flex-shrink-0 border-t border-agent-destructive/40 bg-agent-destructive/10 px-3 py-2 text-[11px] text-agent-destructive"
+          className="flex-shrink-0 border-t border-agent-destructive/40 bg-agent-destructive/10 px-2.5 py-1.5 text-[11px] text-agent-destructive"
           role="alert"
         >
           {error ?? projectError}
@@ -928,13 +907,13 @@ export function AgentSidebar({
       )}
 
       {/* ───── Footer: 右侧面板切换（终端 | 包槽位）+ 设置 ───── */}
-      <div className="flex-shrink-0 border-t border-agent-border/40 px-3 py-2">
+      <div className="flex-shrink-0 border-t border-agent-border/40 px-2.5 py-1.5">
         {chatSlots.length === 0 ? (
           <button
             type="button"
             onClick={() => onToggleRightPanel('terminal')}
             className={[
-              'flex h-8 w-full items-center gap-2 rounded-full px-3 text-sm transition-colors',
+              'flex h-7 w-full items-center gap-1.5 rounded-full px-2.5 text-xs transition-colors',
               rightPanel === 'terminal'
                 ? 'bg-agent-foreground/10 font-medium text-agent-foreground'
                 : 'text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-foreground',
@@ -942,7 +921,7 @@ export function AgentSidebar({
             title={`${rightPanel === 'terminal' ? '关闭' : '打开'}终端面板 (${isMac ? '⌘T' : 'Ctrl+T'})`}
             data-testid="sidebar-terminal"
           >
-            <LuTerminal className="h-4 w-4" />
+            <LuTerminal className="h-3.5 w-3.5" />
             <span>终端</span>
             <span className="ml-auto text-[10px] text-agent-muted-foreground/70">
               {isMac ? '⌘T' : 'Ctrl+T'}
@@ -952,7 +931,7 @@ export function AgentSidebar({
           <div
             role="group"
             aria-label="右侧面板切换"
-            className="flex h-8 w-full items-center gap-0.5 rounded-full bg-agent-foreground/5 p-0.5"
+            className="flex h-7 w-full items-center gap-0.5 rounded-full bg-agent-foreground/5 p-0.5"
           >
             <button
               type="button"
@@ -993,7 +972,7 @@ export function AgentSidebar({
           type="button"
           onClick={() => navigate('/settings')}
           className={[
-            'mt-0.5 flex h-8 w-full items-center gap-2 rounded-full px-3 text-sm transition-colors',
+            'mt-0.5 flex h-7 w-full items-center gap-1.5 rounded-full px-2.5 text-xs transition-colors',
             onGeneralSettings
               ? 'bg-agent-foreground/10 font-medium text-agent-foreground'
               : 'text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-agent-foreground',
@@ -1001,7 +980,7 @@ export function AgentSidebar({
           title="设置"
           data-testid="sidebar-llm-settings"
         >
-          <LuSettings className="h-4 w-4" />
+          <LuSettings className="h-3.5 w-3.5" />
           <span>设置</span>
         </button>
       </div>

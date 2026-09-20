@@ -20,10 +20,12 @@ Design:
   also enables the orchestration family it attaches the orchestration
   executor's pool (``attach_pool``) — one budget, one lineage space, and
   delegate children show up in ``agent_list``.
-- The child runs storage-free; in the parent trace the whole delegation is
-  a single tool span — child internals stay out of the parent's event
-  stream (a product that wants child traces wraps the child run in its own
-  TraceRecorder via ``hooks``/composition, not this seam).
+- In the parent trace the whole delegation is a single tool span — child
+  internals stay out of the parent's event stream. With ``history_store`` +
+  ``record_id_prefix`` the child instead writes its **own** durable record
+  (``<prefix>:child:<lineage id>``, published on ``child_spawned`` as
+  ``recordId``), which is how a host renders the delegation's process
+  afterwards. Without them the child runs storage-free, as before.
 - The child's answer is its accumulated assistant text at completion.
 - Opt-out: hosts advertise ``subagent_tool_descriptor`` in the tools list
   and wrap their executor; the sidecar does both by default and
@@ -88,6 +90,10 @@ class SubagentConfig:
 
     tool_name: str = "delegate_subagent"
     max_rounds: int = 8
+    #: Consecutive tool-error breaker for the child loop. Sidecar fills this
+    #: from the parent ``LoopConfig`` so a child is not silently tighter
+    #: than the parent (CoreLoop's own default is 3).
+    max_tool_errors: int = 3
     allow_tools: bool = True
     tool_filter: frozenset[str] | None = None
     model: str | None = None
@@ -252,6 +258,10 @@ class SubagentExecutor:
     parent loop's advertised schemas — children advertise the subset their
     profile delegates (minus the delegation tool itself); without it
     children run reasoning-only.
+
+    ``history_store`` + ``record_id_prefix`` give each child its own durable
+    record so a host can read the delegation's process back; both are needed
+    or children stay storage-free.
     """
 
     def __init__(
@@ -266,6 +276,8 @@ class SubagentExecutor:
         tools: list[dict[str, Any]] | None = None,
         event_sink: Callable[[str, dict[str, Any]], None] | None = None,
         pool: AgentPool | None = None,
+        history_store: Any = None,
+        record_id_prefix: str | None = None,
     ) -> None:
         self._inner = inner
         self._provider = provider
@@ -274,6 +286,8 @@ class SubagentExecutor:
         self._registry = registry
         self._provider_factory = provider_factory
         self._parent_tools = list(tools or [])
+        self._history_store = history_store
+        self._record_id_prefix = record_id_prefix
         self._pool = pool or AgentPool(
             config=OrchestrationConfig(max_parallel=self._config.max_parallel),
             depth=0,
@@ -371,12 +385,27 @@ class SubagentExecutor:
                     if _schema_name(schema) != self._config.tool_name
                     and (tool_filter is None or _schema_name(schema) in tool_filter)
                 ] or None
+            # A child writes its own durable record when the host gave us a
+            # store and a prefix, so the delegation's process can be read
+            # back afterwards (`<parent record>:child:<lineage id>`). The
+            # record is the child's alone — the parent's transcript still
+            # sees only the returned answer.
+            record_id = (
+                f"{self._record_id_prefix}:child:{child_id}"
+                if self._history_store is not None and self._record_id_prefix
+                else None
+            )
             return (
                 CoreLoop(
                     provider,
                     self._child_executor(config),
-                    LoopConfig(max_rounds=config.max_rounds),
+                    LoopConfig(
+                        max_rounds=config.max_rounds,
+                        max_tool_errors=config.max_tool_errors,
+                    ),
                     hooks=self._hooks,
+                    history_store=self._history_store if record_id else None,
+                    record_id=record_id,
                 ),
                 schemas,
             )

@@ -1,8 +1,8 @@
 /**
  * 回合追问建议（local-backend/ai-suggestions.ts）行为测试。
  *
- * 钉住：JSON / markdown / 编号列表解析、单条清洗、启发式兜底（PPT / 计划 / 代码 / 通用）、
- * LLM 成功替换兜底、失败/超时/空白走兜底且永不抛错。
+ * 钉住：只把 `[next_steps]` / 最后一段交给 LLM 判断，JSON / 编号列表解析，
+ * 显式回复提示置顶，失败或超时返回空数组且永不抛错。
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -16,6 +16,8 @@ vi.mock('../../src/llm/index.js', () => ({
 
 import {
   cleanSuggestedReply,
+  explicitReplyHints,
+  extractNextStepsSource,
   fallbackSuggestedReplies,
   generateSuggestedReplies,
   parseSuggestedReplies,
@@ -31,7 +33,7 @@ describe('cleanSuggestedReply / parseSuggestedReplies', () => {
     expect(cleanSuggestedReply('"把个人简介写得更具体"')).toBe('把个人简介写得更具体');
     expect(cleanSuggestedReply('• 再加一页')).toBe('再加一页');
     expect(cleanSuggestedReply('x')).toBe('');
-    expect(Array.from(cleanSuggestedReply('字'.repeat(50))).length).toBe(36);
+    expect(Array.from(cleanSuggestedReply('字'.repeat(60))).length).toBe(48);
   });
 
   it('解析 JSON 数组（含 markdown 代码块）', () => {
@@ -43,10 +45,12 @@ describe('cleanSuggestedReply / parseSuggestedReplies', () => {
     ).toEqual(['A建议内容足够长', 'B建议内容足够长', 'C建议内容足够长']);
   });
 
-  it('解析编号列表，去重后最多 3 条', () => {
+  it('解析编号列表，去重后不压成 3 条', () => {
     expect(
-      parseSuggestedReplies('1. 调整封面配色\n2. 调整封面配色\n3. 把第2页写具体\n4. 再加一页'),
-    ).toEqual(['调整封面配色', '把第2页写具体', '再加一页']);
+      parseSuggestedReplies(
+        '1. 调整封面配色\n2. 调整封面配色\n3. 把第2页写具体\n4. 再加一页\n5. 换浅色背景',
+      ),
+    ).toEqual(['调整封面配色', '把第2页写具体', '再加一页', '换浅色背景']);
   });
 
   it('非法 JSON 落到分行', () => {
@@ -103,11 +107,88 @@ describe('fallbackSuggestedReplies', () => {
   });
 });
 
+describe('extractNextStepsSource', () => {
+  it('优先取最后一段 [next_steps] 正文', () => {
+    expect(
+      extractNextStepsSource(
+        'PPT 已完成。\n\n文件位置：桌面\n\n[next_steps]\n- 调整封面配色\n- 再加一页项目案例\n[/next_steps]',
+      ),
+    ).toBe('- 调整封面配色\n- 再加一页项目案例');
+  });
+
+  it('多段标签时取最后一段', () => {
+    expect(
+      extractNextStepsSource(
+        '[next_steps]\n旧建议\n[/next_steps]\n\n正文\n\n[next_steps]\n新建议甲\n新建议乙\n[/next_steps]',
+      ),
+    ).toBe('新建议甲\n新建议乙');
+  });
+
+  it('没有标签时取最后一段', () => {
+    expect(
+      extractNextStepsSource(
+        'PPT 已制作完成并已打开。\n\n**文件位置**：桌面\n**页数**：8 页\n\n可以接着改封面配色，或再加一页作品赏析。',
+      ),
+    ).toBe('可以接着改封面配色，或再加一页作品赏析。');
+  });
+
+  it('空回复得到空来源', () => {
+    expect(extractNextStepsSource('')).toBe('');
+    expect(extractNextStepsSource('   ')).toBe('');
+  });
+});
+
+describe('explicitReplyHints：正文显式承诺的下一步按钮', () => {
+  it('从「请回复：X」/「回复「X」」抽取短指令', () => {
+    expect(explicitReplyHints('以上初稿已生成完毕。如需继续，请回复：确认内容')).toEqual([
+      '确认内容',
+    ]);
+    expect(explicitReplyHints('没问题后请回复「确认内容」')).toEqual(['确认内容']);
+    expect(explicitReplyHints('请回复：继续生成 PPT 预览稿')).toEqual(['继续生成 PPT 预览稿']);
+    expect(explicitReplyHints('这段正文没有任何显式邀请。')).toEqual([]);
+  });
+
+  it('显式承诺的指令排在 LLM 建议之前（按钮不能时有时无）', async () => {
+    mocks.generate.mockResolvedValue({
+      content: '["把提请事项写得更正式","补充附件清单","开头补一段背景依据"]',
+    });
+    const result = await generateSuggestedReplies(
+      '帮我生成议案',
+      '正文很长……\n以上议案初稿已生成完毕。如需继续，请回复：确认内容',
+    );
+    expect(result.suggestions[0]).toBe('确认内容');
+    expect(result.suggestions).toHaveLength(3);
+  });
+
+  it('模型把承诺指令改写成变体时去重（不出现两条“确认内容”）', async () => {
+    mocks.generate.mockResolvedValue({
+      content: '["确认内容，按这版继续完善","补充附件清单","开头补一段背景依据"]',
+    });
+    const result = await generateSuggestedReplies(
+      '帮我生成议案',
+      '正文很长……\n以上议案初稿已生成完毕。如需继续，请回复：确认内容',
+    );
+    expect(result.suggestions[0]).toBe('确认内容');
+    expect(result.suggestions.filter((s) => s.includes('确认内容'))).toHaveLength(1);
+  });
+
+  it('长回复把结尾邀请喂进 prompt（头+尾截断，不能只看头部）', async () => {
+    mocks.generate.mockResolvedValue({
+      content: '["把提请事项写得更正式","补充附件清单","开头补一段背景依据"]',
+    });
+    const long = `${'材料内容'.repeat(1200)}\n以上议案初稿已生成完毕。如需继续，请回复：确认内容`;
+    await generateSuggestedReplies('帮我生成议案', long);
+    const sent = String(mocks.generate.mock.calls[0][0].messages[1].content);
+    expect(sent).toContain('确认内容');
+  });
+});
+
 describe('generateSuggestedReplies', () => {
   const user = '制作自我介绍ppt';
-  const assistant = 'PPT 已生成并打开。包含 6 页幻灯片。如需修改内容或调整样式，请告诉我。';
+  const assistant =
+    'PPT 已生成并打开。\n\n[next_steps]\n- 把封面改成深蓝商务风\n- 第2页个人简介写具体\n[/next_steps]';
 
-  it('LLM 返回合格 JSON 时 usedFallback=false', async () => {
+  it('把 next_steps 正文交给 LLM，合格 JSON 时 usedFallback=false', async () => {
     mocks.generate.mockResolvedValue({
       content: '["把封面改成深蓝商务风","第2页个人简介写具体","再加一页项目经历"]',
     });
@@ -118,24 +199,56 @@ describe('generateSuggestedReplies', () => {
       '第2页个人简介写具体',
       '再加一页项目经历',
     ]);
+    const prompt = mocks.generate.mock.calls[0][0].messages[1].content as string;
+    expect(prompt).toContain('把封面改成深蓝商务风');
+    expect(prompt).not.toContain('PPT 已生成并打开');
   });
 
-  it('LLM 空白 / 抛错走启发式兜底', async () => {
+  it('没有标签时只把最后一段当来源', async () => {
+    mocks.generate.mockResolvedValue({
+      content: '["调整封面配色","再加一页作品赏析"]',
+    });
+    await generateSuggestedReplies(
+      '介绍杜甫',
+      'PPT 已完成。\n\n**页数**：8 页\n\n可以接着改封面配色，或再加一页作品赏析。',
+    );
+    const prompt = mocks.generate.mock.calls[0][0].messages[1].content as string;
+    expect(prompt).toContain('可以接着改封面配色，或再加一页作品赏析。');
+    expect(prompt).not.toContain('**页数**：8 页');
+  });
+
+  it('模型判定没有下一步时返回空数组且不算兜底', async () => {
+    mocks.generate.mockResolvedValue({ content: '[]' });
+    const result = await generateSuggestedReplies(
+      '介绍杜甫',
+      'PPT 已完成。\n\n**文件位置**：桌面\n**页数**：8 页',
+    );
+    expect(result.usedFallback).toBe(false);
+    expect(result.suggestions).toEqual([]);
+  });
+
+  it('没有来源时不调 LLM', async () => {
+    const result = await generateSuggestedReplies('你好', '   ');
+    expect(mocks.generate).not.toHaveBeenCalled();
+    expect(result).toEqual({ suggestions: [], usedFallback: false });
+  });
+
+  it('LLM 空白 / 抛错时返回空数组', async () => {
     mocks.generate.mockResolvedValue({ content: '' });
     const empty = await generateSuggestedReplies(user, assistant);
     expect(empty.usedFallback).toBe(true);
-    expect(empty.suggestions).toHaveLength(3);
+    expect(empty.suggestions).toEqual([]);
 
     mocks.generate.mockRejectedValue(new Error('boom'));
     const failed = await generateSuggestedReplies(user, assistant);
     expect(failed.usedFallback).toBe(true);
-    expect(failed.suggestions).toEqual(empty.suggestions);
+    expect(failed.suggestions).toEqual([]);
   });
 
-  it('超时走兜底且不抛错', async () => {
+  it('超时返回空数组且不抛错', async () => {
     mocks.generate.mockImplementation(() => new Promise(() => {}));
     const result = await generateSuggestedReplies(user, assistant, { perAttemptTimeoutMs: 20 });
     expect(result.usedFallback).toBe(true);
-    expect(result.suggestions).toHaveLength(3);
+    expect(result.suggestions).toEqual([]);
   });
 });

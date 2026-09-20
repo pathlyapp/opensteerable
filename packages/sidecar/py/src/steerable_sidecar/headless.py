@@ -717,6 +717,10 @@ async def _run(
         sys.stdout.write(f"\n[loop_error {type(exc).__name__}: {exc}]\n")
         sys.stdout.flush()
     finally:
+        if timed_out:
+            # Teardown may wait on the same subprocess that exhausted the
+            # budget. Exit before cleanup so Harbor's docker exec receives EOF.
+            _abandon_process_after_hard_timeout()
         # Close per-run MCP clients so no server subprocess outlives the run.
         for client in mcp_clients:
             await client.aclose()
@@ -746,8 +750,6 @@ async def _run(
             + "\n"
         )
         sys.stdout.flush()
-        if timed_out:
-            _abandon_process_after_hard_timeout()
 
 
 if __name__ == "__main__":  # pragma: no cover

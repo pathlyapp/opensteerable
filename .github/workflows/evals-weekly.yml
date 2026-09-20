@@ -46,6 +46,13 @@ on:
           - xhigh
           - max
         default: ""
+      coreloop:
+        description: "Steerable only: Rust candidate or Python control CoreLoop."
+        type: choice
+        options:
+          - rust
+          - python
+        default: rust
       tasks:
         description: "Catalog ids to run instead of the whole split, space separated. Use to finish a catalog the credit guard cancelled; shards with nothing to do report skipped."
         type: string
@@ -65,7 +72,7 @@ concurrency:
   # The agent is part of the group so a pi-glm catalog and a steerable catalog
   # are separate queues: the group holds one running plus one pending run, and
   # sharing it would make a second dispatch cancel the pending one.
-  group: evals-${{ github.event.inputs.split || 'cheap-12' }}-${{ github.event.inputs.agent || 'steerable' }}-${{ github.event.inputs.model || 'default' }}-${{ github.event.inputs.probe_agent || 'all' }}
+  group: evals-${{ github.event.inputs.split || 'cheap-12' }}-${{ github.event.inputs.agent || 'steerable' }}-${{ github.event.inputs.model || 'default' }}-${{ github.event.inputs.probe_agent || 'all' }}-${{ github.event.inputs.coreloop || 'rust' }}
   cancel-in-progress: false
 
 jobs:
@@ -83,6 +90,8 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: uv sync
       - uses: ./.github/actions/setup-harbor
+        with:
+          rust-coreloop: ${{ matrix.agent == 'steerable' && github.event.inputs.coreloop != 'python' }}
       - run: docker info
       - name: Harbor cheap-12
         env:
@@ -174,6 +183,8 @@ jobs:
         if: steps.gate.outputs.skip != '1'
       - uses: ./.github/actions/setup-harbor
         if: steps.gate.outputs.skip != '1'
+        with:
+          rust-coreloop: ${{ matrix.agent == 'steerable' && github.event.inputs.coreloop != 'python' }}
       - run: docker info
         if: steps.gate.outputs.skip != '1'
       - name: Harbor cheap-12 probe
@@ -282,6 +293,8 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: uv sync
       - uses: ./.github/actions/setup-harbor
+        with:
+          rust-coreloop: "true"
       - run: docker info
       - name: Harbor failed-prev shard
         env:
@@ -352,6 +365,8 @@ jobs:
         if: steps.gate.outputs.skip != '1'
       - uses: ./.github/actions/setup-harbor
         if: steps.gate.outputs.skip != '1'
+        with:
+          rust-coreloop: ${{ github.event.inputs.agent == 'steerable' && github.event.inputs.coreloop != 'python' }}
       - run: docker info
         if: steps.gate.outputs.skip != '1'
       - name: Harbor catalog shard
@@ -468,7 +483,8 @@ jobs:
   # trial: 150 separate single-trial jobs would queue three deep behind the 50
   # GHA has been seen to run at once. Both arms run the same commit and differ
   # only in the forwarded tunables, which keeps the task set, the model, and
-  # the sampling identical between them.
+  # the sampling identical between them. Arm A is the Python control and arm
+  # B is the Rust candidate; `arm_b_env` must stay empty for this engine A/B.
   flaky:
     name: TB 2.1 flaky arm ${{ matrix.arm }} shard ${{ matrix.shard }}/27
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.split == 'flaky' }}
@@ -484,6 +500,8 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: uv sync
       - uses: ./.github/actions/setup-harbor
+        with:
+          rust-coreloop: ${{ matrix.arm == 'b' }}
       - run: docker info
       - name: Arm B overrides
         if: ${{ matrix.arm == 'b' }}
@@ -565,6 +583,8 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: uv sync
       - uses: ./.github/actions/setup-harbor
+        with:
+          rust-coreloop: "true"
       - run: docker info
       - name: Tunable overrides
         env:
@@ -630,6 +650,7 @@ jobs:
           PROBE_AGENT: ${{ github.event.inputs.probe_agent }}
           EVAL_MODEL: ${{ github.event.inputs.model }}
           EVAL_EFFORT: ${{ github.event.inputs.reasoning_effort }}
+          CORELOOP: ${{ github.event.inputs.coreloop || 'rust' }}
           ARM_B_ENV: ${{ github.event.inputs.arm_b_env }}
         run: |
           python3 - << 'PY'
@@ -639,12 +660,13 @@ jobs:
               print("FEISHU_BOT_WEBHOOK unset; skip")
               raise SystemExit(0)
           split = os.environ.get("EVAL_SPLIT") or "cheap-12"
+          coreloop = os.environ.get("CORELOOP") or "rust"
           if split == "catalog":
               agent = (os.environ.get("EVAL_AGENT") or "steerable").strip()
               model = (os.environ.get("EVAL_MODEL") or "").strip()
               effort = (os.environ.get("EVAL_EFFORT") or "").strip()
-              title = f"开始 · GHA catalog 89 × {agent}"
-              body = f"{agent} × 全量 89 题，49 分片并行。"
+              title = f"开始 · GHA catalog 89 × {agent} · {coreloop}"
+              body = f"{agent} × {coreloop} CoreLoop × 全量 89 题，49 分片并行。"
               if model:
                   if "qwen" in model:
                       provider, default_effort = "alibaba", "medium"
@@ -653,7 +675,7 @@ jobs:
                   else:
                       provider, default_effort = "z-ai", "high"
                   used = effort or default_effort
-                  title = f"开始 · catalog-89 × {agent} × {model} @{used}"
+                  title = f"开始 · catalog-89 × {agent} × {model} @{used} · {coreloop}"
                   body = (
                       "新基线 n=1，不上首页。"
                       "不要和 6 跑 80.7%（8e260de @max）或 cheap-12 混用。"
@@ -671,10 +693,11 @@ jobs:
               title = "开始 · GHA failed-prev"
               body = "产品 steerable × 上次 catalog 失败题（23），24 分片。用来迭代 harness，不是正式分。"
           elif split == "flaky":
-              title = "开始 · GHA flaky A/B"
+              title = "开始 · GHA flaky Python/Rust A/B"
               overrides = (os.environ.get("ARM_B_ENV") or "").strip() or "(none)"
               body = (
-                  "15 题 × 2 臂 × 3 次，单题 85 分钟上限。判断 harness 改动，不是正式分。"
+                  "27 题 × 2 臂 × 3 次，Arm A=Python、Arm B=Rust。"
+                  "单题 85 分钟上限；判断 CoreLoop 差异，不是正式分。"
                   f"\nArm B:\n{overrides}"
               )
           else:
@@ -701,7 +724,7 @@ jobs:
                           else "steerable / claude-code-glm / pi-glm / terminus-2 / dsh / codex-glm"
                       )
                   )
-                  title = f"开始 · cheap-12 probe × {model} @{used}"
+                  title = f"开始 · cheap-12 probe × {model} @{used} · {coreloop}"
                   body = (
                       "新基线，不上首页，不和 catalog-89 80.7% / 旧 easy-12 混用。"
                       "\n12 题 = 绿7 / 翻面4 / 红1（定比 8e260de catalog-89）。"
@@ -719,8 +742,8 @@ jobs:
                       )
                   )
               else:
-                  title = "开始 · GHA cheap-12"
-                  body = "产品 steerable 用网关 key；对照无官方 key 会跳过。"
+                  title = f"开始 · GHA cheap-12 · {coreloop}"
+                  body = f"产品 steerable 使用 {coreloop} CoreLoop；对照无官方 key 会跳过。"
           run = f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
           payload = {
               "msg_type": "interactive",
@@ -756,14 +779,15 @@ jobs:
           EVAL_AGENT: ${{ github.event.inputs.agent || 'steerable' }}
           EVAL_MODEL: ${{ github.event.inputs.model }}
           EVAL_EFFORT: ${{ github.event.inputs.reasoning_effort }}
+          CORELOOP: ${{ github.event.inputs.coreloop || 'rust' }}
         run: |
-          label="GHA cheap-12"
+          label="GHA cheap-12 · $CORELOOP"
           if [ "$EVAL_SPLIT" = "catalog" ]; then
             # Naming the agent keeps a pi-glm catalog Mean from being read as
             # the product score. Naming the model keeps a qwen Mean from being
             # read as the GLM product score. Naming the effort keeps an xhigh
             # Mean from being read as a medium one.
-            label="GHA catalog 89 × $EVAL_AGENT"
+            label="GHA catalog 89 × $EVAL_AGENT · $CORELOOP"
             if [ -n "$EVAL_MODEL" ]; then
               label="$label × $EVAL_MODEL"
               if [ -n "$EVAL_EFFORT" ]; then
@@ -774,9 +798,9 @@ jobs:
           elif [ "$EVAL_SPLIT" = "failed-prev" ]; then
             label="GHA failed-prev"
           elif [ "$EVAL_SPLIT" = "flaky" ]; then
-            label="GHA flaky A/B"
+            label="GHA flaky Python/Rust A/B"
           elif [ "$EVAL_SPLIT" = "cheap-12" ] && [ -n "$EVAL_MODEL" ]; then
-            label="cheap-12 probe × $EVAL_MODEL"
+            label="cheap-12 probe × $EVAL_MODEL · $CORELOOP"
             if [ -n "$EVAL_EFFORT" ]; then
               label="$label @$EVAL_EFFORT"
             fi

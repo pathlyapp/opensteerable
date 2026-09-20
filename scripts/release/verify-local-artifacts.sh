@@ -21,6 +21,10 @@ uv pip install --python "$VENV/bin/python" \
     "$DIST"/py/steerable_agent_harness-*.whl \
     "$DIST"/py/steerable_agent_runtime-*.whl \
     "$DIST"/py/steerable_sidecar-*.whl >/dev/null
+if compgen -G "$DIST/native/steerable_agent_runtime_native-*.whl" > /dev/null; then
+  uv pip install --python "$VENV/bin/python" \
+      "$DIST"/native/steerable_agent_runtime_native-*.whl >/dev/null
+fi
 
 "$VENV/bin/python" - <<'PY'
 import asyncio
@@ -41,6 +45,14 @@ async def main():
     print("PY OK:", r.data["value"])
 
 asyncio.run(main())
+
+try:
+    import steerable_agent_runtime_native as native
+except ImportError:
+    print("NATIVE SKIP: host wheel not installed")
+else:
+    assert native.run_turn is not None
+    print("NATIVE OK:", native.__version__)
 PY
 
 echo "    Sidecar boot/ping/shutdown..."

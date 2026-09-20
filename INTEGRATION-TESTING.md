@@ -138,7 +138,7 @@ Operator-driven, lockstep, single command. See [`RELEASING.md`](./RELEASING.md) 
 cd steerable-framework
 git switch main && git pull           # clean main, ahead-of-remote = 0
 
-# 1. Bump all 7 packages + workspace root in one shot
+# 1. Bump all lockstep packages + workspace root in one shot
 ./scripts/release/bump_to.sh 0.3.0    # script refreshes lockfiles + runs lockstep gate
 
 # 2. Review + commit + tag
@@ -147,9 +147,9 @@ git add -A && git commit -m "chore(release): v0.3.0"
 git tag v0.3.0
 
 # 3. Push (this is the only step that can't be undone trivially)
-git push origin main v0.3.0
+git push origin develop v0.3.0
 
-# 4. Watch CI: validate (lockstep gate) → publish-npm → publish-pypi
+# 4. Watch CI: validate (lockstep gate) → publish-npm → publish-pypi → publish-native
 gh run watch $(gh run list --workflow release.yml --limit 1 --json databaseId -q '.[0].databaseId')
 
 # 5. Confirm registries (~3 minutes after push)
@@ -266,7 +266,7 @@ Your `pyproject.toml` has a `[tool.uv.sources]` override pointing at a sibling r
 
 ### "I tagged `v0.3.0` but `release.yml` failed at the lockstep gate"
 
-You forgot to run `./scripts/release/bump_to.sh 0.3.0` first, or only some packages got bumped. The gate refuses to publish unless **all 7 publishable packages** report exactly the tag version. Fix: `bump_to.sh 0.3.0` properly, commit, then either:
+You forgot to run `./scripts/release/bump_to.sh 0.3.0` first, or only some packages got bumped. The gate refuses to publish unless **every lockstep package** (TS, Py, Rust crate, native wheel) reports exactly the tag version. Fix: `bump_to.sh 0.3.0` properly, commit, then either:
 - re-tag the same version: `git tag -d v0.3.0 && git push --delete origin v0.3.0 && git tag v0.3.0 && git push origin main v0.3.0`, or
 - bump to the next version (`v0.3.1`) and leave the dead tag in place.
 

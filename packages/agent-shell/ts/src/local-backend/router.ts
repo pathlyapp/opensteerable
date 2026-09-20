@@ -21,8 +21,11 @@ import {
   resolveAutoContinueMax,
 } from './auto-continue-helper.js';
 import {
+  buildAmbientDelegateRoster,
   buildDelegateDispatchInstruction,
+  buildDelegateRosterHint,
   buildMentionDelegateRoster,
+  BUILTIN_SUBAGENT_PROFILES,
   mergeTurnSubagentParam,
   type MentionDelegateProfile,
   type TurnSubagentParam,
@@ -2220,10 +2223,11 @@ export class LocalBackendRouter {
     let currentUserMessageId: string | undefined;
     // 本轮被点名的智能体：菜单点选带来的 id 优先，手打的 `@名字` 从正文
     // 解析补齐（两者缺一，提及就在后端消失，只剩前端徽章）。
+    const chatAgents = await this.store.listChatAgents();
     const mentionedAgentIds = resolveMentionedAgentIds(
       payload,
       userMessageText,
-      await this.store.listChatAgents(),
+      chatAgents,
     );
     if (!regenerateMatch && !isResume) {
       const userMeta = mentionedAgentIds.length > 0
@@ -2289,10 +2293,24 @@ export class LocalBackendRouter {
       };
     }
 
+    const turnToolNames = turnTools.map((tool) => tool.name);
     const mentionRoster = await buildMentionDelegateRoster(
       turnAgents.delegates,
-      turnTools.map((tool) => tool.name),
+      turnToolNames,
     );
+    // 常驻可委派名单：其余智能体也进画像，技能/提示里的「交给 X」无需用户
+    // `@` 就能落成一次真实委派。父代理自己不进——它就是本轮的执行者，给它
+    // 一个自己的画像只会诱导无意义的自委派（`@自己` 走提及那条路，仍然可以）。
+    const ambientRoster = await buildAmbientDelegateRoster(chatAgents, turnToolNames, {
+      excludeAgentIds: [
+        ...mentionRoster.map((row) => row.agentId),
+        ...(turnAgents.parent ? [turnAgents.parent.id] : []),
+      ],
+      reservedProfileNames: [
+        ...Object.keys(BUILTIN_SUBAGENT_PROFILES),
+        ...mentionRoster.map((row) => row.profileName),
+      ],
+    });
 
     const { systemPrompt, messages, skillContext } =
       await this.buildConversationMessages(
@@ -2305,7 +2323,7 @@ export class LocalBackendRouter {
         chatMode,
         forcedMcpTool,
         currentUserMessageId,
-        mentionRoster,
+        { mention: mentionRoster, ambient: ambientRoster },
       );
 
     // A4: the sidecar-hosted CoreLoop is the only chat path (the TS loop
@@ -2332,6 +2350,7 @@ export class LocalBackendRouter {
       resume: isResume,
       subagent: mergeTurnSubagentParam(
         Object.fromEntries(mentionRoster.map((row) => [row.profileName, row.profile])),
+        Object.fromEntries(ambientRoster.map((row) => [row.profileName, row.profile])),
       ),
       parentAgentId: turnAgents.parent?.id ?? null,
     });
@@ -2486,7 +2505,12 @@ export class LocalBackendRouter {
     chatMode: 'agent' | 'plan' = 'agent',
     forcedMcpTool?: ForcedMcpTool,
     currentUserMessageId?: string,
-    mentionRoster: MentionDelegateProfile[] = [],
+    delegates: {
+      /** 用户 `@` 点名的：进系统提示名录 **且** 注入强制派发指令。 */
+      mention: MentionDelegateProfile[];
+      /** 常驻可委派的：只进系统提示名录，派不派由模型判断。 */
+      ambient: MentionDelegateProfile[];
+    } = { mention: [], ambient: [] },
   ): Promise<{
     systemPrompt: string;
     messages: LlmMessage[];
@@ -2566,8 +2590,12 @@ export class LocalBackendRouter {
 
     const polluted = this.detectToolDenialInHistory(historyAssistantTexts);
     const runtimeEnvironment = this.buildRuntimeEnvironmentContext(chatMode);
+    // 名录进 realityCheck：两条系统提示拼装路径（技能拼装 / 用户整段覆盖）
+    // 都会带上它，且位置在末尾——不动技能正文那段 prompt cache 前缀。
     const realityCheck =
-      runtimeEnvironment + this.buildToolRealityCheck(turnTools, polluted, chatMode);
+      runtimeEnvironment +
+      this.buildToolRealityCheck(turnTools, polluted, chatMode) +
+      buildDelegateRosterHint([...delegates.mention, ...delegates.ambient]);
 
     // 用户显式覆盖（payload.systemPrompt 优先 / settings.systemPrompt 自定义了且非默认值次之）走
     // "整段替换"路径，保持旧行为可被外部完全控制；否则交给 skill-based
@@ -2721,9 +2749,9 @@ export class LocalBackendRouter {
       finalUserContent = `${finalUserContent}\n\n【附件图片】\n${finalUserImages.notes.join('\n')}`;
     }
 
-    if (mentionRoster.length > 0) {
+    if (delegates.mention.length > 0) {
       finalUserContent = `${finalUserContent}\n\n${buildDelegateDispatchInstruction(
-        mentionRoster.map((row) => ({
+        delegates.mention.map((row) => ({
           name: row.name,
           profileName: row.profileName,
           toolFilter: row.profile.toolFilter,

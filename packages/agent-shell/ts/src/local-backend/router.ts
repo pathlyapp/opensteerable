@@ -91,6 +91,7 @@ import { detectInterruptedTurn } from './interrupted-helper.js';
 import { dropCurrentUserMessage } from './history-helper.js';
 import { parseImageAttachments, processImageAttachments } from '../image-attachment.js';
 import { loadProjectRuleFiles } from '../project-rules.js';
+import { allocateProjectHome, ensureProjectHome } from '../project-home.js';
 import type { TaskService } from './task-service.js';
 import { registerLiveStream, getLiveStream, removeLiveStream } from './live-stream.js';
 import {
@@ -115,6 +116,11 @@ export interface LocalBackendRequest {
 export interface LocalBackendResponse<T = unknown> {
   status: number;
   data: T;
+}
+
+function parseSourceFolders(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === 'string' && item.trim() !== '');
 }
 
 /**
@@ -597,9 +603,18 @@ export class LocalBackendRouter {
       if (method === 'POST') {
         const payload = this.toRecord(request.body);
         try {
+          const name = String(payload.name || '');
+          const sourceFolders = parseSourceFolders(payload.sourceFolders);
+          let folderPath =
+            typeof payload.folderPath === 'string' ? payload.folderPath.trim() : '';
+          if (!folderPath) {
+            folderPath = allocateProjectHome(name);
+            ensureProjectHome(folderPath);
+          }
           const project = registry.create({
-            name: String(payload.name || ''),
-            folderPath: String(payload.folderPath || ''),
+            name,
+            folderPath,
+            sourceFolders,
           });
           return { status: 200, data: { success: true, project } };
         } catch (err) {
@@ -625,6 +640,10 @@ export class LocalBackendRouter {
             name: typeof payload.name === 'string' ? payload.name : undefined,
             folderPath:
               typeof payload.folderPath === 'string' ? payload.folderPath : undefined,
+            sourceFolders:
+              payload.sourceFolders === undefined
+                ? undefined
+                : parseSourceFolders(payload.sourceFolders),
           });
           return { status: 200, data: { success: true, project } };
         } catch (err) {
@@ -2448,12 +2467,20 @@ export class LocalBackendRouter {
    * Public: main.ts 的反向通道（reverse-tools.ts）经它给 CoreLoop 路径的
    * 工具调用补上 projectRoot 围栏。
    */
-  async resolveChatProject(chatId: string): Promise<{ name: string; folderPath: string } | null> {
+  async resolveChatProject(chatId: string): Promise<{
+    name: string;
+    folderPath: string;
+    sourceFolders: string[];
+  } | null> {
     const projectId = (await this.store.getChat(chatId))?.projectId;
     if (!projectId) return null;
     const project = this.toolRouter.projectRegistry?.get(projectId);
     if (!project) return null;
-    return { name: project.name, folderPath: project.folderPath };
+    return {
+      name: project.name,
+      folderPath: project.folderPath,
+      sourceFolders: project.sourceFolders ?? [],
+    };
   }
 
   /**
@@ -2690,11 +2717,14 @@ export class LocalBackendRouter {
     const chatProject = await this.resolveChatProject(chatId);
     if (chatProject) {
       systemPrompt +=
-        `\n\n【项目模式】当前对话绑定项目「${chatProject.name}」，根目录：${chatProject.folderPath}\n` +
-        `你的文件读写（local_read_file / local_write_file）和命令执行（local_exec_shell）都被限制在该目录内：` +
-        `文件路径越界会被拒绝；命令默认在项目根目录下运行，显式指定的 cwd 越界也会被拒绝。` +
-        `请一律使用项目目录内的路径（相对路径按项目根目录解析）。` +
-        `如确需访问项目外的文件，向用户说明该限制，并请其把文件放入项目目录后再操作。`;
+        `\n\n【项目模式】当前对话绑定项目「${chatProject.name}」，家目录：${chatProject.folderPath}\n` +
+        `你的文件写入（local_write_file）和命令执行（local_exec_shell）都被限制在该家目录内：` +
+        `写入路径越界会被拒绝；命令默认在家目录下运行，显式指定的 cwd 越界也会被拒绝。` +
+        (chatProject.sourceFolders.length > 0
+          ? `另有源文件夹（只读）：${chatProject.sourceFolders.join('、')}。`
+          : '') +
+        `请一律使用项目目录内的路径（相对路径按家目录解析）。` +
+        `如确需访问项目外的文件，向用户说明该限制，或请其在项目里附加为源文件夹。`;
 
       // W6-5 + W6-7a：项目级规则文件（AGENTS.md / CLAUDE.md）是不可信输入，
       // 仅在用户显式信任该项目后才注入模型上下文——未信任一律不读取、不注入

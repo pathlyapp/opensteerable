@@ -51,7 +51,12 @@ describe('timelineFromHistoryEntries', () => {
     ]);
 
     expect(blocks.map((b) => b.type)).toEqual(['reasoning', 'tools', 'text']);
-    expect(blocks[0]).toEqual({ type: 'reasoning', content: '先睡 300 秒再问好。' });
+    expect(blocks[0]).toEqual({
+      type: 'reasoning',
+      content: '先睡 300 秒再问好。',
+      startedAtMs: expect.any(Number),
+      durationMs: expect.any(Number),
+    });
     expect(blocks[1]).toMatchObject({
       type: 'tools',
       actions: [

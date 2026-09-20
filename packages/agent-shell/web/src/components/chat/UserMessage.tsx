@@ -62,7 +62,7 @@ export function UserMessage({ message, agents = [], chats = [] }: UserMessagePro
 
   return (
     <motion.div
-      className="group/message mb-1"
+      className="group/message"
       data-message-role="user"
       data-message-id={message.id}
       initial={{ opacity: 0, y: 20 }}
@@ -70,7 +70,7 @@ export function UserMessage({ message, agents = [], chats = [] }: UserMessagePro
       transition={{ duration: 0.3 }}
     >
       <div className="flex justify-start">
-        <div className="mx-auto w-full max-w-[var(--chat-input-box-width)] rounded-lg border border-agent-border bg-agent-muted px-2.5 py-2 text-xs text-agent-foreground">
+        <div className="mx-auto w-full max-w-[var(--chat-input-box-width)] rounded-agent-lg border border-agent-border/80 bg-agent-muted/70 px-3 py-2 text-xs text-agent-foreground">
           <div className="relative">
             <div
               ref={contentRef}

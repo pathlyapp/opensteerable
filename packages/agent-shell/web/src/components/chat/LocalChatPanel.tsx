@@ -310,15 +310,8 @@ export function LocalChatPanel({
     ],
   );
 
-  const sessionTodoBanner = sessionTodos ? (
-    <div className="px-2.5">
-      <SessionTodoList todos={sessionTodos} />
-    </div>
-  ) : null;
-
   // Sync `chat-input-box-width` CSS var so bubbles match the input width
-  // (cloud product uses 95% of the input box; we mirror that here so message
-  // bubbles + input visually align in a column).
+  // (mirrors the rendered input box width so message bubbles + input visually align in a column).
   const containerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const containerEl = containerRef.current;
@@ -331,7 +324,7 @@ export function LocalChatPanel({
       if (width > 0) {
         containerEl.style.setProperty(
           '--chat-input-box-width',
-          `${Math.round(width * 0.95)}px`,
+          `${Math.round(width)}px`,
         );
       }
     };
@@ -370,6 +363,7 @@ export function LocalChatPanel({
       onOpenSettings={onOpenSettings}
       toolbarExtras={inputToolbarExtras}
       leadingChrome={inputLeadingChrome}
+      trailingChrome={sessionTodos ? <SessionTodoList todos={sessionTodos} /> : undefined}
       mode={mode}
       onModeChange={onModeChange}
       execPolicy={execPolicy}
@@ -388,7 +382,7 @@ export function LocalChatPanel({
       <ChatPanel.Root className="flex h-full flex-col overflow-hidden" unstyled>
         {showEmptyHero ? (
           <div className="flex min-h-0 flex-1 items-center justify-center p-3 sm:p-5">
-            <div className="flex w-full max-w-2xl flex-col items-center gap-4">
+            <div className="flex w-full max-w-3xl flex-col items-center gap-4">
               <div className="text-center">
                 <h1 className="text-xl font-semibold tracking-tight text-agent-foreground">
                   {emptyHero?.title}
@@ -401,7 +395,6 @@ export function LocalChatPanel({
               </div>
               <div className="w-full">
                 {inputBanner}
-                {sessionTodoBanner}
                 {chatInputNode}
               </div>
             </div>
@@ -448,9 +441,10 @@ export function LocalChatPanel({
                 suggestedReplies={suggestedReplies}
                 onSelectSuggestion={onSelectSuggestion}
               />
-              {inputBanner}
-              {sessionTodoBanner}
-              {chatInputNode}
+              <div className="mx-auto w-full max-w-3xl">
+                {inputBanner}
+                {chatInputNode}
+              </div>
             </div>
           </>
         )}

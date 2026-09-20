@@ -1317,7 +1317,7 @@ function EmptyChatGate() {
       className="flex h-full w-full items-center justify-center p-3 sm:p-5"
       data-testid="empty-chat-home"
     >
-      <div className="flex w-full max-w-2xl flex-col items-center gap-4">
+      <div className="flex w-full max-w-3xl flex-col items-center gap-4">
         <div className="text-center">
           <h1 className="text-xl font-semibold tracking-tight text-agent-foreground">
             {BRAND_NAME}

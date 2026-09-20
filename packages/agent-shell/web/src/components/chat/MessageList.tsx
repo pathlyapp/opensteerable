@@ -248,12 +248,12 @@ export function MessageList({
     <div className="relative flex-1 overflow-hidden">
       <div
         ref={containerRef}
-        className="h-full overflow-y-auto overflow-anchor-none px-2.5 py-2"
+        className="h-full overflow-y-auto overflow-anchor-none px-3 pt-3 pb-6"
       >
         {visibleMessages.length === 0 ? (
           emptyState ?? null
         ) : (
-          <div className="mx-auto w-full space-y-1">
+          <div className="mx-auto w-full max-w-3xl space-y-4">
             {visibleMessages.map((message, index) => {
               const isLast = index === visibleMessages.length - 1;
               if (message.role === 'user') {

@@ -621,7 +621,7 @@ export function AgentSidebar({
     <div className="flex h-full w-full flex-col border-r border-agent-border/60 bg-agent-muted/70 backdrop-blur-md">
       {/* ───── Brand + actions ───── */}
       <div className="flex h-9 flex-shrink-0 items-center justify-between px-2.5">
-        <BrandLockup />
+        <BrandLockup onClick={() => handleOpenNewChat()} />
         <div className="flex items-center gap-1">
           <button
             type="button"
@@ -704,7 +704,7 @@ export function AgentSidebar({
           <button
             type="button"
             onClick={() => setChatsExpanded((v) => !v)}
-            className="flex items-center text-xs font-semibold tracking-wider text-agent-muted-foreground transition-colors hover:text-agent-foreground"
+            className="flex h-6 items-center rounded-full px-2.5 text-xs font-semibold tracking-wider text-agent-muted-foreground transition-colors hover:bg-agent-foreground/5 hover:text-agent-foreground"
           >
             <span className="mr-1">
               {chatsExpanded ? (
@@ -739,7 +739,7 @@ export function AgentSidebar({
         {chatsExpanded && (
           <div
             ref={chatScrollRef}
-            className="flex-1 overflow-y-auto px-2 pb-1"
+            className="flex-1 overflow-y-auto px-2.5 pb-1"
           >
             {isChatLoading && chats.length === 0 && projects.length === 0 ? (
               <div className="flex items-center justify-center py-4 text-xs text-agent-muted-foreground">

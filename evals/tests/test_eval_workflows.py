@@ -45,9 +45,8 @@ def test_agent_logs_are_uploaded_for_efficiency_metrics(workflow: str) -> None:
 
 
 def test_flaky_feishu_copy_matches_the_split() -> None:
-    """The start card still said 25 ids after suite.yaml shrank flaky to 20,
-    then 20 after the `8e260de` rebuild shrank it to 15."""
-    assert "15 题 × 2 臂" in WEEKLY
+    """The start card must match the current paired A/B sample and repeats."""
+    assert "27 题 × 2 臂 × 3 次" in WEEKLY
     assert "25 题" not in WEEKLY
 
 
@@ -83,8 +82,8 @@ def test_catalog_dispatch_offers_both_harnesses() -> None:
 
 
 def test_catalog_feishu_label_names_the_agent() -> None:
-    """A catalog Mean posted without its agent reads as the product score."""
-    assert 'label="GHA catalog 89 × $EVAL_AGENT"' in WEEKLY
+    """A catalog Mean posted without its agent and CoreLoop is ambiguous."""
+    assert 'label="GHA catalog 89 × $EVAL_AGENT · $CORELOOP"' in WEEKLY
 
 
 def test_catalog_concurrency_separates_the_agents() -> None:

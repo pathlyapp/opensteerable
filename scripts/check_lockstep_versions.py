@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -50,6 +51,16 @@ PY_PACKAGES: list[tuple[str, str]] = [
     ("steerable-egress-proxy",   "packages/egress-proxy/py/pyproject.toml"),
 ]
 
+RUST_PACKAGES: list[tuple[str, str]] = [
+    ("steerable-egress-proxy-rs", "packages/egress-proxy/rs/Cargo.toml"),
+]
+
+NATIVE_PACKAGE = "steerable-agent-runtime-native"
+NATIVE_PIN_FILES = (
+    "packages/agent-runtime/py/pyproject.toml",
+    "pyproject.toml",
+)
+
 
 def _read_versions() -> dict[str, str]:
     versions: dict[str, str] = {}
@@ -57,6 +68,21 @@ def _read_versions() -> dict[str, str]:
         versions[name] = json.loads((ROOT / rel).read_text(encoding="utf-8"))["version"]
     for name, rel in PY_PACKAGES:
         versions[name] = tomllib.loads((ROOT / rel).read_text(encoding="utf-8"))["project"]["version"]
+    for name, rel in RUST_PACKAGES:
+        versions[name] = tomllib.loads((ROOT / rel).read_text(encoding="utf-8"))["package"]["version"]
+    runtime_version = versions["steerable-agent-runtime"]
+    pin = f"{NATIVE_PACKAGE}=={runtime_version}"
+    for rel in NATIVE_PIN_FILES:
+        text = (ROOT / rel).read_text(encoding="utf-8")
+        if pin not in text:
+            raise SystemExit(
+                f"ERROR: {rel} must pin {pin}; the native wheel is not built here"
+            )
+    versions[NATIVE_PACKAGE] = runtime_version
+    if re.search(rf"{NATIVE_PACKAGE}==(?!{re.escape(runtime_version)})", "\n".join(
+        (ROOT / rel).read_text(encoding="utf-8") for rel in NATIVE_PIN_FILES
+    )):
+        raise SystemExit("ERROR: native wheel pin does not match the lockstep version")
     return versions
 
 

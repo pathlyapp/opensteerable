@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import os
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -92,9 +91,8 @@ async def test_no_tool_calls_completes() -> None:
     # content streamed through
     deltas = [e.data["delta"] for e in events if e.kind == "content_delta"]
     assert "".join(deltas) == "The answer is 4."
-    if os.environ.get("STEERABLE_RUST_CORELOOP") == "1":
-        starts = [e for e in events if e.kind == "stage_start"]
-        assert starts and starts[0].data.get("engine") == "rust"
+    starts = [e for e in events if e.kind == "stage_start"]
+    assert starts and starts[0].data.get("engine") == "rust"
 
 
 @pytest.mark.asyncio
@@ -581,12 +579,7 @@ async def test_before_completion_redo_budget_exhausted_disclosed() -> None:
 
 
 @pytest.mark.asyncio
-async def test_native_bridge_forwards_generation_controls_and_stream_hook(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    pytest.importorskip("steerable_agent_runtime_native")
-    monkeypatch.setenv("STEERABLE_RUST_CORELOOP", "1")
-
+async def test_native_bridge_forwards_generation_controls_and_stream_hook() -> None:
     class _Provider:
         name = "capture"
         model = "capture-model"
@@ -627,12 +620,7 @@ async def test_native_bridge_forwards_generation_controls_and_stream_hook(
 
 
 @pytest.mark.asyncio
-async def test_native_content_delta_arrives_before_provider_finishes(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    pytest.importorskip("steerable_agent_runtime_native")
-    monkeypatch.setenv("STEERABLE_RUST_CORELOOP", "1")
-
+async def test_native_content_delta_arrives_before_provider_finishes() -> None:
     class _Provider:
         name = "streaming"
         model = "streaming-model"
@@ -676,12 +664,7 @@ async def test_native_content_delta_arrives_before_provider_finishes(
 
 
 @pytest.mark.asyncio
-async def test_native_mid_stream_error_keeps_partial_text(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    pytest.importorskip("steerable_agent_runtime_native")
-    monkeypatch.setenv("STEERABLE_RUST_CORELOOP", "1")
-
+async def test_native_mid_stream_error_keeps_partial_text() -> None:
     class _Provider:
         name = "partial-error"
         model = "partial-error-model"

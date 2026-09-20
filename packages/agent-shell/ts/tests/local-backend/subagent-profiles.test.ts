@@ -21,10 +21,13 @@ vi.mock('../../src/local-backend/skill-loader.js', () => ({
 
 import {
   BUILTIN_SUBAGENT_PROFILES,
+  buildAmbientDelegateRoster,
   buildDelegateDispatchInstruction,
+  buildDelegateRosterHint,
   buildMentionSubagentProfiles,
   mergeTurnSubagentParam,
   profileNameForAgent,
+  resetDelegateProfileCache,
   type SubagentAgentInput,
 } from '../../src/local-backend/subagent-profiles.js';
 
@@ -79,6 +82,7 @@ beforeEach(() => {
   mocks.loadSkills.mockReset();
   mocks.findSkill.mockReset();
   mocks.loadSkills.mockResolvedValue([]);
+  resetDelegateProfileCache();
 });
 
 describe('profileNameForAgent', () => {
@@ -247,12 +251,104 @@ describe('buildDelegateDispatchInstruction', () => {
   });
 });
 
+describe('buildAmbientDelegateRoster', () => {
+  it('排除父代理与已被提及的智能体', async () => {
+    const roster = await buildAmbientDelegateRoster(
+      [
+        makeAgent({ id: 'parent', slug: 'operator', name: '电脑操作员' }),
+        makeAgent({ id: 'mentioned', slug: 'researcher', name: '调研员' }),
+        makeAgent({ id: 'ambient', slug: 'word-master', name: 'Word智能体' }),
+      ],
+      PARENT_TOOLS,
+      { excludeAgentIds: ['parent', 'mentioned'] },
+    );
+    expect(roster.map((row) => row.profileName)).toEqual(['word-master']);
+    expect(roster[0].name).toBe('Word智能体');
+  });
+
+  it('画像名撞上已占用的名字时避让，不顶掉内置画像', async () => {
+    const roster = await buildAmbientDelegateRoster(
+      [makeAgent({ id: 'uuid-abc12345', slug: 'explore', name: '我的探索员' })],
+      PARENT_TOOLS,
+      { reservedProfileNames: Object.keys(BUILTIN_SUBAGENT_PROFILES) },
+    );
+    expect(roster[0].profileName).toBe('explore-uuidabc1');
+  });
+
+  it('全部被排除时返回空名单', async () => {
+    const roster = await buildAmbientDelegateRoster(
+      [makeAgent({ id: 'parent' })],
+      PARENT_TOOLS,
+      { excludeAgentIds: ['parent'] },
+    );
+    expect(roster).toEqual([]);
+  });
+
+  it('同一智能体在 updatedAt 不变时复用画像，不重复扫技能目录', async () => {
+    const agent = makeAgent({ id: 'a1', updatedAt: '2026-09-20T00:00:00.000Z', loadAllSkills: true });
+    mocks.loadSkills.mockResolvedValue([CSV_SKILL]);
+    await buildAmbientDelegateRoster([agent], PARENT_TOOLS);
+    const afterFirst = mocks.loadSkills.mock.calls.length;
+    expect(afterFirst).toBeGreaterThan(0);
+    await buildAmbientDelegateRoster([agent], PARENT_TOOLS);
+    expect(mocks.loadSkills.mock.calls.length).toBe(afterFirst);
+
+    // 改了智能体（updatedAt 变）→ 重建。
+    await buildAmbientDelegateRoster(
+      [{ ...agent, updatedAt: '2026-09-21T00:00:00.000Z' }],
+      PARENT_TOOLS,
+    );
+    expect(mocks.loadSkills.mock.calls.length).toBeGreaterThan(afterFirst);
+  });
+});
+
+describe('buildDelegateRosterHint', () => {
+  it('空名单返回空串（系统提示与改前一致）', () => {
+    expect(buildDelegateRosterHint([])).toBe('');
+  });
+
+  it('给出显示名 → 画像名对照，并说明 @某智能体 等于发起委派', () => {
+    const text = buildDelegateRosterHint([
+      { name: 'Word智能体', profileName: 'word-master' },
+      { name: 'PPT智能体', profileName: 'ppt-master' },
+    ]);
+    expect(text).toContain('Word智能体 → `subagent_type="word-master"`');
+    expect(text).toContain('PPT智能体 → `subagent_type="ppt-master"`');
+    expect(text).toContain('delegate_subagent');
+    expect(text).toContain('不是在回复里打出这个名字');
+    expect(text).toContain('自包含');
+  });
+});
+
 describe('mergeTurnSubagentParam', () => {
   it('无提及时只有内置画像，不抬 maxParallel，也不要求派发', () => {
     const param = mergeTurnSubagentParam({});
     expect(param.profiles).toEqual(BUILTIN_SUBAGENT_PROFILES);
     expect(param.maxParallel).toBeUndefined();
     expect(param.requiredProfiles).toBeUndefined();
+  });
+
+  it('常驻画像进 profiles 但不进 requiredProfiles（可以派，不是必须派）', () => {
+    const param = mergeTurnSubagentParam(
+      {},
+      { 'word-master': { description: 'Word智能体', concurrent: false } },
+    );
+    expect(param.profiles['word-master']).toEqual({
+      description: 'Word智能体',
+      concurrent: false,
+    });
+    expect(param.profiles.explore).toEqual(BUILTIN_SUBAGENT_PROFILES.explore);
+    expect(param.requiredProfiles).toBeUndefined();
+  });
+
+  it('提及与常驻并存时只有提及的被强制', () => {
+    const param = mergeTurnSubagentParam(
+      { researcher: { description: '调研员', concurrent: true } },
+      { 'word-master': { description: 'Word智能体', concurrent: false } },
+    );
+    expect(param.profiles.researcher).toBeDefined();
+    expect(param.profiles['word-master']).toBeDefined();
+    expect(param.requiredProfiles).toEqual(['researcher']);
   });
 
   it('提及画像作为 requiredProfiles 下发（内置画像不强制）', () => {

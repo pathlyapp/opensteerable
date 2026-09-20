@@ -34,3 +34,12 @@ pip install "steerable-agent-runtime[anthropic]"
 pip install "steerable-agent-runtime[sqlalchemy]"
 pip install "steerable-agent-runtime[fastapi]"
 ```
+
+CoreLoop execution is the Rust engine. `steerable-agent-runtime-native`
+is a required dependency of this package (same lockstep version). A
+missing wheel fails import or `CoreLoop.run()`; there is no Python
+engine fallback.
+
+```bash
+pip install steerable-agent-runtime-native
+```

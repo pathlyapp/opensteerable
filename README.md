@@ -219,7 +219,7 @@ flowchart TB
 **The rules:**
 - Tier N never imports Tier N+1. Adopting any layer means inheriting only the layers below it.
 - TS↔Py for `agent-protocol` is **codegen, not parallel implementation** — `spec/*.schema.json` is the single source of truth.
-- All 11 published packages — 6 on npm (protocol, harness, UI, pack-sdk, agent-shell, agent-shell-web) + 5 on PyPI (protocol, harness, runtime, sidecar, egress-proxy) — release **lockstep** (same `X.Y.Z` everywhere), gated by CI on every tag push. Tier 5 (`agent-shell` / `agent-shell-web` / `pack-sdk`) is published to npm (compiled `dist`, source, and pure-types respectively); the TS sidecar wrapper `@steerable/agent-runtime` is versioned in lockstep but source-consumed.
+- All 13 published packages — 6 on npm (protocol, harness, UI, pack-sdk, agent-shell, agent-shell-web) + 7 on PyPI (protocol, harness, runtime, plugin-sdk, sidecar, egress-proxy, **runtime-native**) — release **lockstep** (same `X.Y.Z` everywhere), gated by CI on every tag push. The Rust crates stay unpublished on crates.io (`publish = false`) but their versions are lockstep-gated so the PyO3 wheel filename matches `CARGO_PKG_VERSION`. Tier 5 (`agent-shell` / `agent-shell-web` / `pack-sdk`) is published to npm (compiled `dist`, source, and pure-types respectively); the TS sidecar wrapper `@steerable/agent-runtime` is versioned in lockstep but source-consumed.
 - Tier 5 is **product-neutral**: brand, telemetry endpoints, help links, and data-directory names are injected by the consuming product's assembly root (`setProductBrand` / `setProductConfig`), enforced by the `shell:neutral` gate in CI.
 
 ---
@@ -396,7 +396,7 @@ Cutting a release? See [`RELEASING.md`](./RELEASING.md). Short version:
 ./scripts/release/bump_to.sh 0.3.0
 git add -A && git commit -m "chore(release): v0.3.0"
 git tag v0.3.0
-git push origin main v0.3.0   # CI lockstep-validates, creates Release, publishes to npm + PyPI
+git push origin develop v0.3.0   # CI lockstep-validates, creates Release, publishes to npm + PyPI + native wheels
 ```
 
 All commits must be DCO-signed (`git commit -s`); the [DCO check](.github/workflows/dco.yml) runs on every PR.

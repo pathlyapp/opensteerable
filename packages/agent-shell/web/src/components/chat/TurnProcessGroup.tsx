@@ -7,6 +7,8 @@ import {
 } from '@/lib/show-thinking-content';
 import { Markdown } from './Markdown';
 import { ToolsFlow } from './ExecutedActionsCard';
+import type { InspectTaskInput } from './executed-actions-model';
+import type { ChildInfo } from './OrchestrationChildrenCard';
 import {
   estimateReasoningDurationMs,
   processStatusLabel,
@@ -176,6 +178,8 @@ function ProcessBlockItems({
   agents,
   chats,
   chatId,
+  onInspectTask,
+  orchestrationChildren,
   thinkingDisplay,
   keepFinishedThinkingOpen = false,
   thinkingElapsedByIndex,
@@ -185,6 +189,8 @@ function ProcessBlockItems({
   agents: LocalChatAgent[];
   chats: LocalChat[];
   chatId?: string | null;
+  onInspectTask?: (task: InspectTaskInput) => void;
+  orchestrationChildren?: ChildInfo[];
   thinkingDisplay: ThinkingDisplayMode;
   keepFinishedThinkingOpen?: boolean;
   thinkingElapsedByIndex?: Array<number | undefined>;
@@ -218,7 +224,14 @@ function ProcessBlockItems({
         if (block.type === 'tools') {
           return (
             <div key={`tools-${index}`} data-testid="turn-tools">
-              <ToolsFlow actions={block.actions} compact />
+              <ToolsFlow
+                actions={block.actions}
+                compact
+                agents={agents}
+                chatId={chatId}
+                onInspectTask={onInspectTask}
+                orchestrationChildren={orchestrationChildren}
+              />
             </div>
           );
         }
@@ -245,6 +258,8 @@ function ProcessBlocks({
   agents,
   chats,
   chatId,
+  onInspectTask,
+  orchestrationChildren,
   thinkingDisplay,
   keepFinishedThinkingOpen,
   thinkingElapsedByIndex,
@@ -254,6 +269,8 @@ function ProcessBlocks({
   agents: LocalChatAgent[];
   chats: LocalChat[];
   chatId?: string | null;
+  onInspectTask?: (task: InspectTaskInput) => void;
+  orchestrationChildren?: ChildInfo[];
   thinkingDisplay: ThinkingDisplayMode;
   keepFinishedThinkingOpen: boolean;
   thinkingElapsedByIndex?: Array<number | undefined>;
@@ -266,6 +283,8 @@ function ProcessBlocks({
         agents={agents}
         chats={chats}
         chatId={chatId}
+        onInspectTask={onInspectTask}
+        orchestrationChildren={orchestrationChildren}
         thinkingDisplay={thinkingDisplay}
         keepFinishedThinkingOpen={keepFinishedThinkingOpen}
         thinkingElapsedByIndex={thinkingElapsedByIndex}
@@ -280,6 +299,8 @@ export function TurnProcessGroup({
   agents,
   chats,
   chatId,
+  onInspectTask,
+  orchestrationChildren,
   emptyFallback,
   streamingHint,
   startedAtMs,
@@ -294,6 +315,9 @@ export function TurnProcessGroup({
   agents: LocalChatAgent[];
   chats: LocalChat[];
   chatId?: string | null;
+  onInspectTask?: (task: InspectTaskInput) => void;
+  /** 本回合子代理：委派行据此跳转到子代理过程。 */
+  orchestrationChildren?: ChildInfo[];
   emptyFallback: ReactNode;
   /** Shown while streaming after a tools row and before the summary lands. */
   streamingHint?: ReactNode;
@@ -422,6 +446,8 @@ export function TurnProcessGroup({
           agents={agents}
           chats={chats}
           chatId={chatId}
+          onInspectTask={onInspectTask}
+          orchestrationChildren={orchestrationChildren}
           thinkingDisplay={thinkingDisplay}
           keepFinishedThinkingOpen={!collapseWhenFinished}
           thinkingElapsedByIndex={thinkingElapsedByIndex}

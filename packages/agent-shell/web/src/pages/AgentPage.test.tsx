@@ -431,6 +431,76 @@ describe('AgentPage 水合层（AgentChatLoader）', () => {
     expect(screen.queryByText('加载对话历史…')).toBeNull();
     expect(bridgeRequest).not.toHaveBeenCalled();
   });
+
+  it('刷新后从助手 metadata 水合子代理：顶栏显示名而非 slug，且不再画看板', async () => {
+    const researcher: LocalChatAgent = {
+      ...AGENT,
+      id: 'agent-researcher',
+      slug: 'researcher',
+      name: '调研员',
+      color: '#2563eb',
+    };
+    const engineer: LocalChatAgent = {
+      ...AGENT,
+      id: 'agent-engineer',
+      slug: 'script-engineer',
+      name: '脚本工程师',
+      color: '#16a34a',
+    };
+    bridgeRequest.mockImplementation((input: { method: string; path: string }) => {
+      if (input.path.includes('/messages')) {
+        return Promise.resolve({
+          messages: [
+            {
+              id: 'm2',
+              chatId: 'chat-1',
+              role: 'assistant',
+              content: '两位都做完了。',
+              createdAt: '2026-09-20T08:01:00.000Z',
+              messageMetadata: JSON.stringify({
+                agentId: AGENT.id,
+                orchestrationChildEvents: [
+                  {
+                    kind: 'child_spawned',
+                    childId: '0.1',
+                    task: '调研 PDF 方案',
+                    profile: 'researcher',
+                  },
+                  {
+                    kind: 'child_spawned',
+                    childId: '0.2',
+                    task: '写汇总脚本',
+                    profile: 'script-engineer',
+                  },
+                  { kind: 'child_completed', childId: '0.1', status: 'completed' },
+                  { kind: 'child_completed', childId: '0.2', status: 'completed' },
+                ],
+              }),
+            },
+            {
+              id: 'm1',
+              chatId: 'chat-1',
+              role: 'user',
+              content: '@调研员 @脚本工程师 拆开做',
+              createdAt: '2026-09-20T08:00:00.000Z',
+            },
+          ],
+          interrupted: false,
+        });
+      }
+      return defaultBridgeRequest(input);
+    });
+    renderPage('/agent/chat-1', makeCtx({ agents: [AGENT, researcher, engineer] }));
+    expect((await screen.findAllByText('调研员')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('脚本工程师').length).toBeGreaterThan(0);
+    expect(screen.queryByText('researcher')).toBeNull();
+    expect(screen.queryByText('script-engineer')).toBeNull();
+    // 水合出来的子代理只喂顶栏徽章：看板与 `委派 · X` 工具行重复，已撤掉。
+    const badges = await screen.findByTestId('turn-agent-badges');
+    expect(badges.textContent).toContain('调研员');
+    expect(badges.textContent).toContain('脚本工程师');
+    expect(document.querySelector('.steerable-orchestration-plan')).toBeNull();
+  });
 });
 
 describe('AgentPage 发送流程', () => {

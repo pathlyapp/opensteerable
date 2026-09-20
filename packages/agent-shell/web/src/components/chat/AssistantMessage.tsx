@@ -5,7 +5,9 @@ import type { ChatMessage } from '@steerable/agent-protocol';
 import type { LocalChat, LocalChatAgent } from '@/lib/local-api';
 import { Markdown } from './Markdown';
 import { ExecutedActionsCard, type ExecutedAction } from './ExecutedActionsCard';
-import { OrchestrationChildrenCard, type ChildInfo } from './OrchestrationChildrenCard';
+import type { ChildInfo } from './OrchestrationChildrenCard';
+import { collectTurnParticipants, extractMentionedAgentIds } from './executed-actions-model';
+import type { InspectTaskInput } from './executed-actions-model';
 import { StreamingStatus } from './StreamingStatus';
 import { getFriendlyDate } from './timestamp';
 import { useCopy } from './useCopy';
@@ -83,8 +85,15 @@ interface AssistantMessageProps {
    * `content` keep the legacy stacked layout.
    */
   timeline?: TurnBlock[];
-  /** P3.1: live child-agent list for this turn (orchestration card). */
+  /**
+   * P3.1 子代理生命周期。看板卡片已不再渲染——每个 `委派 · X` 工具行从
+   * 「执行中」到「已完成」本身就是同一份进度，还能展开看任务书与回报。
+   * 这份列表现在喂两处：顶栏参与者徽章（没有 `@提及` 时的回落来源），
+   * 以及委派行跳转右侧过程栏所需的子代理 record。
+   */
   orchestrationChildren?: ChildInfo[];
+  /** 上一轮用户消息：顶栏按里面的 `@提及` 画参与的智能体。 */
+  previousUser?: Pick<ChatMessage, 'content'> & { messageMetadata?: string | null };
   /**
    * Current round number for the in-flight turn (1-based). Only meaningful
    * when `isStreaming === true` and this is the tail message — used by
@@ -121,37 +130,42 @@ interface AssistantMessageProps {
    * 行上，跟复制 / 重新生成同一排。
    */
   onShare?: () => Promise<boolean>;
+  onInspectTask?: (task: InspectTaskInput) => void;
 }
 
-function agentInitial(agent: LocalChatAgent | null): string {
-  if (!agent?.name) return 'A';
-  return agent.name.trim()[0]?.toUpperCase() ?? 'A';
+function agentInitial(name: string): string {
+  return name.trim()[0]?.toUpperCase() ?? 'A';
 }
 
 function AgentBadge({
-  agent,
+  name,
+  color,
+  title,
   isStreaming,
 }: {
-  agent: LocalChatAgent;
-  isStreaming: boolean;
+  name: string;
+  color: string;
+  title?: string;
+  isStreaming?: boolean;
 }) {
   return (
     <div
       className="inline-flex items-center gap-1.5 text-[11px] leading-none text-agent-muted-foreground"
-      title={agent.description || agent.name}
+      title={title || name}
     >
       <span
+        data-agent-color-dot=""
         className="inline-flex items-center justify-center rounded-full text-[9px] font-semibold text-white"
         style={{
           width: 14,
           height: 14,
-          backgroundColor: agent.color || '#7c3aed',
+          backgroundColor: color,
         }}
       >
-        {agentInitial(agent)}
+        {agentInitial(name)}
       </span>
       <span className="max-w-[160px] truncate rounded bg-agent-canvas/90 px-1">
-        {agent.name}
+        {name}
       </span>
       {isStreaming && (
         <span className="ml-1 inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-agent-foreground/30" />
@@ -200,6 +214,17 @@ function readTurnFailure(
   return null;
 }
 
+function readPersistedAgentId(message: ChatMessage): string | undefined {
+  const raw = (message as { messageMetadata?: unknown }).messageMetadata;
+  if (typeof raw !== 'string' || !raw) return undefined;
+  try {
+    const agentId = (JSON.parse(raw) as { agentId?: unknown }).agentId;
+    return typeof agentId === 'string' && agentId ? agentId : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function TurnErrorBubble({ reason }: { reason: string }) {
   return (
     <div className="rounded-agent-lg border border-agent-destructive/40 bg-agent-destructive/5 px-2.5 py-2 text-xs leading-relaxed text-agent-destructive shadow-sm">
@@ -235,6 +260,7 @@ export function AssistantMessage({
   executedActions,
   timeline,
   orchestrationChildren,
+  previousUser,
   currentRound = 1,
   isPlanMode = false,
   onRegenerate,
@@ -243,6 +269,7 @@ export function AssistantMessage({
   llmSpeed,
   turnFiles,
   onShare,
+  onInspectTask,
 }: AssistantMessageProps) {
   const content = message.content || '';
   const failure = readTurnFailure(message, content);
@@ -252,14 +279,28 @@ export function AssistantMessage({
   const { copied, copy } = useCopy(stripNextStepsTags(content));
   const [regenerating, setRegenerating] = useState(false);
   const [regenerateError, setRegenerateError] = useState<string | null>(null);
-  const persistedAgent = message.agentId
-    ? agents.find((a) => a.id === message.agentId) ?? null
+  const persistedAgentId =
+    typeof message.agentId === 'string' && message.agentId
+      ? message.agentId
+      : readPersistedAgentId(message);
+  const persistedAgent = persistedAgentId
+    ? agents.find((a) => a.id === persistedAgentId) ?? null
     : null;
   // Stream-time fallback: only allow the chat-level agent to "claim" a turn
   // while it's actively streaming and hasn't flushed agentId to the DB yet.
   const displayAgent = persistedAgent ?? (isStreaming ? currentAgent : null);
   const useTimeline = timeline !== undefined;
   const blocks = timeline ?? [];
+  const toolActions = [
+    ...(executedActions ?? []),
+    ...blocks.flatMap((block) => (block.type === 'tools' ? block.actions : [])),
+  ];
+  const participants = collectTurnParticipants(displayAgent, {
+    agents,
+    children: orchestrationChildren,
+    actions: toolActions,
+    mentionedAgentIds: extractMentionedAgentIds(previousUser, agents),
+  });
   const now = useLiveNow(Boolean(isStreaming && llmSpeed?.live));
   const tokenSpeed = formatTokenSpeed(
     llmSpeed?.tokens ?? 0,
@@ -276,10 +317,22 @@ export function AssistantMessage({
       transition={{ duration: 0.25 }}
     >
       <div className="mx-auto w-full max-w-[var(--chat-input-box-width)] px-1">
-        {(displayAgent || isPlanMode) && (
-          <div className="mb-1 flex min-h-4 items-center justify-between">
-            {displayAgent ? (
-              <AgentBadge agent={displayAgent} isStreaming={isStreaming} />
+        {(participants.length > 0 || isPlanMode) && (
+          <div className="mb-1 flex min-h-4 items-center justify-between gap-2">
+            {participants.length > 0 ? (
+              <div
+                data-testid="turn-agent-badges"
+                className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"
+              >
+                {participants.map((agent, index) => (
+                  <AgentBadge
+                    key={agent.key}
+                    name={agent.name}
+                    color={agent.color}
+                    isStreaming={isStreaming && index === 0}
+                  />
+                ))}
+              </div>
             ) : (
               <div />
             )}
@@ -291,9 +344,6 @@ export function AssistantMessage({
             )}
           </div>
         )}
-        {orchestrationChildren && orchestrationChildren.length > 0 && (
-          <OrchestrationChildrenCard children={orchestrationChildren} />
-        )}
         {useTimeline ? (
           <>
           <TurnProcessGroup
@@ -304,6 +354,8 @@ export function AssistantMessage({
             agents={agents}
             chats={chats}
             chatId={chatId}
+            onInspectTask={onInspectTask}
+            orchestrationChildren={orchestrationChildren}
             emptyFallback={
               failure ? (
                 <TurnErrorBubble reason={failure.reason} />
@@ -348,7 +400,13 @@ export function AssistantMessage({
         ) : (
           <>
             {executedActions && executedActions.length > 0 && (
-              <ExecutedActionsCard actions={executedActions} />
+              <ExecutedActionsCard
+                actions={executedActions}
+                agents={agents}
+                chatId={chatId}
+                onInspectTask={onInspectTask}
+                orchestrationChildren={orchestrationChildren}
+              />
             )}
             {displayContent ? (
               <div className={bubbleClass(isPlanMode)}>

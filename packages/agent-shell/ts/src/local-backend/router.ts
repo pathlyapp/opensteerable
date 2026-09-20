@@ -20,7 +20,18 @@ import {
   driveWithAutoContinue,
   resolveAutoContinueMax,
 } from './auto-continue-helper.js';
-import { builtinSubagentParam } from './subagent-profiles.js';
+import {
+  buildDelegateDispatchInstruction,
+  buildMentionDelegateRoster,
+  mergeTurnSubagentParam,
+  type MentionDelegateProfile,
+  type TurnSubagentParam,
+} from './subagent-profiles.js';
+import { resolveMentionedAgentIds } from './mention-targets.js';
+import {
+  readSidecarHistoryEntries,
+  timelineFromHistoryEntries,
+} from './task-process.js';
 import {
   appendTimelineDelta,
   freezeTimelineReasoning,
@@ -253,19 +264,42 @@ export type LocalBackendBroadcast = (eventName: string, payload: unknown) => voi
 /**
  * 本轮生效的智能体（见 `LocalBackendRouter.resolveTurnAgents`）。人设前言、
  * 技能勾选、工具策略都来自这一次解析，避免工具面与提示词面各算一遍而漂移。
+ *
+ * `@` 提及不再进人设链：会话绑定（或本轮 selectedAgentId）是父代理，
+ * 被点名的智能体是委派对象。
  */
 interface TurnAgents {
-  /** 按 @提及顺序去重的智能体 id；首个为主角色。 */
-  orderedAgentIds: string[];
-  /** 配了 rolePrompt 的智能体，按顺序拼装人设前言。 */
+  /** 父代理（会话绑定 / payload.agentId）；未解析到时为 null。 */
+  parent: ChatAgentRecord | null;
+  /** 被 `@` 的智能体，按提及顺序去重；点到父自己时它也在这里（自己的副本）。 */
+  delegates: ChatAgentRecord[];
+  /** 配了 rolePrompt 的父代理，用于人设前言。 */
   personaAgents: ChatAgentRecord[];
   /**
-   * 本轮自称：第一个解析到的智能体显示名。没有绑定/提及智能体时为空，
+   * 本轮自称：父代理显示名。没有绑定智能体时为空，
    * `{agentName}` 回落产品品牌。
    */
   identityName: string | null;
-  /** 合并后的技能/工具能力面（多智能体取最宽松）。 */
+  /** 父代理的技能/工具能力面（提及不再合并进来）。 */
   capability: AgentCapability;
+}
+
+function parseMessageMetadata(raw: string | null | undefined): Record<string, unknown> | null {
+  if (!raw) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function persistedAgentIdFromMetadata(raw: string | null | undefined): string | undefined {
+  const agentId = parseMessageMetadata(raw)?.agentId;
+  return typeof agentId === 'string' && agentId ? agentId : undefined;
 }
 
 export class LocalBackendRouter {
@@ -662,6 +696,21 @@ export class LocalBackendRouter {
       };
     }
 
+    // 子代理（delegate_subagent）的推理过程：子回合写自己的 durable record
+    // （`<父 record>:child:<lineage id>`，随 child_spawned 上报），这里按
+    // record 直读重建时间线——与后台任务的过程面板同一套渲染。
+    if (method === 'GET' && pathname === '/api/v2/child-process') {
+      const recordId = url.searchParams.get('recordId')?.trim();
+      if (!recordId) {
+        return { status: 400, data: { detail: 'recordId is required' } };
+      }
+      const entries = readSidecarHistoryEntries(recordId);
+      return {
+        status: 200,
+        data: { recordId, timeline: timelineFromHistoryEntries(entries) },
+      };
+    }
+
     // 4.6c Task×Worktree：合并到主仓 / 丢弃。两个操作都是幂等目标态
     // （worktreeState 非 pending 时 TaskService 抛错 → 409）。
     const taskActionMatch = pathname.match(/^\/api\/v2\/tasks\/([^/]+)\/(merge|discard)$/);
@@ -818,14 +867,18 @@ export class LocalBackendRouter {
       const chatId = messageListMatch[1];
       const limit = parsePositiveIntParam(url.searchParams.get('limit'), 200);
       const records = await this.store.listMessages(chatId, limit);
-      const messages = records.map(item => ({
-        id: item.id,
-        chatId: item.chatId,
-        role: item.role === 'tool' ? 'assistant' : item.role,
-        content: item.content,
-        createdAt: item.createdAt,
-        messageMetadata: item.messageMetadata,
-      }));
+      const messages = records.map(item => {
+        const agentId = persistedAgentIdFromMetadata(item.messageMetadata);
+        return {
+          id: item.id,
+          chatId: item.chatId,
+          role: item.role === 'tool' ? 'assistant' : item.role,
+          content: item.content,
+          createdAt: item.createdAt,
+          messageMetadata: item.messageMetadata,
+          ...(agentId ? { agentId } : {}),
+        };
+      });
       // W7-1: 崩溃/强杀中断的 turn 没有 completionStatus 落库——签名是
       // settings_kv 里残留的 turn_active 标记（turn 开始前写、回复落库后
       // 才清）。cancelled/failed 都是活进程写下的终态，标记已清，不在此列。
@@ -2165,8 +2218,18 @@ export class LocalBackendRouter {
     // likewise appends nothing: the crashed turn's user message is already
     // persisted (and already in the durable record).
     let currentUserMessageId: string | undefined;
+    // 本轮被点名的智能体：菜单点选带来的 id 优先，手打的 `@名字` 从正文
+    // 解析补齐（两者缺一，提及就在后端消失，只剩前端徽章）。
+    const mentionedAgentIds = resolveMentionedAgentIds(
+      payload,
+      userMessageText,
+      await this.store.listChatAgents(),
+    );
     if (!regenerateMatch && !isResume) {
-      const userMessage = await this.store.addMessage(chatId, 'user', userMessageText);
+      const userMeta = mentionedAgentIds.length > 0
+        ? JSON.stringify({ mentionedAgentIds })
+        : null;
+      const userMessage = await this.store.addMessage(chatId, 'user', userMessageText, userMeta);
       currentUserMessageId = userMessage.id;
       emit(this.sseData({ type: 'user_message', message: userMessage }));
     }
@@ -2177,7 +2240,7 @@ export class LocalBackendRouter {
 
     // 本轮生效的智能体：人设、技能勾选、工具策略同源。必须先解析——工具
     // 策略决定工具列表，工具列表又决定技能的触发条件。
-    const turnAgents = await this.resolveTurnAgents(chatId, payload);
+    const turnAgents = await this.resolveTurnAgents(chatId, payload, mentionedAgentIds);
 
     // Wave 2 工具分层：模型可见列表只出 direct 层（内置工具 + tool_search
     // 发现缝）；MCP 动态工具全在 deferred 层，经 tool_search 命中即调。
@@ -2226,6 +2289,11 @@ export class LocalBackendRouter {
       };
     }
 
+    const mentionRoster = await buildMentionDelegateRoster(
+      turnAgents.delegates,
+      turnTools.map((tool) => tool.name),
+    );
+
     const { systemPrompt, messages, skillContext } =
       await this.buildConversationMessages(
         chatId,
@@ -2237,6 +2305,7 @@ export class LocalBackendRouter {
         chatMode,
         forcedMcpTool,
         currentUserMessageId,
+        mentionRoster,
       );
 
     // A4: the sidecar-hosted CoreLoop is the only chat path (the TS loop
@@ -2261,6 +2330,10 @@ export class LocalBackendRouter {
       shouldGenerateTitle,
       firstUserMessageForTitle,
       resume: isResume,
+      subagent: mergeTurnSubagentParam(
+        Object.fromEntries(mentionRoster.map((row) => [row.profileName, row.profile])),
+      ),
+      parentAgentId: turnAgents.parent?.id ?? null,
     });
   }
 
@@ -2367,50 +2440,39 @@ export class LocalBackendRouter {
   /**
    * 解析本轮生效的智能体：人设前言、技能勾选、工具策略同源于这一次解析。
    *
-   * 优先级：payload.mentionedAgentId（@提及）> mentionedAgentIds >
-   * payload.agentId > chat.agentId > 无。@提及多个时按提及顺序合并——
-   * rolePrompt 逐段拼装（第一个为主角色），能力面取最宽松
-   * （见 {@link mergeAgentCapabilities}）。
+   * 父代理 = payload.agentId（专家下拉）> chat.agentId。`@` 提及只进
+   * delegates，不再顶替人设。点到父自己也照样进 delegates：`@` 的语义是
+   * 「起一个子代理」，点自己就是起一个自己的独立副本，父代理仍是拆分与
+   * 汇总的那一个。
    *
    * 必须在拼装工具列表之前调用：`toolPolicy` 决定每轮 `turnTools`，
    * 而工具列表又反过来决定技能的触发条件。
    *
    * @param chatId 当前对话 id。
    * @param payload 前端提交的流请求体。
-   * @returns 本轮的智能体顺序、人设智能体、自称，以及合并后的能力面。
+   * @returns 父代理、委派对象、人设前言与父的能力面。
    */
   private async resolveTurnAgents(
     chatId: string,
     payload: Record<string, unknown>,
+    mentionedAgentIds: string[],
   ): Promise<TurnAgents> {
-    const mentionedAgentIds = Array.isArray(payload.mentionedAgentIds)
-      ? (payload.mentionedAgentIds as unknown[]).filter((s) => typeof s === 'string') as string[]
-      : [];
-    const orderedAgentIds = [
-      ...(typeof payload.mentionedAgentId === 'string' && payload.mentionedAgentId
-        ? [payload.mentionedAgentId]
-        : []),
-      ...mentionedAgentIds,
-    ].filter((id, idx, arr) => arr.indexOf(id) === idx);
-    if (orderedAgentIds.length === 0) {
-      const fallbackId =
-        (typeof payload.agentId === 'string' && payload.agentId) ||
-        (await this.store.getChat(chatId))?.agentId ||
-        null;
-      if (fallbackId) orderedAgentIds.push(fallbackId);
+    const parentId =
+      (typeof payload.agentId === 'string' && payload.agentId) ||
+      (await this.store.getChat(chatId))?.agentId ||
+      null;
+    const parent = parentId ? await this.store.getChatAgent(parentId) : null;
+    const delegates: ChatAgentRecord[] = [];
+    for (const id of mentionedAgentIds) {
+      const agent = await this.store.getChatAgent(id);
+      if (agent) delegates.push(agent);
     }
-    const agents = (await Promise.all(
-      orderedAgentIds.map((id) => this.store.getChatAgent(id)),
-    ))
-      .filter((agent): agent is ChatAgentRecord => Boolean(agent));
     return {
-      orderedAgentIds,
-      // 能力面来自全部解析到的智能体，人设前言只用配了 rolePrompt 的那些——
-      // 自建智能体可以只勾技能、不写人设。自称始终跟第一个解析到的智能体，
-      // 不要求写了人设——否则没 rolePrompt 的角色会回落成产品品牌。
-      personaAgents: agents.filter((agent) => Boolean(agent.rolePrompt)),
-      identityName: agents[0]?.name.trim() || null,
-      capability: mergeAgentCapabilities(agents),
+      parent,
+      delegates,
+      personaAgents: parent?.rolePrompt ? [parent] : [],
+      identityName: parent?.name.trim() || null,
+      capability: mergeAgentCapabilities(parent ? [parent] : []),
     };
   }
 
@@ -2424,6 +2486,7 @@ export class LocalBackendRouter {
     chatMode: 'agent' | 'plan' = 'agent',
     forcedMcpTool?: ForcedMcpTool,
     currentUserMessageId?: string,
+    mentionRoster: MentionDelegateProfile[] = [],
   ): Promise<{
     systemPrompt: string;
     messages: LlmMessage[];
@@ -2656,6 +2719,17 @@ export class LocalBackendRouter {
     );
     if (finalUserImages.notes.length > 0) {
       finalUserContent = `${finalUserContent}\n\n【附件图片】\n${finalUserImages.notes.join('\n')}`;
+    }
+
+    if (mentionRoster.length > 0) {
+      finalUserContent = `${finalUserContent}\n\n${buildDelegateDispatchInstruction(
+        mentionRoster.map((row) => ({
+          name: row.name,
+          profileName: row.profileName,
+          toolFilter: row.profile.toolFilter,
+          isSelf: row.agentId === turnAgents.parent?.id,
+        })),
+      )}`;
     }
 
     return {
@@ -3111,10 +3185,14 @@ export class LocalBackendRouter {
     firstUserMessageForTitle: string;
     /** W7-1: continue the durable record's interrupted turn (messages is []). */
     resume: boolean;
+    /** 内置画像 + 本轮 `@` 提及画像。 */
+    subagent: TurnSubagentParam;
+    /** 父代理 id，落进助手消息 metadata，历史能看出谁答的。 */
+    parentAgentId: string | null;
   }): Promise<StreamResult> {
     const {
       chatId, systemPrompt, messages, skillContext, turnTools, toolPolicy, chatMode, payload,
-      emit, signal, shouldGenerateTitle, firstUserMessageForTitle, resume,
+      emit, signal, shouldGenerateTitle, firstUserMessageForTitle, resume, subagent, parentAgentId,
     } = args;
     const supervisor = getSidecarSupervisor();
     if (!supervisor) {
@@ -3291,7 +3369,7 @@ export class LocalBackendRouter {
         // 带工具域/轮次/并发/系统提示,模型按画像 description 选委派
         // 对象;per-profile model 留给设置面。子代理作为 AgentPool 池化
         // 子运行执行,生命周期经 onChildEvent → SSE 进 UI 编排卡片。
-        subagent: builtinSubagentParam(),
+        subagent,
         // 六件套(agent_spawn/send/wait/close/list/interrupt)收缩为
         // opt-in 高级模式:STEERABLE_ORCHESTRATION=1 开启;开启后与
         // delegate 共享同一 AgentPool(同一 maxParallel 预算)。
@@ -3378,8 +3456,23 @@ export class LocalBackendRouter {
         onChildEvent: (event) => {
           // P3.1: forward child-agent lifecycle to the renderer; it renders
           // the orchestration card (spawn → running → terminal status).
-          children.push({ ...event });
-          emit(this.sseData({ type: 'orchestration_child', ...event }));
+          // Narrowed to the lifecycle fields: the sidecar's `agent.child`
+          // notification also carries its per-stream `streamId`, which has no
+          // meaning once the stream ends and must not reach the persisted
+          // assistant metadata below.
+          const lifecycle: Record<string, unknown> = {
+            kind: event.kind,
+            childId: event.childId,
+            ...(event.task !== undefined ? { task: event.task } : {}),
+            ...(event.depth !== undefined ? { depth: event.depth } : {}),
+            ...(event.status !== undefined ? { status: event.status } : {}),
+            ...(event.error !== undefined ? { error: event.error } : {}),
+            ...(event.profile !== undefined ? { profile: event.profile } : {}),
+            // 子代理自己的 durable record：右侧过程面板据此回看它的推理与工具。
+            ...(event.recordId !== undefined ? { recordId: event.recordId } : {}),
+          };
+          children.push(lifecycle);
+          emit(this.sseData({ type: 'orchestration_child', ...lifecycle }));
         },
       };
 
@@ -3493,6 +3586,8 @@ export class LocalBackendRouter {
         mode: chatMode,
         coreloop: true,
         traceId: outcomeTraceId,
+        ...(parentAgentId ? { agentId: parentAgentId } : {}),
+        ...(children.length > 0 ? { orchestrationChildEvents: children } : {}),
         ...(durationMs != null ? { durationMs } : {}),
         ...(autoContinuations > 0 ? { autoContinuations } : {}),
         ...(turnFiles.length > 0 ? { turnFiles } : {}),

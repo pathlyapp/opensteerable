@@ -20,9 +20,9 @@ import { useCopy } from './useCopy';
  *   - **No edit button.** The cloud product's `editChatMessage` rewrites the
  *     SSE turn in place — we don't have that machinery yet. Tracking under
  *     phase 2c.
- *   - **No mentioned-agent chip / inline `ref://` / `tool://` / `agent://`
- *     parsing.** Agent-only mode doesn't surface multi-agent mentions or
- *     pinned-ref shortcuts, so the markdown content is rendered directly.
+ *   - **No inline `ref://` / `tool://` / `agent://` parsing.** Pinned-ref
+ *     shortcuts stay cloud-only. `@智能体名` is a Markdown chip painted from
+ *     the agent list + message text (refresh restores from content).
  *
  * What we KEEP from the old version (and why it matters for parity):
  *   - Left-aligned bubble (not right-aligned). The product chat layout stacks

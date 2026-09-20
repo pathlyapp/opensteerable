@@ -21,6 +21,29 @@ export type TurnBlock =
   | { type: 'text'; content: string; sealed?: boolean }
   | { type: 'tools'; actions: ExecutedAction[] };
 
+/**
+ * 内容指纹：只要屏上会多出/变化一行，它就变。过程面板用它决定「要不要把
+ * 视口重新钉到底部」。
+ *
+ * 只数文本长度与工具条数是不够的：工具结果落回时条数不变、状态却从
+ * 「执行中」变「已完成」并展开出摘要，高度会长——那种增长必须也算变化，
+ * 否则跟随会在最常见的一种增长上失灵。
+ *
+ * @param blocks 当前时间线。
+ * @returns 稳定的内容指纹。
+ */
+export function timelineContentSignature(blocks: readonly TurnBlock[]): string {
+  return blocks
+    .map((block) => {
+      if (block.type !== 'tools') return `c${block.content.length}`;
+      const rows = block.actions
+        .map((action) => `${action.tool}:${action.result === undefined ? 0 : 1}`)
+        .join(',');
+      return `t${block.actions.length}[${rows}]`;
+    })
+    .join('|');
+}
+
 function freezeReasoningBlock(
   block: Extract<TurnBlock, { type: 'reasoning' }>,
   now: number,

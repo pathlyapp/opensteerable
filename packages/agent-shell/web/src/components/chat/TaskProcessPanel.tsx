@@ -1,17 +1,33 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { LuArrowDown, LuLoaderCircle, LuTerminal } from 'react-icons/lu';
 import { DockHeaderButton, DockPanelHeader } from '@/components/DockPanelHeader';
-import { getTaskProcess } from '@/lib/local-api';
+import { getChildProcess, getTaskProcess } from '@/lib/local-api';
 import { getElectronBridge } from '@/lib/electron-bridge';
 import { Markdown } from '@/components/chat/Markdown';
 import { TurnProcessGroup } from '@/components/chat/TurnProcessGroup';
-import { parseTurnBlocks, type TurnBlock } from '@/components/chat/turn-timeline';
+import {
+  parseTurnBlocks,
+  timelineContentSignature,
+  type TurnBlock,
+} from '@/components/chat/turn-timeline';
 
 export interface InspectedTask {
   id: string;
   chatId: string;
   title: string;
+  /**
+   * 子代理过程：按它自己的 durable record 读，而不是任务表。设了它就走
+   * `GET /child-process`，`live` 期间轮询（子回合边跑边写 record）。
+   */
+  recordId?: string;
+  /** 目标仍在运行——决定轮询与标题状态。 */
+  live?: boolean;
 }
+
+const CHILD_POLL_INTERVAL_MS = 1500;
+
+/** 连续这么多次轮询读到同一份内容就认为子代理跑完了（≈60s）。 */
+const CHILD_IDLE_POLLS_UNTIL_DONE = 40;
 
 const NEAR_BOTTOM_THRESHOLD_PX = 100;
 
@@ -74,27 +90,46 @@ export function TaskProcessPanel({
 
   // live 增量在 paint 前钉住底部。smooth scroll 会先露出一帧半截内容再往下
   // 滑，Windows 经典滚动条就会上下跳。
-  const timelineSig = blocks
-    .map((block) =>
-      block.type === 'tools' ? `t${block.actions.length}` : `c${block.content.length}`,
-    )
-    .join('|');
+  const timelineSig = timelineContentSignature(blocks);
   useLayoutEffect(() => {
     if (!isAtBottomRef.current) return;
     scrollToBottom('auto');
   }, [timelineSig, live, scrollToBottom]);
 
+  const childRecordId = inspected.recordId;
+
   useEffect(() => {
     let cancelled = false;
+    let timer: number | undefined;
+    let lastSig: string | null = null;
+    let idlePolls = 0;
     setLoading(true);
     setError(null);
-    void (async () => {
+    const load = async () => {
       try {
-        const snapshot = await getTaskProcess(inspected.id);
-        if (cancelled) return;
-        setBlocks(parseTurnBlocks(snapshot.timeline) ?? []);
-        setLive(snapshot.live);
-        setStale(snapshot.stale);
+        if (childRecordId) {
+          const snapshot = await getChildProcess(childRecordId);
+          if (cancelled) return;
+          const next = parseTurnBlocks(snapshot.timeline) ?? [];
+          const sig = timelineContentSignature(next);
+          idlePolls = sig === lastSig ? idlePolls + 1 : 0;
+          lastSig = sig;
+          setBlocks(next);
+          // 子代理跑完不会再有事件通知这个面板（它的 live 是点开那刻的快照），
+          // 所以用「record 不再变化」当结束信号：停轮询、标题转「已结束」。
+          if (timer !== undefined && idlePolls >= CHILD_IDLE_POLLS_UNTIL_DONE) {
+            window.clearInterval(timer);
+            timer = undefined;
+            setLive(false);
+          }
+          setStale(false);
+        } else {
+          const snapshot = await getTaskProcess(inspected.id);
+          if (cancelled) return;
+          setBlocks(parseTurnBlocks(snapshot.timeline) ?? []);
+          setLive(snapshot.live);
+          setStale(snapshot.stale);
+        }
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : String(err));
@@ -102,13 +137,22 @@ export function TaskProcessPanel({
       } finally {
         if (!cancelled) setLoading(false);
       }
-    })();
+    };
+    if (childRecordId) setLive(Boolean(inspected.live));
+    void load();
+    // 子代理没有 task-process 广播通道（它不是任务），运行中靠轮询它的
+    // record 追进度；终态打开只读一次。
+    if (childRecordId && inspected.live) {
+      timer = window.setInterval(() => void load(), CHILD_POLL_INTERVAL_MS);
+    }
     return () => {
       cancelled = true;
+      if (timer !== undefined) window.clearInterval(timer);
     };
-  }, [inspected.id]);
+  }, [inspected.id, childRecordId, inspected.live]);
 
   useEffect(() => {
+    if (childRecordId) return;
     const bridge = getElectronBridge();
     if (!bridge?.onTaskProcess) return;
     return bridge.onTaskProcess((payload) => {
@@ -121,13 +165,14 @@ export function TaskProcessPanel({
       setLive(payload.live);
       if (payload.live) setStale(false);
     });
-  }, [inspected.id]);
+  }, [inspected.id, childRecordId]);
 
   const statusLabel = live
     ? '正在推理'
     : stale
       ? '进程已中断（表上仍是运行中）'
       : '已结束';
+  const panelTitle = `${childRecordId ? '子代理推理' : '后台推理'} · ${statusLabel}`;
 
   return (
     <div
@@ -135,7 +180,7 @@ export function TaskProcessPanel({
       data-testid="task-process-panel"
     >
       <DockPanelHeader
-        title={`后台推理 · ${statusLabel}`}
+        title={panelTitle}
         onClose={onClose}
         closeLabel="关闭过程面板"
         actions={

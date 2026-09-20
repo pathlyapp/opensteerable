@@ -354,11 +354,11 @@ describe('AgentSidebar 会话列表渲染', () => {
     expect(screen.getByRole('alert').textContent).toContain('列表加载失败');
   });
 
-  it('头部计数与底部汇总随会话数变化', () => {
+  it('底部汇总随会话数变化', () => {
     renderSidebar('/agent', vi.fn(), {
       data: { chats: [existingChat, makeChat({ id: 'c-2', title: '第二条' })] },
     });
-    expect(screen.getByText('· 2')).toBeTruthy();
+    expect(screen.queryByText('· 2')).toBeNull();
     expect(screen.getByText('共 2 个会话')).toBeTruthy();
   });
 

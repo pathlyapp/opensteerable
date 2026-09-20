@@ -63,7 +63,7 @@
  *   │ ⬡ 智能体管理                     │ ← /settings?section=agents（独立页）
  *   │ ⬡ Skill 设置                    │ ← /settings?section=skills（独立页）
  *   │ 🔌 MCP 设置                     │ ← /settings?section=mcp（独立页）
- *   │  v 会话 · 12                📁+ │ ← 📁+ 新建项目
+ *   │  会话 v                     📁+ │ ← 📁+ 新建项目
  *   │  v 📁 项目A · 3      (hover: +✏📂🗑)│ ← 项目组：折叠/新建/重命名/换文件夹/删
  *   │   ...（项目内对话）              │
  *   │   今天                          │
@@ -706,19 +706,14 @@ export function AgentSidebar({
             onClick={() => setChatsExpanded((v) => !v)}
             className="flex h-6 items-center rounded-full px-2.5 text-xs font-semibold tracking-wider text-agent-muted-foreground transition-colors hover:bg-agent-foreground/5 hover:text-agent-foreground"
           >
-            <span className="mr-1">
+            会话
+            <span className="ml-1">
               {chatsExpanded ? (
                 <LuChevronUp className="h-3 w-3" />
               ) : (
                 <LuChevronDown className="h-3 w-3" />
               )}
             </span>
-            会话
-            {normalizedChats.length > 0 && (
-              <span className="ml-1.5 text-[10px] font-normal text-agent-muted-foreground/70">
-                · {normalizedChats.length}
-              </span>
-            )}
           </button>
           <div className="flex items-center gap-1">
             {/* 新建项目：选文件夹 → 以文件夹名建项目，之后可在组头重命名 */}

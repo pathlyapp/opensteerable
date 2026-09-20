@@ -18,6 +18,7 @@ This document covers two release modes:
 | 2 | `@steerable/agent-harness` | `dist/npm/steerable-agent-harness-X.Y.Z.tgz` |
 | 2 | `steerable-agent-harness` (Py) | `dist/py/steerable_agent_harness-X.Y.Z-*.whl` + sdist |
 | 3 | `steerable-agent-runtime` (Py) | `dist/py/steerable_agent_runtime-X.Y.Z-*.whl` + sdist |
+| 3 | `steerable-agent-runtime-native` (PyO3) | manylinux / musllinux / macOS / Windows abi3 wheels + sdist |
 | 3 | `steerable-plugin-sdk` (Py) | `dist/py/steerable_plugin_sdk-X.Y.Z-*.whl` + sdist |
 | 3 | `steerable-sidecar` (Py) | `dist/py/steerable_sidecar-X.Y.Z-*.whl` + sdist |
 | 4 | `@steerable/agent-ui` | `dist/npm/steerable-agent-ui-X.Y.Z.tgz` |
@@ -222,28 +223,37 @@ without a registry.
 
    ```text
    ./scripts/release/bump_to.sh X.Y.Z       (operator runs locally)
-        │  bumps all 7 publishable packages + workspace root to X.Y.Z
-        │  refreshes pnpm-lock.yaml + uv.lock
+        │  bumps all lockstep packages (TS, Py, Rust crate, native
+        │  wheel) + workspace root to X.Y.Z
+        │  refreshes pnpm-lock.yaml + uv.lock + Cargo.lock versions
         ▼
    git add -A && git commit -m "chore(release): vX.Y.Z"
    git tag vX.Y.Z
-   git push origin main vX.Y.Z              (this triggers CI)
+   git push origin develop vX.Y.Z           (this triggers CI)
         │
         ▼
    release.yml on tag push
         │
         │  validate job:
         │    1. resolves version from tag
-        │    2. lockstep gate — refuses release unless all 7 packages
-        │       report exactly X.Y.Z (`check_lockstep_versions.py
+        │    2. lockstep gate — refuses release unless every package
+        │       reports exactly X.Y.Z (`check_lockstep_versions.py
         │       --expected X.Y.Z`)
         │    3. creates GitHub Release vX.Y.Z (auto-generated notes)
         │
-        ├─► publish-npm.yml   (workflow_call from validate)
+        ├─► publish-npm.yml    (workflow_call from validate)
         │       └─ skips packages whose version is already on registry
         │
-        └─► publish-pypi.yml  (workflow_call from validate)
-                └─ same idempotent skip logic against PyPI's JSON API
+        ├─► publish-pypi.yml   (pure-Python wheels)
+        │       └─ same idempotent skip logic against PyPI's JSON API
+        │
+        └─► publish-native.yml (maturin abi3 wheels + sdist)
+                └─ manylinux 2_17, musllinux 1_2, macOS, Windows;
+                   skip-existing so a re-run fills missing files
+
+   First publish of `steerable-agent-runtime-native`: either
+   `PYPI_API_TOKEN` can create the project, or add a Trusted Publisher
+   on that project bound to `publish-native.yml` + environment `pypi`.
    ```
 
    `publish-{npm,pypi}.yml` are idempotent: a half-published tag can be
@@ -269,6 +279,7 @@ gh workflow run release.yml --ref main -f version=X.Y.Z
 # Or re-trigger a single publish workflow directly:
 gh workflow run publish-npm.yml --ref vX.Y.Z
 gh workflow run publish-pypi.yml --ref vX.Y.Z
+gh workflow run publish-native.yml --ref vX.Y.Z
 ```
 
 ### Manual publish (escape hatch)
@@ -294,12 +305,12 @@ uv publish --token "$PYPI_API_TOKEN" dist/py/steerable_*.whl dist/py/steerable_*
 
 ### Versioning rules
 
-- **Lockstep**: every release publishes the same `X.Y.Z` for **all 7**
-  packages — `agent-protocol` (TS+Py), `agent-harness` (TS+Py),
-  `agent-ui` (TS), `agent-runtime` (Py), `sidecar` (Py). No-op packages
-  (no source change since the previous release) still bump; the cost is
-  a few extra registry versions per release, the benefit is lockstep
-  is structurally enforced — not a manual reconciliation step.
+- **Lockstep**: every release publishes the same `X.Y.Z` for every
+  registry package — including `steerable-agent-runtime-native` — and
+  the unpublished Rust crates. No-op packages (no source change since
+  the previous release) still bump; the cost is a few extra registry
+  versions per release, the benefit is lockstep is structurally
+  enforced — not a manual reconciliation step.
 - **Bump granularity** is operator-chosen: `bump_to.sh 0.2.3` for a
   patch, `bump_to.sh 0.3.0` for a minor, etc. There's no automated
   conventional-commit-driven version inference.

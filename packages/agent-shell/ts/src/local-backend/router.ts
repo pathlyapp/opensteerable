@@ -21,8 +21,11 @@ import {
   resolveAutoContinueMax,
 } from './auto-continue-helper.js';
 import {
+  buildAmbientDelegateRoster,
   buildDelegateDispatchInstruction,
+  buildDelegateRosterHint,
   buildMentionDelegateRoster,
+  BUILTIN_SUBAGENT_PROFILES,
   mergeTurnSubagentParam,
   type MentionDelegateProfile,
   type TurnSubagentParam,
@@ -89,6 +92,7 @@ import { dropCurrentUserMessage } from './history-helper.js';
 import { parseImageAttachments, processImageAttachments } from '../image-attachment.js';
 import { chatAttachmentsDirPath } from '../attachments.js';
 import { loadProjectRuleFiles } from '../project-rules.js';
+import { allocateProjectHome, ensureProjectHome } from '../project-home.js';
 import type { TaskService } from './task-service.js';
 import { registerLiveStream, getLiveStream, removeLiveStream } from './live-stream.js';
 import {
@@ -113,6 +117,11 @@ export interface LocalBackendRequest {
 export interface LocalBackendResponse<T = unknown> {
   status: number;
   data: T;
+}
+
+function parseSourceFolders(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === 'string' && item.trim() !== '');
 }
 
 /**
@@ -595,9 +604,18 @@ export class LocalBackendRouter {
       if (method === 'POST') {
         const payload = this.toRecord(request.body);
         try {
+          const name = String(payload.name || '');
+          const sourceFolders = parseSourceFolders(payload.sourceFolders);
+          let folderPath =
+            typeof payload.folderPath === 'string' ? payload.folderPath.trim() : '';
+          if (!folderPath) {
+            folderPath = allocateProjectHome(name);
+            ensureProjectHome(folderPath);
+          }
           const project = registry.create({
-            name: String(payload.name || ''),
-            folderPath: String(payload.folderPath || ''),
+            name,
+            folderPath,
+            sourceFolders,
           });
           return { status: 200, data: { success: true, project } };
         } catch (err) {
@@ -623,6 +641,10 @@ export class LocalBackendRouter {
             name: typeof payload.name === 'string' ? payload.name : undefined,
             folderPath:
               typeof payload.folderPath === 'string' ? payload.folderPath : undefined,
+            sourceFolders:
+              payload.sourceFolders === undefined
+                ? undefined
+                : parseSourceFolders(payload.sourceFolders),
           });
           return { status: 200, data: { success: true, project } };
         } catch (err) {
@@ -2221,10 +2243,11 @@ export class LocalBackendRouter {
     let currentUserMessageId: string | undefined;
     // 本轮被点名的智能体：菜单点选带来的 id 优先，手打的 `@名字` 从正文
     // 解析补齐（两者缺一，提及就在后端消失，只剩前端徽章）。
+    const chatAgents = await this.store.listChatAgents();
     const mentionedAgentIds = resolveMentionedAgentIds(
       payload,
       userMessageText,
-      await this.store.listChatAgents(),
+      chatAgents,
     );
     if (!regenerateMatch && !isResume) {
       const userMeta = mentionedAgentIds.length > 0
@@ -2290,10 +2313,24 @@ export class LocalBackendRouter {
       };
     }
 
+    const turnToolNames = turnTools.map((tool) => tool.name);
     const mentionRoster = await buildMentionDelegateRoster(
       turnAgents.delegates,
-      turnTools.map((tool) => tool.name),
+      turnToolNames,
     );
+    // 常驻可委派名单：其余智能体也进画像，技能/提示里的「交给 X」无需用户
+    // `@` 就能落成一次真实委派。父代理自己不进——它就是本轮的执行者，给它
+    // 一个自己的画像只会诱导无意义的自委派（`@自己` 走提及那条路，仍然可以）。
+    const ambientRoster = await buildAmbientDelegateRoster(chatAgents, turnToolNames, {
+      excludeAgentIds: [
+        ...mentionRoster.map((row) => row.agentId),
+        ...(turnAgents.parent ? [turnAgents.parent.id] : []),
+      ],
+      reservedProfileNames: [
+        ...Object.keys(BUILTIN_SUBAGENT_PROFILES),
+        ...mentionRoster.map((row) => row.profileName),
+      ],
+    });
 
     const { systemPrompt, messages, skillContext } =
       await this.buildConversationMessages(
@@ -2306,7 +2343,7 @@ export class LocalBackendRouter {
         chatMode,
         forcedMcpTool,
         currentUserMessageId,
-        mentionRoster,
+        { mention: mentionRoster, ambient: ambientRoster },
       );
 
     // A4: the sidecar-hosted CoreLoop is the only chat path (the TS loop
@@ -2333,6 +2370,7 @@ export class LocalBackendRouter {
       resume: isResume,
       subagent: mergeTurnSubagentParam(
         Object.fromEntries(mentionRoster.map((row) => [row.profileName, row.profile])),
+        Object.fromEntries(ambientRoster.map((row) => [row.profileName, row.profile])),
       ),
       parentAgentId: turnAgents.parent?.id ?? null,
     });
@@ -2430,12 +2468,20 @@ export class LocalBackendRouter {
    * Public: main.ts 的反向通道（reverse-tools.ts）经它给 CoreLoop 路径的
    * 工具调用补上 projectRoot 围栏。
    */
-  async resolveChatProject(chatId: string): Promise<{ name: string; folderPath: string } | null> {
+  async resolveChatProject(chatId: string): Promise<{
+    name: string;
+    folderPath: string;
+    sourceFolders: string[];
+  } | null> {
     const projectId = (await this.store.getChat(chatId))?.projectId;
     if (!projectId) return null;
     const project = this.toolRouter.projectRegistry?.get(projectId);
     if (!project) return null;
-    return { name: project.name, folderPath: project.folderPath };
+    return {
+      name: project.name,
+      folderPath: project.folderPath,
+      sourceFolders: project.sourceFolders ?? [],
+    };
   }
 
   /**
@@ -2487,7 +2533,12 @@ export class LocalBackendRouter {
     chatMode: 'agent' | 'plan' = 'agent',
     forcedMcpTool?: ForcedMcpTool,
     currentUserMessageId?: string,
-    mentionRoster: MentionDelegateProfile[] = [],
+    delegates: {
+      /** 用户 `@` 点名的：进系统提示名录 **且** 注入强制派发指令。 */
+      mention: MentionDelegateProfile[];
+      /** 常驻可委派的：只进系统提示名录，派不派由模型判断。 */
+      ambient: MentionDelegateProfile[];
+    } = { mention: [], ambient: [] },
   ): Promise<{
     systemPrompt: string;
     messages: LlmMessage[];
@@ -2567,8 +2618,12 @@ export class LocalBackendRouter {
 
     const polluted = this.detectToolDenialInHistory(historyAssistantTexts);
     const runtimeEnvironment = this.buildRuntimeEnvironmentContext(chatMode);
+    // 名录进 realityCheck：两条系统提示拼装路径（技能拼装 / 用户整段覆盖）
+    // 都会带上它，且位置在末尾——不动技能正文那段 prompt cache 前缀。
     const realityCheck =
-      runtimeEnvironment + this.buildToolRealityCheck(turnTools, polluted, chatMode);
+      runtimeEnvironment +
+      this.buildToolRealityCheck(turnTools, polluted, chatMode) +
+      buildDelegateRosterHint([...delegates.mention, ...delegates.ambient]);
 
     // 用户显式覆盖（payload.systemPrompt 优先 / settings.systemPrompt 自定义了且非默认值次之）走
     // "整段替换"路径，保持旧行为可被外部完全控制；否则交给 skill-based
@@ -2663,15 +2718,18 @@ export class LocalBackendRouter {
     const chatProject = await this.resolveChatProject(chatId);
     if (chatProject) {
       systemPrompt +=
-        `\n\n【项目模式】当前对话绑定项目「${chatProject.name}」，根目录：${chatProject.folderPath}\n` +
-        `你的文件读写（local_read_file / local_write_file）和命令执行（local_exec_shell）都被限制在该目录内：` +
-        `文件路径越界会被拒绝；命令默认在项目根目录下运行，显式指定的 cwd 越界也会被拒绝。` +
-        `请一律使用项目目录内的路径（相对路径按项目根目录解析）。` +
-        `如确需访问项目外的文件，向用户说明该限制，并请其把文件放入项目目录后再操作。\n` +
-        `例外：本会话的用户上传附件目录 ${chatAttachmentsDirPath(chatId)} 不在项目目录内，` +
+        `\n\n【项目模式】当前对话绑定项目「${chatProject.name}」，家目录：${chatProject.folderPath}\n` +
+        `你的文件写入（local_write_file）和命令执行（local_exec_shell）都被限制在该家目录内：` +
+        `写入路径越界会被拒绝；命令默认在家目录下运行，显式指定的 cwd 越界也会被拒绝。` +
+        (chatProject.sourceFolders.length > 0
+          ? `另有源文件夹（只读）：${chatProject.sourceFolders.join('、')}。`
+          : '') +
+        `请一律使用项目目录内的路径（相对路径按家目录解析）。` +
+        `如确需读取项目外的文件，可请用户在项目里附加为源文件夹。\n` +
+        `例外：本会话的用户上传附件目录 ${chatAttachmentsDirPath(chatId)} 也在项目家目录外，` +
         `但它已作为**只读放行根**开放给 local_read_file（用绝对路径可直接读取，不会被项目围栏拒绝）。` +
         `用户附到本条消息的文件都放在那里；需要转换（docx / pdf / xlsx / pptx 等）时，` +
-        `把该绝对路径交给 local_exec_shell 的转换脚本处理即可，**不要**因为它在项目目录外就拒绝读取或要求用户重新拷贝。`;
+        `把该绝对路径交给 local_exec_shell 的转换脚本处理即可，**不要**因为它在项目家目录外就拒绝读取或要求用户重新拷贝。`;
 
       // W6-5 + W6-7a：项目级规则文件（AGENTS.md / CLAUDE.md）是不可信输入，
       // 仅在用户显式信任该项目后才注入模型上下文——未信任一律不读取、不注入
@@ -2726,9 +2784,9 @@ export class LocalBackendRouter {
       finalUserContent = `${finalUserContent}\n\n【附件图片】\n${finalUserImages.notes.join('\n')}`;
     }
 
-    if (mentionRoster.length > 0) {
+    if (delegates.mention.length > 0) {
       finalUserContent = `${finalUserContent}\n\n${buildDelegateDispatchInstruction(
-        mentionRoster.map((row) => ({
+        delegates.mention.map((row) => ({
           name: row.name,
           profileName: row.profileName,
           toolFilter: row.profile.toolFilter,

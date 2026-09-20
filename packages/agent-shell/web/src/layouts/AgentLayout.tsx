@@ -450,16 +450,18 @@ function AgentLayoutContent() {
     <div className="relative flex h-full w-full bg-agent-muted/30">
       {sidebarCollapsed ? (
         // 收起态：窄 rail 只放展开按钮。新建对话仍可用 Cmd+N / 菜单触发。
-        <div className="flex h-full w-10 flex-shrink-0 flex-col items-center border-r border-agent-border/60 bg-agent-muted/70 py-2 backdrop-blur-md">
-          <button
-            type="button"
-            onClick={toggleSidebarCollapsed}
-            className="flex h-7 w-7 items-center justify-center rounded-full text-agent-muted-foreground transition-colors duration-200 hover:bg-agent-foreground/5 hover:text-agent-foreground"
-            title="展开侧边栏"
-            aria-label="展开侧边栏"
-          >
-            <LuPanelLeftOpen className="h-3.5 w-3.5" />
-          </button>
+        <div className="flex h-full w-10 flex-shrink-0 flex-col items-center border-r border-agent-border/60 bg-agent-muted/70 backdrop-blur-md">
+          <div className="flex h-11 w-full items-center justify-center">
+            <button
+              type="button"
+              onClick={toggleSidebarCollapsed}
+              className="flex h-7 w-7 items-center justify-center rounded-full text-agent-muted-foreground transition-colors duration-200 hover:bg-agent-foreground/5 hover:text-agent-foreground"
+              title="展开侧边栏"
+              aria-label="展开侧边栏"
+            >
+              <LuPanelLeftOpen className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
       ) : (
         <>

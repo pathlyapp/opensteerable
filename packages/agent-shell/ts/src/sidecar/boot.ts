@@ -43,7 +43,7 @@ export interface HostSidecarDeps {
    * 项目模式之外额外放行的只读根（会话附件目录等）。文件写入仍只受
    * projectRoot 围栏约束；这些根只放宽 local_read_file 的读取范围。
    */
-  resolveAdditionalReadRoots?: (chatId: string) => string[];
+  resolveAdditionalReadRoots?: (chatId: string) => string[] | Promise<string[]>;
   /** W4-1 审批反向通道处理器（宿主审批弹窗的应答入口）。 */
   approvalHandler: ReturnType<typeof createApprovalBridge>['handler'];
   /**

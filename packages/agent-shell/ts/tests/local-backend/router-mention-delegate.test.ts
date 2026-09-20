@@ -282,7 +282,7 @@ describe('handleStream / @提及委派', () => {
     }
   });
 
-  it('无提及时只下发内置画像，不注入派发指令', async () => {
+  it('无提及、会话只有父代理时只下发内置画像，不注入派发指令', async () => {
     const { chat } = await seedBoundChat();
     const { seen } = installStream();
     await makeRouter().handleStream(
@@ -297,6 +297,100 @@ describe('handleStream / @提及委派', () => {
     expect(seen[0].subagent.maxParallel).toBeUndefined();
     expect(seen[0].messages.at(-1).content).toBe('普通一问');
     expect(seen[0].systemPrompt).toContain('【当前角色】电脑操作员');
+    expect(seen[0].systemPrompt).not.toContain('可委派的智能体');
+  });
+
+  it('没有 @ 时其他智能体也进画像与系统提示名录，但不强制派发', async () => {
+    const { parent, chat } = await seedBoundChat();
+    await h.store.createChatAgent({
+      name: 'Word智能体',
+      slug: 'word-master',
+      rolePrompt: '按定版初稿生成 Word 文件',
+      toolPolicy: { mode: 'all', tools: [] },
+    });
+    await h.store.createChatAgent({
+      name: 'PPT智能体',
+      slug: 'ppt-master',
+      rolePrompt: '按已生成的 DOCX 生成 PPT',
+      toolPolicy: { mode: 'allowlist', tools: ['local_read_file', 'web_search'] },
+    });
+    const { seen } = installStream();
+    await makeRouter().handleStream(
+      {
+        method: 'POST',
+        path: `/api/v2/chats/${chat.id}/send`,
+        // 技能正文里写「@Word智能体」，用户输入框里没有点名任何人。
+        body: { message: '生成三会议案Word文件' },
+      },
+      makeEmitCapture().emit,
+    );
+
+    // 画像在 enum 里 → 技能/提示里的委派不再 fail closed。
+    const subagent = seen[0].subagent as {
+      profiles: Record<string, { description?: string; toolFilter?: string[] }>;
+      requiredProfiles?: string[];
+      maxParallel?: number;
+    };
+    expect(subagent.profiles['word-master'].description).toContain('Word智能体');
+    expect(subagent.profiles['ppt-master'].toolFilter).toEqual([
+      'local_read_file',
+      'web_search',
+    ]);
+    expect(subagent.profiles.explore).toEqual(BUILTIN_SUBAGENT_PROFILES.explore);
+    // 父代理自己不进常驻名单。
+    expect(subagent.profiles['local-assistant']).toBeUndefined();
+
+    // 「可以派」而非「必须派」：不挂完成门，也不注入强制派发指令。
+    expect(subagent.requiredProfiles).toBeUndefined();
+    expect(seen[0].messages.at(-1).content).toBe('生成三会议案Word文件');
+
+    // 系统提示给出显示名 → 画像名对照，模型才知道 @Word智能体 该怎么落地。
+    const prompt = seen[0].systemPrompt as string;
+    expect(prompt).toContain('可委派的智能体');
+    expect(prompt).toContain('Word智能体 → `subagent_type="word-master"`');
+    expect(prompt).toContain('PPT智能体 → `subagent_type="ppt-master"`');
+    expect(prompt).toContain('【当前角色】电脑操作员');
+    expect(prompt).not.toContain(`subagent_type="${parent.slug}"`);
+  });
+
+  it('提及与常驻并存：只有被提及的进 requiredProfiles，两者都在名录里', async () => {
+    const { chat } = await seedBoundChat();
+    const researcher = await h.store.createChatAgent({
+      name: '调研员',
+      slug: 'researcher',
+      rolePrompt: '多轮联网调研',
+      toolPolicy: { mode: 'allowlist', tools: ['web_search', 'web_fetch'] },
+    });
+    await h.store.createChatAgent({
+      name: 'Word智能体',
+      slug: 'word-master',
+      rolePrompt: '生成 Word 文件',
+    });
+    const { seen } = installStream();
+    await makeRouter().handleStream(
+      {
+        method: 'POST',
+        path: `/api/v2/chats/${chat.id}/send`,
+        body: { message: '@调研员 先查一下', mentionedAgentId: researcher.id },
+      },
+      makeEmitCapture().emit,
+    );
+
+    const subagent = seen[0].subagent as {
+      profiles: Record<string, unknown>;
+      requiredProfiles?: string[];
+    };
+    expect(subagent.profiles.researcher).toBeDefined();
+    expect(subagent.profiles['word-master']).toBeDefined();
+    expect(subagent.requiredProfiles).toEqual(['researcher']);
+
+    const prompt = seen[0].systemPrompt as string;
+    expect(prompt).toContain('调研员 → `subagent_type="researcher"`');
+    expect(prompt).toContain('Word智能体 → `subagent_type="word-master"`');
+    // 强制派发只点名被 @ 的那位。
+    const lastUser = seen[0].messages.at(-1).content as string;
+    expect(lastUser).toContain('调研员');
+    expect(lastUser).not.toContain('Word智能体');
   });
 
   it('loadAllSkills 的被提及智能体：技能正文进子代理 systemPrompt', async () => {

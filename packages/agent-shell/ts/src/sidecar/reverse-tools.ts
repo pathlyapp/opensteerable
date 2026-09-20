@@ -26,7 +26,7 @@ export interface ReverseToolDeps {
    * 额外放行的只读根（会话附件目录等）。写入仍只受 projectRoot 围栏约束，
    * 这里只放宽 local_read_file 的读取范围。
    */
-  resolveAdditionalReadRoots?: (chatId: string) => string[];
+  resolveAdditionalReadRoots?: (chatId: string) => string[] | Promise<string[]>;
 }
 
 /**
@@ -86,7 +86,7 @@ export function createToolInvokeHandler(deps: ReverseToolDeps): SidecarReverseHa
           ? (await deps.resolveProjectRoot?.(p.context.chatId) ?? null)
           : null;
     const additionalReadRoots = p.context?.chatId
-      ? (deps.resolveAdditionalReadRoots?.(p.context.chatId) ?? [])
+      ? await Promise.resolve(deps.resolveAdditionalReadRoots?.(p.context.chatId) ?? [])
       : [];
     if (name === 'local_exec_shell') {
       const classification = classifyShellCommand(String(toolArgs.command ?? ''));

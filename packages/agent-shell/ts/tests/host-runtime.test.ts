@@ -221,7 +221,9 @@ describe('start · 生命周期', () => {
     const bootDeps = mocks.startHostSidecar.mock.calls[0][0];
     expect(bootDeps.approvalHandler).toBe('approval-handler');
     expect(bootDeps.askUserHandler).toBe('ask-user-handler');
-    expect(bootDeps.resolveAdditionalReadRoots('chat-1')).toEqual(['/tmp/attachments/chat-1']);
+    expect(await bootDeps.resolveAdditionalReadRoots('chat-1')).toEqual([
+      '/tmp/attachments/chat-1',
+    ]);
   });
 
   it('read_state.seed 处理器：合法 state 透传并回 seeded；畸形入参按空表处理', async () => {

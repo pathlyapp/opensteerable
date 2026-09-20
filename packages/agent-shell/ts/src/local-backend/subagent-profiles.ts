@@ -41,9 +41,15 @@ export interface SubagentAgentInput extends AgentCapabilityInput {
   name: string;
   rolePrompt: string | null;
   description?: string | null;
+  /** 画像缓存的失效依据：改配置即换键。缺省则该智能体的画像每轮重建。 */
+  updatedAt?: string;
 }
 
-/** 一次 `@` 提及转出的画像，连同显示名，供派发指令与 sidecar 参数共用。 */
+/**
+ * 一个可委派对象的画像，连同显示名，供派发指令、名录说明与 sidecar 参数
+ * 共用。两个来源共享这个结构：用户 `@` 点名的（强制派发）与常驻可委派
+ * 名单里的（模型自主判断）。
+ */
 export interface MentionDelegateProfile {
   /** 被提及智能体的 id——调用方据此认出自提及那一行。 */
   agentId: string;
@@ -207,9 +213,51 @@ export async function buildMentionDelegateRoster(
   delegates: readonly SubagentAgentInput[],
   parentToolNames: readonly string[],
 ): Promise<MentionDelegateProfile[]> {
+  return await buildRoster(delegates, parentToolNames, new Set());
+}
+
+/**
+ * 常驻可委派名单：会话里的其他智能体也转成画像，模型**无需用户 `@`** 就能
+ * 委派。技能正文或自定义提示里写「交给 X」因此能落成一次真实
+ * `delegate_subagent`——在此之前 `subagent_type` 的 enum 里只有内置三个画像，
+ * 这类指令 fail closed 报 `unknown subagent_type`，模型只能在正文里打出名字。
+ *
+ * 与提及名单的唯一区别是强制性：这里**不进** `requiredProfiles`。派不派由模型
+ * 按任务判断——技能的阶段条件（「阶段 C 才交给 Word 智能体」）在拼装画像时
+ * 还不可知，一律强制会把不该派的回合反复退回完成门。
+ *
+ * @param agents 会话可用的智能体（未归档）。
+ * @param parentToolNames 父本轮模型可见工具名。
+ * @param options.excludeAgentIds 不进名单的智能体：父代理自己与已在提及名单里的。
+ * @param options.reservedProfileNames 已占用的画像名（内置画像 + 提及画像），避免顶掉。
+ * @returns 画像花名册，按 `agents` 顺序。
+ */
+export async function buildAmbientDelegateRoster(
+  agents: readonly SubagentAgentInput[],
+  parentToolNames: readonly string[],
+  options: {
+    excludeAgentIds?: readonly string[];
+    reservedProfileNames?: readonly string[];
+  } = {},
+): Promise<MentionDelegateProfile[]> {
+  const excluded = new Set(options.excludeAgentIds ?? []);
+  const candidates = agents.filter((agent) => !excluded.has(agent.id));
+  if (candidates.length === 0) return [];
+  return await buildRoster(
+    candidates,
+    parentToolNames,
+    new Set(options.reservedProfileNames ?? []),
+  );
+}
+
+async function buildRoster(
+  agents: readonly SubagentAgentInput[],
+  parentToolNames: readonly string[],
+  reserved: Set<string>,
+): Promise<MentionDelegateProfile[]> {
   const roster: MentionDelegateProfile[] = [];
-  const used = new Set<string>();
-  for (const agent of delegates) {
+  const used = new Set<string>(reserved);
+  for (const agent of agents) {
     let profileName = profileNameForAgent(agent);
     if (used.has(profileName)) {
       const suffix = agent.id.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8);
@@ -220,13 +268,63 @@ export async function buildMentionDelegateRoster(
       agentId: agent.id,
       name: agent.name,
       profileName,
-      profile: await buildOneMentionProfile(agent, parentToolNames),
+      profile: await buildOneDelegateProfile(agent, parentToolNames),
     });
   }
   return roster;
 }
 
-async function buildOneMentionProfile(
+/**
+ * 画像构建缓存的存活时长。
+ *
+ * 常驻名单让每轮的画像数量从「用户点了几个」变成「用户有几个智能体」，而
+ * 每份画像的 `systemPrompt` 都要过一次 `buildSystemPrompt`（内含技能目录
+ * 扫描）——不缓存就是每轮多做 N 次磁盘扫描，直接加在首个 token 之前。
+ *
+ * 缓存键带 `updatedAt`，所以改智能体立即生效；技能**正文**落盘不改
+ * `updatedAt`，靠这个存活时长兜底，最迟下一轮生效。
+ */
+const DELEGATE_PROFILE_TTL_MS = 15_000;
+
+interface CachedDelegateProfile {
+  builtAtMs: number;
+  profile: BuiltinSubagentProfile;
+}
+
+const delegateProfileCache = new Map<string, CachedDelegateProfile>();
+
+/** 清空画像缓存（测试用；生产靠 `updatedAt` 与存活时长失效）。 */
+export function resetDelegateProfileCache(): void {
+  delegateProfileCache.clear();
+}
+
+async function buildOneDelegateProfile(
+  agent: SubagentAgentInput,
+  parentToolNames: readonly string[],
+): Promise<BuiltinSubagentProfile> {
+  // 键要完整描述这份画像的输入：身份（改名/换 slug 都会换画像名与人设）、
+  // `updatedAt`（改配置即失效）、父工具面（`toolFilter` 与画像 systemPrompt
+  // 里的工具名录都由它派生）。只用 id 的话，任何复用 id 的调用方（内存假
+  // 存储的测试）都会静默拿到另一个智能体的画像。
+  const cacheKey = agent.updatedAt
+    ? [
+        agent.id,
+        agent.updatedAt,
+        agent.slug ?? '',
+        agent.name,
+        parentToolNames.join(','),
+      ].join('\u0000')
+    : null;
+  if (cacheKey) {
+    const hit = delegateProfileCache.get(cacheKey);
+    if (hit && Date.now() - hit.builtAtMs < DELEGATE_PROFILE_TTL_MS) return hit.profile;
+  }
+  const profile = await buildProfileUncached(agent, parentToolNames);
+  if (cacheKey) delegateProfileCache.set(cacheKey, { builtAtMs: Date.now(), profile });
+  return profile;
+}
+
+async function buildProfileUncached(
   agent: SubagentAgentInput,
   parentToolNames: readonly string[],
 ): Promise<BuiltinSubagentProfile> {
@@ -307,6 +405,42 @@ export function buildDelegateDispatchInstruction(
   ].join('\n');
 }
 
+/**
+ * 可委派智能体名录：注入系统提示（realityCheck 段）。
+ *
+ * 技能正文与自定义提示里写的是**显示名**（`@Word智能体`），而 `subagent_type`
+ * 只认 ASCII 画像名（`word-master`）。没有这张对照表，技能作者只能硬编码画像
+ * 名、智能体一改名就断；模型也无从知道正文里的「@某智能体」该落成一次
+ * `delegate_subagent`，于是只在回复里打出这个名字然后收尾。
+ *
+ * 与 {@link buildDelegateDispatchInstruction} 的分工：那份是用户点名后的**强制**
+ * 派发指令（配 `requiredProfiles` 完成门兜底），这份只说明「能派谁、怎么派」。
+ *
+ * @param delegates 本轮可委派的智能体（提及 + 常驻名单）。
+ * @returns 名录正文；空名单返回空串，本轮系统提示与改前逐字节一致。
+ */
+export function buildDelegateRosterHint(
+  delegates: ReadonlyArray<{ name: string; profileName: string }>,
+): string {
+  if (delegates.length === 0) return '';
+  const roster = delegates
+    .map((row) => `- ${row.name} → \`subagent_type="${row.profileName}"\``)
+    .join('\n');
+  return [
+    '',
+    '',
+    '## 可委派的智能体',
+    '',
+    '以下智能体可以通过 `delegate_subagent` 接活，画像名对照：',
+    '',
+    roster,
+    '',
+    '- 指令（含技能正文）里出现「@某智能体」或「交给某智能体」时，意思是**用 `delegate_subagent` 把这份活派给它**，`subagent_type` 填上表对应的画像名——不是在回复里打出这个名字。',
+    '- 每份 `task` 必须自包含（目标、输入、交付形式、验收标准）：子代理看不到本对话。',
+    '- 表里没有的名字不要猜着填，`subagent_type` 只接受上表与内置画像。',
+  ].join('\n');
+}
+
 export interface TurnSubagentParam {
   profiles: Record<string, BuiltinSubagentProfile>;
   maxParallel?: number;
@@ -315,20 +449,23 @@ export interface TurnSubagentParam {
 }
 
 /**
- * 内置画像 + 本轮提及画像。被 `@` 超过 4 个时抬高池的并行上限。
+ * 内置画像 + 常驻可委派画像 + 本轮提及画像。被 `@` 超过 4 个时抬高池的并行上限。
  *
- * 提及画像同时作为 `requiredProfiles` 下发：强制派发此前只是提示词里的
- * 一句话，模型跑了别的工具再叙述「已启动」就能蒙过所有既有纪律检查。
+ * 只有**提及**画像进 `requiredProfiles`：强制派发此前只是提示词里的一句话，
+ * 模型跑了别的工具再叙述「已启动」就能蒙过所有既有纪律检查。常驻画像刻意不进
+ * ——它们是「可以派」，不是「本轮必须派」。
  *
- * @param mentionProfiles 本轮提及转出的画像；空对象则与 {@link builtinSubagentParam} 相同。
+ * @param mentionProfiles 本轮提及转出的画像。
+ * @param ambientProfiles 常驻可委派画像；与提及画像同名时以提及为准。
  * @returns 下发给 sidecar 的 `subagent` 参数。
  */
 export function mergeTurnSubagentParam(
   mentionProfiles: Record<string, BuiltinSubagentProfile>,
+  ambientProfiles: Record<string, BuiltinSubagentProfile> = {},
 ): TurnSubagentParam {
   const mentionNames = Object.keys(mentionProfiles);
   return {
-    profiles: { ...BUILTIN_SUBAGENT_PROFILES, ...mentionProfiles },
+    profiles: { ...BUILTIN_SUBAGENT_PROFILES, ...ambientProfiles, ...mentionProfiles },
     ...(mentionNames.length > 4 ? { maxParallel: mentionNames.length } : {}),
     ...(mentionNames.length > 0 ? { requiredProfiles: mentionNames } : {}),
   };

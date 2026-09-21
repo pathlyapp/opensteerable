@@ -430,6 +430,49 @@ async def test_on_request_error_retry_recovers() -> None:
 
 
 @pytest.mark.asyncio
+async def test_on_request_error_retry_recovers_mid_stream(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("STEERABLE_RUST_CORELOOP", "0")
+
+    class _Provider:
+        name = "mid-stream-retry"
+        model = "mid-stream-retry"
+
+        def __init__(self) -> None:
+            self.attempts = 0
+
+        def stream(self, messages, *, tools=None, **kwargs):
+            async def _gen():
+                self.attempts += 1
+                if self.attempts == 1:
+                    yield LLMStreamChunk(content_delta="partial")
+                    raise ConnectionError("incomplete chunked read")
+                yield LLMStreamChunk(content_delta="recovered after retry")
+                yield LLMStreamChunk(finish_reason="stop")
+
+            return _gen()
+
+    class _Retry(NoopHooks):
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def on_request_error(self, error, transcript, ctx):
+            self.calls += 1
+            return RetryAction(kind="retry", delay_ms=0)
+
+    hooks = _Retry()
+    provider = _Provider()
+    loop = CoreLoop(provider, RouterToolExecutor(ToolRouter()), hooks=hooks)
+    events = await collect(loop.run([LLMMessage.text_of("user", "go")]))
+
+    assert provider.attempts == 2
+    assert hooks.calls == 1
+    assert final_completion(events)["status"] == "completed"
+    assert loop.history.projection[-1].content_text == "recovered after retry"
+
+
+@pytest.mark.asyncio
 async def test_on_request_error_fail_emits_error_event_and_ends() -> None:
     provider = make_provider([{"error": ConnectionError("stream dropped")}])
     router = ToolRouter()

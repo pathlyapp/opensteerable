@@ -212,6 +212,14 @@ def test_weekly_cheap_12_matrix_runs_every_live_agent() -> None:
         assert agent in WEEKLY, f"cheap-12 matrix does not run {agent}"
 
 
+def test_cheap12_jobs_keep_the_whole_result_inside_the_workflow_wall() -> None:
+    """Two Harbor lanes can exceed four hours even when every trial obeys its timeout."""
+    eval_job = WEEKLY.split("  eval:", 1)[1].split("  probe:", 1)[0]
+    probe_job = WEEKLY.split("  probe:", 1)[1].split("  failed-prev:", 1)[0]
+    assert "timeout-minutes: 360" in eval_job
+    assert "timeout-minutes: 360" in probe_job
+
+
 def test_cheap12_probe_is_gated_on_model() -> None:
     """An empty model must keep the Monday LIVE_AGENTS smoke; a model
     input is the new-baseline probe, not a silent mix of the two."""

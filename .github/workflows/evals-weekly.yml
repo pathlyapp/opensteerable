@@ -80,7 +80,11 @@ jobs:
     name: TB 2.1 cheap-12 × ${{ matrix.agent }}
     if: ${{ github.event_name == 'schedule' || (github.event.inputs.split == 'cheap-12' && github.event.inputs.model == '') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 240
+    # Twelve trials at n-concurrent=2 can legitimately exceed four hours:
+    # one 120-minute compile plus one 90-minute task can occupy a lane. Keep
+    # the workflow wall above Harbor's aggregate task budget so the final
+    # trial and result.json are not discarded.
+    timeout-minutes: 360
     strategy:
       fail-fast: false
       matrix:
@@ -149,7 +153,7 @@ jobs:
     name: TB 2.1 cheap-12 probe × ${{ matrix.agent }} × ${{ github.event.inputs.model }}
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.split == 'cheap-12' && github.event.inputs.model != '' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 240
+    timeout-minutes: 360
     strategy:
       fail-fast: false
       matrix:

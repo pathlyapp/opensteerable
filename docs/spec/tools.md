@@ -394,7 +394,8 @@ to TCP `5900+N`; values 5900–65535 are raw ports. A hypervisor
 `nudge=true` sends a one-pixel RFB pointer move before the snapshot so a
 stale client framebuffer can refresh. Optional `path` writes the PNG into
 the workspace. The tool result reuses `read_file`'s image path: an ASCII
-preview in `data.content`, and `data._image` when `STEERABLE_READ_IMAGES=1`.
+preview in `data.content`, and `data._image` on every successful capture
+(same 400 KB cap). File reads stay ASCII unless `STEERABLE_READ_IMAGES=1`.
 
 Authenticated VNC, RDP, and other display protocols are out of scope for
 this revision; an unknown URL scheme fails with a followup-able error

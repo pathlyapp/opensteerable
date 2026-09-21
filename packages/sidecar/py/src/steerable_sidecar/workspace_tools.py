@@ -36,9 +36,10 @@ _MIN_KEEP_BYTES = 8192
 # TB compiles, QEMU, and training exceed the old 5 min cap; Claude Code
 # does not kill a single bash at 300s. Harbor's long-task kill is ~180 min.
 _BASH_TIMEOUT_SEC = 3600
-# Native pixels for PNG/JPEG reads. Off by default; flaky arm B sets
-# ``STEERABLE_READ_IMAGES=1``. ASCII preview stays either way. BMP stays
-# ASCII: vision endpoints accept PNG/JPEG, not BMP.
+# Native pixels for PNG/JPEG ``read_file``. Off by default; flaky arm B
+# sets ``STEERABLE_READ_IMAGES=1``. ``capture_display`` always attaches
+# (same size cap). ASCII preview stays either way. BMP stays ASCII:
+# vision endpoints accept PNG/JPEG, not BMP.
 _IMAGE_ATTACH_MAX_BYTES = 400_000
 
 #: One-shot bash execution behind the tool: (command, cwd) → result.
@@ -1033,8 +1034,8 @@ def workspace_tools_for_cwd(
             "Capture the client-visible remote display (RFB/VNC framebuffer). "
             "Use this when a VM, noVNC page, or grader will look at VNC — "
             "not QEMU screendump or another hypervisor-private screenshot. "
-            "Returns an ASCII preview; PNG attaches as an image when "
-            "STEERABLE_READ_IMAGES=1. Optional path writes the PNG."
+            "The PNG is attached as an image you can look at; the JSON is "
+            "only an ASCII preview. Optional path writes the PNG."
         ),
         schema=_CAPTURE_DISPLAY_SCHEMA,
         require_consent=False,
@@ -1083,8 +1084,12 @@ def _read_images_enabled() -> bool:
 
 
 def _image_blob(raw: bytes) -> dict[str, str] | None:
-    """PNG/JPEG bytes for the next LLM request; None when the run is text-only."""
-    if not _read_images_enabled() or len(raw) > _IMAGE_ATTACH_MAX_BYTES:
+    """PNG/JPEG bytes for the next LLM request; None if too large or not those types.
+
+    ``read_file`` decides whether to call this. ``capture_display`` always
+    does: a remote display without pixels is a capture the model cannot see.
+    """
+    if len(raw) > _IMAGE_ATTACH_MAX_BYTES:
         return None
     if raw.startswith(b"\x89PNG"):
         media = "image/png"
@@ -1114,9 +1119,10 @@ def _binary_read_result(target: Path, raw: bytes) -> ToolResult:
                 else "png_ascii"
             ),
         }
-        blob = _image_blob(raw)
-        if blob is not None:
-            data["_image"] = blob
+        if _read_images_enabled():
+            blob = _image_blob(raw)
+            if blob is not None:
+                data["_image"] = blob
         return ToolResult(success=True, data=data)
     kind = (
         "PNG"

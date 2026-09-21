@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  resolveWebChatModes,
   resolveWebHostTools,
   sanitizeRightPanelKind,
 } from './host-tools';
@@ -19,6 +20,13 @@ describe('resolveWebHostTools', () => {
     });
     expect(tools.terminal).toEqual({ capability: false, chrome: false });
     expect(tools['local-fs']).toEqual({ capability: true, chrome: false });
+  });
+});
+
+describe('resolveWebChatModes', () => {
+  it('缺省 Agent + Plan；只留一种时不带 Plan', () => {
+    expect(resolveWebChatModes()).toEqual(['agent', 'plan']);
+    expect(resolveWebChatModes(['agent'])).toEqual(['agent']);
   });
 });
 

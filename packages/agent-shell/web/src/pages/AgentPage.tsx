@@ -22,7 +22,7 @@ import {
   readStoredExecPolicy,
   type ExecPolicy,
 } from "@/lib/exec-policy";
-import { hostToolChrome } from "@/lib/host-tools";
+import { clampWebChatMode, hostToolChrome } from "@/lib/host-tools";
 import type { ExecutedAction } from "@/components/chat/ExecutedActionsCard";
 import { inspectTaskTitle, type InspectTaskInput } from "@/components/chat/executed-actions-model";
 import type { ChildInfo } from "@/components/chat/OrchestrationChildrenCard";
@@ -86,10 +86,8 @@ type ChatMessageWithMetadata = ChatMessage & LocalChatMessage;
 const CHAT_MODE_STORAGE_KEY = "agent-chat-mode";
 
 function readStoredMode(): ChatMode {
-  if (typeof localStorage === "undefined") return "agent";
-  return localStorage.getItem(CHAT_MODE_STORAGE_KEY) === "plan"
-    ? "plan"
-    : "agent";
+  if (typeof localStorage === "undefined") return clampWebChatMode("agent");
+  return clampWebChatMode(localStorage.getItem(CHAT_MODE_STORAGE_KEY));
 }
 
 function extractPersistedActions(
@@ -518,9 +516,10 @@ function AgentChatView({
   );
 
   const handleModeChange = useCallback((next: ChatMode) => {
-    setMode(next);
+    const clamped = clampWebChatMode(next);
+    setMode(clamped);
     if (typeof localStorage !== "undefined") {
-      localStorage.setItem(CHAT_MODE_STORAGE_KEY, next);
+      localStorage.setItem(CHAT_MODE_STORAGE_KEY, clamped);
     }
   }, []);
 
@@ -1267,9 +1266,10 @@ function EmptyChatGate() {
     null;
 
   const handleModeChange = useCallback((next: ChatMode) => {
-    setMode(next);
+    const clamped = clampWebChatMode(next);
+    setMode(clamped);
     if (typeof localStorage !== "undefined") {
-      localStorage.setItem(CHAT_MODE_STORAGE_KEY, next);
+      localStorage.setItem(CHAT_MODE_STORAGE_KEY, clamped);
     }
   }, []);
 

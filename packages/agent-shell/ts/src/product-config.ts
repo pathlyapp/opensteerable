@@ -45,6 +45,10 @@ export interface ProductConfig {
    * STEERABLE_APPROVAL=0 仍是调试逃生口。
    */
   approval?: 'host' | 'off';
+  /**
+   * 对话模式。缺省 `['agent','plan']`。只留一种时渲染层不显示切换。
+   */
+  chatModes?: Array<'agent' | 'plan'>;
 }
 
 let productConfig: ProductConfig | null = null;

@@ -63,7 +63,7 @@ import { setDefaultExecTimeoutMs } from '../local-executor.js';
 import { allowEgressForBaseUrl, getActiveEgressBroker, getEgressPosture } from '../sidecar/egress-proxy.js';
 import { buildExecSandbox, parseExecPolicy } from '../sidecar/exec-sandbox.js';
 import { clampExecPolicy } from '../host-tools.js';
-import { getResolvedHostTools, resolveTurnApproval } from '../host-tools-runtime.js';
+import { getResolvedHostTools, resolveTurnApproval, resolveTurnChatMode } from '../host-tools-runtime.js';
 import { SidecarSupervisor } from '../sidecar/index.js';
 import { diagnoseLlmConnection } from './llm-diagnose.js';
 import {
@@ -2282,7 +2282,7 @@ export class LocalBackendRouter {
 
     // Plan 模式（类 Cursor "先出计划"）：仅暴露只读工具给模型，引导它先调研、
     // 再输出结构化计划，不做任何写操作/执行。其余值一律视为常规 agent 模式。
-    const chatMode: 'agent' | 'plan' = payload.mode === 'plan' ? 'plan' : 'agent';
+    const chatMode = resolveTurnChatMode(payload.mode);
 
     // 本轮生效的智能体：人设、技能勾选、工具策略同源。必须先解析——工具
     // 策略决定工具列表，工具列表又决定技能的触发条件。

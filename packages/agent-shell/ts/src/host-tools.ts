@@ -31,6 +31,26 @@ export type ResolvedHostTools = Record<HostToolFamilyId, HostToolFamilySurface>;
 
 export type ApprovalMode = 'host' | 'off';
 
+export const CHAT_MODE_IDS = ['agent', 'plan'] as const;
+
+export type ChatModeId = (typeof CHAT_MODE_IDS)[number];
+
+const DEFAULT_CHAT_MODES: ChatModeId[] = ['agent', 'plan'];
+
+/** 产品声明的对话模式。缺省 Agent + Plan；空/非法回落 Agent。 */
+export function resolveChatModes(value?: unknown): ChatModeId[] {
+  if (!Array.isArray(value)) return [...DEFAULT_CHAT_MODES];
+  const allowed = CHAT_MODE_IDS.filter((id) => value.includes(id));
+  return allowed.length > 0 ? allowed : ['agent'];
+}
+
+export function clampChatMode(
+  requested: unknown,
+  modes: readonly ChatModeId[] = resolveChatModes(),
+): ChatModeId {
+  return requested === 'plan' && modes.includes('plan') ? 'plan' : 'agent';
+}
+
 export const LOCAL_FS_TOOL_NAMES = [
   'local_exec_shell',
   'local_read_file',

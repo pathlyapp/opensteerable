@@ -26,6 +26,7 @@ const captureScreenshot = vi.fn();
 const streamMock = vi.fn();
 const steerMock = vi.fn();
 const cancelActiveMock = vi.fn();
+const attachmentsSave = vi.fn();
 let suggestedRepliesHandler:
   | ((payload: { chatId: string; messageId: string; suggestions: string[] }) => void)
   | null = null;
@@ -51,6 +52,12 @@ vi.mock('@/lib/electron-bridge', () => ({
             startStream: vi.fn(async () => null),
             cancelStream: vi.fn(),
             steerChat: (_chatId: string, content: string) => steerMock(content),
+          },
+          attachments: {
+            save: (input: {
+              chatId: string;
+              files: Array<{ path?: string; name?: string; data?: string }>;
+            }) => attachmentsSave(input),
           },
           onSuggestedReplies: (callback: (payload: {
             chatId: string;
@@ -273,6 +280,7 @@ beforeEach(() => {
     },
   );
   steerMock.mockResolvedValue(true);
+  attachmentsSave.mockResolvedValue({ files: [] });
 });
 
 afterEach(cleanup);
@@ -309,6 +317,42 @@ describe('AgentPage 落地页（EmptyChatGate）', () => {
       ),
     );
     expect(await screen.findByText('默认回复')).toBeTruthy();
+  });
+
+  it('落地页带附件：先建会话再落盘，正文写落盘路径而不是空引用', async () => {
+    attachmentsSave.mockResolvedValue({
+      files: [{ name: '纪要.docx', path: '/data/attachments/chat-new/纪要.docx', size: 12 }],
+    });
+    const ctx = makeCtx();
+    renderPage('/agent', ctx);
+    await screen.findByTestId('empty-chat-home');
+    await typeComposer('这是什么文件');
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(fileInput).toBeTruthy();
+    await act(async () => {
+      fireEvent.change(fileInput, {
+        target: { files: [new File(['hello-docx'], '纪要.docx')] },
+      });
+    });
+    pressEnter();
+
+    await waitFor(() => expect(ctx.createChat).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(attachmentsSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          chatId: 'chat-new',
+          files: [expect.objectContaining({ name: '纪要.docx', data: expect.any(String) })],
+        }),
+      ),
+    );
+    await waitFor(() =>
+      expect(streamMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: '这是什么文件\n\n---\n关联文件:\n- `/data/attachments/chat-new/纪要.docx`',
+        }),
+        expect.any(Function),
+      ),
+    );
   });
 
   it('空输入不创建会话', async () => {

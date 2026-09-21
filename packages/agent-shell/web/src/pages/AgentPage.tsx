@@ -61,6 +61,10 @@ import {
   setPendingFirstMessage,
   takePendingFirstMessage,
 } from "@/lib/pending-first-message";
+import {
+  composeAttachmentUserContent,
+  saveChatAttachments,
+} from "@/lib/attachments";
 import { BRAND_NAME, pickDefaultAgentId } from "@/brand";
 
 /**
@@ -1299,29 +1303,12 @@ function EmptyChatGate() {
       length: trimmed.length,
     });
 
-    // 与 LocalChatPanel.handleSubmit 相同的装配规则：文件路径附到正文，
-    // @ 引用进 metadata，plan 模式打 metadata.mode。
-    if (files.length > 0) {
-      const fileRefs = files.map((f) => `- \`${f.path}\``).join("\n");
-      trimmed = trimmed
-        ? `${trimmed}\n\n---\n关联文件:\n${fileRefs}`
-        : `关联文件:\n${fileRefs}`;
-    }
     const mentionedAgentIds = mentionReferences
       .filter((ref) => ref.type === "agent")
       .map((ref) => ref.id);
     const referencedChatIds = mentionReferences
       .filter((ref) => ref.type === "chat")
       .map((ref) => ref.id);
-    const metadata = {
-      ...(mode === "plan" ? { mode: "plan" as const } : {}),
-      ...(execPolicy === "full" ? { execPolicy: "full" as const } : {}),
-      ...(ctx.selectedAgentId ? { agentId: ctx.selectedAgentId } : {}),
-      ...(mentionedAgentIds.length > 0 ? { mentionedAgentIds } : {}),
-      ...(referencedChatIds.length > 0 ? { referencedChatIds } : {}),
-      ...(modelOverride ? { model: modelOverride } : {}),
-      ...(effortOverride ? { reasoningEffort: effortOverride } : {}),
-    };
 
     setIsCreating(true);
     setCreateError(null);
@@ -1331,9 +1318,23 @@ function EmptyChatGate() {
         ...(ctx.selectedAgentId ? { agentId: ctx.selectedAgentId } : {}),
       });
       if (!id) throw new Error("创建对话失败，请重试");
+      // 落地页提交时还没有 chatId；先建会话再落盘，正文用落盘路径。
+      const resolvedFiles =
+        files.length > 0 ? await saveChatAttachments(id, files) : files;
+      const assembled = composeAttachmentUserContent(trimmed, resolvedFiles);
+      const metadata = {
+        ...(mode === "plan" ? { mode: "plan" as const } : {}),
+        ...(execPolicy === "full" ? { execPolicy: "full" as const } : {}),
+        ...(ctx.selectedAgentId ? { agentId: ctx.selectedAgentId } : {}),
+        ...(mentionedAgentIds.length > 0 ? { mentionedAgentIds } : {}),
+        ...(referencedChatIds.length > 0 ? { referencedChatIds } : {}),
+        ...(modelOverride ? { model: modelOverride } : {}),
+        ...(effortOverride ? { reasoningEffort: effortOverride } : {}),
+        ...(assembled.images.length > 0 ? { images: assembled.images } : {}),
+      };
       setPendingFirstMessage({
         chatId: id,
-        content: trimmed,
+        content: assembled.content,
         metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
       });
       navigate(`/agent/${id}`);

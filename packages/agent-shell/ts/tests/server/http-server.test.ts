@@ -652,10 +652,10 @@ describe('BS HTTP server', () => {
       expect(mocks.terminalList).not.toHaveBeenCalled();
     });
 
-    it('local-fs 只关 chrome 时拒绝打开/附件，仍放行选目录与模型侧 exec', async () => {
+    it('local-fs 只关 chrome 时拒绝打开，仍放行附件/选目录与模型侧 exec', async () => {
       setProductConfig({ hostTools: { 'local-fs': { chrome: false } } });
       expect((await post('/host/local/open-path', { path: '/tmp' })).status).toBe(403);
-      expect((await post('/host/attachments/save', { chatId: 'c1', files: [] })).status).toBe(403);
+      expect((await post('/host/attachments/save', { chatId: 'c1', files: [] })).status).toBe(200);
       mocks.selectNativeDirectory.mockResolvedValue({ canceled: true, filePaths: [] });
       expect((await post('/host/local/select-directory', { title: '源文件夹' })).status).toBe(200);
       mocks.executeShell.mockResolvedValue({ success: true });

@@ -18,7 +18,7 @@ export type HostToolFamilyId = (typeof HOST_TOOL_FAMILY_IDS)[number];
 export interface HostToolFamilySurface {
   /** 模型可见工具 + 围栏 / 服务端能力。 */
   capability: boolean;
-  /** 用户入口：按钮、菜单、项目分组、点路径打开、附件上传、可见 PTY。 */
+  /** 用户入口：按钮、菜单、项目分组、点路径打开、可见 PTY。会话附件跟 capability 走。 */
   chrome: boolean;
 }
 
@@ -219,9 +219,9 @@ export function isHostRouteAllowed(
   tools: ResolvedHostTools = resolveHostTools(),
 ): boolean {
   if (pathname.startsWith('/host/terminal')) return tools.terminal.chrome;
-  if (pathname === '/host/attachments/save' || pathname === '/host/local/open-path') {
-    return tools['local-fs'].chrome;
-  }
+  // 会话附件：公文关 chrome（不露访达 / 完整权限）仍要上传材料。
+  if (pathname === '/host/attachments/save') return tools['local-fs'].capability;
+  if (pathname === '/host/local/open-path') return tools['local-fs'].chrome;
   if (pathname.startsWith('/host/local/')) return tools['local-fs'].capability;
   return true;
 }
@@ -241,9 +241,8 @@ export function isHostIpcAllowed(
   tools: ResolvedHostTools = resolveHostTools(),
 ): boolean {
   if (channel.startsWith('terminal:')) return tools.terminal.chrome;
-  if (channel === 'local:open-path' || channel === 'attachments:save') {
-    return tools['local-fs'].chrome;
-  }
+  if (channel === 'attachments:save') return tools['local-fs'].capability;
+  if (channel === 'local:open-path') return tools['local-fs'].chrome;
   if (channel.startsWith('local:')) return tools['local-fs'].capability;
   return true;
 }

@@ -21,7 +21,7 @@ import type { LlmSpeedSnapshot } from './process-status';
 import { SessionTodoList } from './SessionTodoList';
 import { resolveLatestSessionTodos } from './todo-list-model';
 import {
-  isImageFile,
+  composeAttachmentUserContent,
   saveChatAttachments,
   type AttachmentFile,
 } from '@/lib/attachments';
@@ -235,16 +235,8 @@ export function LocalChatPanel({
     // 自行持久化，这里 chatId 为空时原样用源路径。
     const resolvedFiles =
       chatId && files.length > 0 ? await saveChatAttachments(chatId, files) : files;
-
-    // Append file references to the user message content
-    if (resolvedFiles.length > 0) {
-      const fileRefs = resolvedFiles.map(f => `- \`${f.path}\``).join('\n');
-      if (trimmed) {
-        trimmed = `${trimmed}\n\n---\n关联文件:\n${fileRefs}`;
-      } else {
-        trimmed = `关联文件:\n${fileRefs}`;
-      }
-    }
+    const assembled = composeAttachmentUserContent(trimmed, resolvedFiles);
+    trimmed = assembled.content;
 
     const mentionedAgentIds = mentionReferences
       .filter((ref) => ref.type === 'agent')
@@ -255,16 +247,13 @@ export function LocalChatPanel({
     // W6-3: image attachments ride as metadata so the main process reads the
     // bytes into base64 ImageParts; the text path refs above stay so the
     // persisted record reflects that an image was attached.
-    const imageAttachments = resolvedFiles
-      .filter((f) => isImageFile(f.path))
-      .map((f) => ({ path: f.path, name: f.name }));
     const metadata = {
       ...(mode === 'plan' ? { mode: 'plan' as const } : {}),
       ...(execPolicy === 'full' ? { execPolicy: 'full' as const } : {}),
       ...(selectedAgentId ? { agentId: selectedAgentId } : {}),
       ...(mentionedAgentIds.length > 0 ? { mentionedAgentIds } : {}),
       ...(referencedChatIds.length > 0 ? { referencedChatIds } : {}),
-      ...(imageAttachments.length > 0 ? { images: imageAttachments } : {}),
+      ...(assembled.images.length > 0 ? { images: assembled.images } : {}),
     };
 
     // Snapshot what we're about to clear so a failed submit can restore it —

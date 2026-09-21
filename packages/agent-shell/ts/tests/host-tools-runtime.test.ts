@@ -6,13 +6,17 @@ import { resetProductConfigForTests, setProductConfig } from '../src/product-con
 import {
   getResolvedHostTools,
   isProductApprovalEnabled,
+  isProductLlmLocked,
+  resolveRuntimeLlmSettings,
   resolveTurnApproval,
   resolveTurnChatMode,
 } from '../src/host-tools-runtime.js';
+import { DEFAULT_LLM_SETTINGS } from '../src/storage/llm-settings.js';
 
 afterEach(() => {
   resetProductConfigForTests();
   delete process.env.STEERABLE_APPROVAL;
+  delete process.env.DEEPSEEK_API_KEY;
 });
 
 describe('getResolvedHostTools', () => {
@@ -61,5 +65,25 @@ describe('resolveTurnChatMode', () => {
   it('产品只留 agent 时客户端 plan 被钳死', () => {
     setProductConfig({ chatModes: ['agent'] });
     expect(resolveTurnChatMode('plan')).toBe('agent');
+  });
+});
+
+describe('resolveRuntimeLlmSettings', () => {
+  it('设置页开着时用已存/出厂默认', () => {
+    expect(isProductLlmLocked()).toBe(false);
+    expect(resolveRuntimeLlmSettings(null)).toEqual(DEFAULT_LLM_SETTINGS);
+  });
+
+  it('settings.llm 关掉后钉死 product.llm', () => {
+    setProductConfig({
+      settings: { llm: false },
+      llm: { model: 'deepseek-chat', baseUrl: 'https://api.deepseek.com', apiKeyEnv: 'DEEPSEEK_API_KEY' },
+    });
+    process.env.DEEPSEEK_API_KEY = 'sk-product';
+    expect(isProductLlmLocked()).toBe(true);
+    expect(resolveRuntimeLlmSettings(null)).toMatchObject({
+      model: 'deepseek-chat',
+      apiKey: 'sk-product',
+    });
   });
 });

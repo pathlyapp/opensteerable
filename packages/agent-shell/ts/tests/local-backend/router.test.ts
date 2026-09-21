@@ -1495,6 +1495,23 @@ describe('LLM 设置与 sidecar 服务化路由', () => {
     expect(h.allowEgressForBaseUrl).toHaveBeenCalledWith('http://new-gateway/v1');
   });
 
+  it('settings.llm 关掉后拒绝改本地模型设置', async () => {
+    setProductConfig({
+      settings: { llm: false },
+      llm: { model: 'deepseek-chat', baseUrl: 'https://api.deepseek.com' },
+    });
+    const router = makeRouter();
+    const denied = await router.handle({
+      method: 'POST',
+      path: '/api/v2/local-settings/llm',
+      body: { model: 'other' },
+    });
+    expect(denied.status).toBe(403);
+    const got = await router.handle({ method: 'GET', path: '/api/v2/local-settings/llm' });
+    expect(got.status).toBe(200);
+    expect(got.data).toMatchObject({ model: 'deepseek-chat' });
+  });
+
   it('GET/POST /api/v2/local-settings/telemetry：privacyMode 只认 full，其余归一 metadata', async () => {
     const router = makeRouter();
     const saved = await router.handle({

@@ -63,7 +63,13 @@ import { setDefaultExecTimeoutMs } from '../local-executor.js';
 import { allowEgressForBaseUrl, getActiveEgressBroker, getEgressPosture } from '../sidecar/egress-proxy.js';
 import { buildExecSandbox, parseExecPolicy } from '../sidecar/exec-sandbox.js';
 import { clampExecPolicy } from '../host-tools.js';
-import { getResolvedHostTools, resolveTurnApproval, resolveTurnChatMode } from '../host-tools-runtime.js';
+import {
+  getResolvedHostTools,
+  isProductLlmLocked,
+  resolveRuntimeLlmSettings,
+  resolveTurnApproval,
+  resolveTurnChatMode,
+} from '../host-tools-runtime.js';
 import { SidecarSupervisor } from '../sidecar/index.js';
 import { diagnoseLlmConnection } from './llm-diagnose.js';
 import {
@@ -1681,10 +1687,13 @@ export class LocalBackendRouter {
       if (method === 'GET') {
         return {
           status: 200,
-          data: await this.store.getLlmSettings(),
+          data: resolveRuntimeLlmSettings(await this.store.getLlmSettings()),
         };
       }
       if (method === 'POST') {
+        if (isProductLlmLocked()) {
+          return { status: 403, data: { error: 'LLM settings are product-locked' } };
+        }
         const payload = this.toRecord(request.body);
         const saved = await llmService.setSettings({
           provider: sanitizeLlmProvider(payload.provider),

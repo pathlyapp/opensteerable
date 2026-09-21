@@ -53,6 +53,20 @@ export interface ProductConfig {
    * 设置入口。缺省全开。`false` 藏对应侧栏页或综合设置分段。
    */
   settings?: Record<string, boolean>;
+  /**
+   * 产品钉死的大模型。`settings.llm === false` 时必填，运行时用这份，
+   * 不再读设置页。密钥用 `apiKeyEnv` 指向环境变量，不要把 key 写进仓库。
+   */
+  llm?: {
+    provider?: string;
+    vendorId?: string;
+    model?: string;
+    baseUrl?: string;
+    apiKey?: string;
+    apiKeyEnv?: string;
+    temperature?: number;
+    maxTotalTokens?: number;
+  };
 }
 
 let productConfig: ProductConfig | null = null;

@@ -15,6 +15,7 @@ import {
   useChatsAndAgents,
   type UseChatsAndAgentsResult,
 } from '@/hooks/useChatsAndAgents';
+import { hostToolChrome, sanitizeRightPanelKind } from '@/lib/host-tools';
 
 /**
  * AgentLayout wraps `/agent`, `/agent/:chatId`, and `/` (default) with a
@@ -272,14 +273,16 @@ function AgentLayoutContent() {
     try {
       const saved = window.localStorage.getItem(RIGHT_PANEL_KEY);
       if (saved !== null) {
-        return saved === 'terminal' || packChatSlots.some((s) => s.slotId === saved)
-          ? saved
-          : null;
+        const raw =
+          saved === 'terminal' || packChatSlots.some((s) => s.slotId === saved)
+            ? saved
+            : null;
+        return sanitizeRightPanelKind(raw);
       }
       // 新 key 不存在时才迁移老版本仅持久化终端的旧 key。
-      return window.localStorage.getItem(TERMINAL_OPEN_KEY) === '1'
-        ? 'terminal'
-        : null;
+      return sanitizeRightPanelKind(
+        window.localStorage.getItem(TERMINAL_OPEN_KEY) === '1' ? 'terminal' : null,
+      );
     } catch {
       return null;
     }
@@ -311,7 +314,8 @@ function AgentLayoutContent() {
       打开任一面板即离开任务 dock（栏位同一时刻只呈现一个内容）。 */
   const toggleRightPanel = useCallback(
     (kind: string) => {
-      const next: RightPanelState = rightPanelRef.current === kind ? null : kind;
+      const raw: RightPanelState = rightPanelRef.current === kind ? null : kind;
+      const next = sanitizeRightPanelKind(raw);
       rightPanelRef.current = next;
       if (next !== null) setInspectedTask(null);
       setRightPanelState(next);
@@ -363,6 +367,7 @@ function AgentLayoutContent() {
   }, []);
 
   const showTerminalFromTask = useCallback(() => {
+    if (!hostToolChrome('terminal')) return;
     setInspectedTask(null);
     rightPanelRef.current = 'terminal';
     setRightPanelState('terminal');
@@ -523,7 +528,9 @@ function AgentLayoutContent() {
                   <TaskProcessPanel
                     inspected={inspectedTask}
                     onClose={closeTaskProcess}
-                    onShowTerminal={showTerminalFromTask}
+                    onShowTerminal={
+                      hostToolChrome('terminal') ? showTerminalFromTask : undefined
+                    }
                   />
                 ) : rightPanel === 'terminal' ? (
                   <TerminalPanel

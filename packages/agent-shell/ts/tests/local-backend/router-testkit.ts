@@ -18,6 +18,7 @@
  * 真实拼装逻辑上，mock 只停在进程外边界。
  */
 import { vi } from 'vitest';
+import { resetProductConfigForTests } from '../../src/product-config.js';
 
 import type {
   ChatAgentRecord,
@@ -655,6 +656,7 @@ h.store = new FakeLocalStore();
 // ---------------------------------------------------------------------------
 
 export function resetRouterTestkit(): void {
+  resetProductConfigForTests();
   h.store.reset();
   h.supervisor = null;
   h.pendingSupervisor = null;

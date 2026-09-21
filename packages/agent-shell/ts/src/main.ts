@@ -25,6 +25,7 @@ import log from 'electron-log';
 import { getBrand } from './brand.js';
 import { getPreloadPath } from './runtime.js';
 import { getProductConfig } from './product-config.js';
+import { assertHostIpcAllowed, getResolvedHostTools } from './host-tools-runtime.js';
 import { createJsonStore } from './json-store.js';
 import { bindWorkspaceSkillRoots } from './local-backend/skill-loader.js';
 import { getUserDataDir } from './runtime.js';
@@ -480,19 +481,23 @@ function createMenu(): void {
     {
       label: '视图',
       submenu: [
-        {
-          label: '打开终端',
-          accelerator: 'CmdOrCtrl+T',
-          click: () => {
-            // 终端内嵌在主窗口的 /terminal 路由——通知 renderer 导航过去。
-            if (mainWindow && !mainWindow.isDestroyed()) {
-              mainWindow.show();
-              mainWindow.focus();
-              mainWindow.webContents.send('menu:open-terminal');
-            }
-          },
-        },
-        { type: 'separator' },
+        ...(getResolvedHostTools().terminal.chrome
+          ? ([
+              {
+                label: '打开终端',
+                accelerator: 'CmdOrCtrl+T',
+                click: () => {
+                  // 终端内嵌在主窗口的 /terminal 路由——通知 renderer 导航过去。
+                  if (mainWindow && !mainWindow.isDestroyed()) {
+                    mainWindow.show();
+                    mainWindow.focus();
+                    mainWindow.webContents.send('menu:open-terminal');
+                  }
+                },
+              },
+              { type: 'separator' },
+            ] as Electron.MenuItemConstructorOptions[])
+          : []),
         { role: 'reload', label: '重新加载' },
         { role: 'forceReload', label: '强制重新加载' },
         { type: 'separator' },
@@ -621,6 +626,7 @@ function setupIpcHandlers(): void {
         files?: Array<{ path?: string; name?: string; data?: string }>;
       },
     ) => {
+      assertHostIpcAllowed('attachments:save');
       const chatId = typeof input?.chatId === 'string' ? input.chatId : '';
       const files = Array.isArray(input?.files)
         ? input.files.filter(
@@ -672,7 +678,10 @@ function setupIpcHandlers(): void {
   });
   ipcMain.handle('local:read-file', async (_event, request: LocalFileReadRequest) => localExecutor.readLocalFile(request));
   ipcMain.handle('local:write-file', async (_event, request: LocalFileWriteRequest) => localExecutor.writeLocalFile(request));
-  ipcMain.handle('local:open-path', async (_event, request: LocalOpenRequest) => localExecutor.openLocalTarget(request));
+  ipcMain.handle('local:open-path', async (_event, request: LocalOpenRequest) => {
+    assertHostIpcAllowed('local:open-path');
+    return localExecutor.openLocalTarget(request);
+  });
   ipcMain.handle('local:list-scripts', async () => localScriptRegistry.list());
   ipcMain.handle('local:add-script', async (_event, input: CreateLocalScriptInput) => localScriptRegistry.create(input));
   ipcMain.handle('local:update-script', async (_event, payload: { id: string; updates: Partial<CreateLocalScriptInput> }) =>
@@ -829,11 +838,16 @@ function setupIpcHandlers(): void {
   // ---------------------------------------------------------------------------
   // Terminal IPC: visible PTY embedded in the main window's /terminal route
   // ---------------------------------------------------------------------------
-  ipcMain.handle('terminal:list', async () => terminalManager.list());
+  ipcMain.handle('terminal:list', async () => {
+    assertHostIpcAllowed('terminal:list');
+    return terminalManager.list();
+  });
   ipcMain.handle('terminal:spawn', async (_event, options: TerminalSpawnOptions = {}) => {
+    assertHostIpcAllowed('terminal:spawn');
     return terminalManager.spawn(options);
   });
   ipcMain.handle('terminal:ensure', async (event, options: TerminalSpawnOptions = {}) => {
+    assertHostIpcAllowed('terminal:ensure');
     const session = terminalManager.ensurePrimary(options);
     // Replay any output buffered before the renderer was attached, so the
     // window doesn't look empty if the agent kicked off a command before the
@@ -850,18 +864,24 @@ function setupIpcHandlers(): void {
     return session;
   });
   ipcMain.handle('terminal:write', async (_event, payload: { id: string; data: string }) => {
+    assertHostIpcAllowed('terminal:write');
     return terminalManager.write(payload.id, payload.data);
   });
   ipcMain.handle(
     'terminal:resize',
     async (_event, payload: { id: string; cols: number; rows: number }) => {
+      assertHostIpcAllowed('terminal:resize');
       return terminalManager.resize(payload.id, payload.cols, payload.rows);
     }
   );
-  ipcMain.handle('terminal:kill', async (_event, id: string) => terminalManager.kill(id));
+  ipcMain.handle('terminal:kill', async (_event, id: string) => {
+    assertHostIpcAllowed('terminal:kill');
+    return terminalManager.kill(id);
+  });
   ipcMain.handle(
     'terminal:exec',
     async (_event, payload: { id?: string; command: string; timeoutMs?: number }) => {
+      assertHostIpcAllowed('terminal:exec');
       let id = payload.id;
       if (!id) {
         const session = terminalManager.ensurePrimary();

@@ -22,6 +22,7 @@ import {
   readStoredExecPolicy,
   type ExecPolicy,
 } from "@/lib/exec-policy";
+import { hostToolChrome } from "@/lib/host-tools";
 import type { ExecutedAction } from "@/components/chat/ExecutedActionsCard";
 import { inspectTaskTitle, type InspectTaskInput } from "@/components/chat/executed-actions-model";
 import type { ChildInfo } from "@/components/chat/OrchestrationChildrenCard";
@@ -374,8 +375,9 @@ function AgentChatView({
   // 当前会话绑定的项目 — Codex 式 cwd 指示：输入框上方显示项目名徽章，
   // 点击可关联到其他项目 / 修改项目目录 / 移出项目。无项目会话不显示。
   const [projects, setProjects] = useState<LocalProject[]>([]);
+  const showProjectsChrome = hostToolChrome("projects");
   const fetchProjects = useCallback(async () => {
-    if (!isElectron()) return;
+    if (!isElectron() || !hostToolChrome("projects")) return;
     try {
       const res = await listProjects();
       setProjects(res.projects ?? []);
@@ -1134,25 +1136,31 @@ function AgentChatView({
         }
         mode={mode}
         onModeChange={handleModeChange}
-        execPolicy={execPolicy}
-        onExecPolicyChange={handleExecPolicyChange}
+        execPolicy={hostToolChrome("local-fs") ? execPolicy : "workspace"}
+        onExecPolicyChange={
+          hostToolChrome("local-fs") ? handleExecPolicyChange : undefined
+        }
         inputLeadingChrome={
-          <ChatProjectBadge
-            chatId={chatId}
-            project={chatProject}
-            projects={projects}
-            onProjectsChanged={fetchProjects}
-            onChatProjectChanged={ctx.refreshChats}
-          />
+          showProjectsChrome ? (
+            <ChatProjectBadge
+              chatId={chatId}
+              project={chatProject}
+              projects={projects}
+              onProjectsChanged={fetchProjects}
+              onChatProjectChanged={ctx.refreshChats}
+            />
+          ) : undefined
         }
         inputBanner={
           <>
             {/* W6-5 项目信任门控：项目含规则文件但未信任时提示授权。 */}
+            {showProjectsChrome ? (
             <ProjectTrustBanner
               chatId={chatId}
               project={chatProject}
               onTrustChanged={fetchProjects}
             />
+            ) : null}
             {planReady && !isStreaming ? (
             <div className="mx-2.5 mb-1 flex items-center justify-between gap-2 rounded-agent-md border border-amber-400/50 bg-amber-400/10 px-2.5 py-1.5 text-xs">
               <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
@@ -1234,8 +1242,9 @@ function EmptyChatGate() {
   useEffect(() => {
     setSelectedProjectId(projectIdFromUrl);
   }, [projectIdFromUrl]);
+  const showProjectsChrome = hostToolChrome("projects");
   const fetchProjects = useCallback(async () => {
-    if (!isElectron()) return;
+    if (!isElectron() || !hostToolChrome("projects")) return;
     try {
       const res = await listProjects();
       setProjects(res.projects ?? []);
@@ -1316,7 +1325,7 @@ function EmptyChatGate() {
     setCreateError(null);
     try {
       const id = await ctx.createChat({
-        ...(selectedProjectId ? { projectId: selectedProjectId } : {}),
+        ...(selectedProjectId && showProjectsChrome ? { projectId: selectedProjectId } : {}),
         ...(ctx.selectedAgentId ? { agentId: ctx.selectedAgentId } : {}),
       });
       if (!id) throw new Error("创建对话失败，请重试");
@@ -1377,7 +1386,7 @@ function EmptyChatGate() {
               />
             }
             leadingChrome={
-              isElectron() ? (
+              isElectron() && showProjectsChrome ? (
                 <ProjectPickerButton
                   projects={projects}
                   value={selectedProjectId}
@@ -1388,8 +1397,10 @@ function EmptyChatGate() {
             }
             mode={mode}
             onModeChange={handleModeChange}
-            execPolicy={execPolicy}
-            onExecPolicyChange={handleExecPolicyChange}
+            execPolicy={hostToolChrome("local-fs") ? execPolicy : "workspace"}
+            onExecPolicyChange={
+              hostToolChrome("local-fs") ? handleExecPolicyChange : undefined
+            }
             files={files}
             onFilesChange={setFiles}
             onMentionReferencesChange={setMentionReferences}

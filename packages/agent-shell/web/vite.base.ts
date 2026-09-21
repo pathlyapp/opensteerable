@@ -64,6 +64,9 @@ export function createProductViteConfig(options: ProductViteConfigOptions) {
       'import.meta.env.VITE_BRAND_TITLE': JSON.stringify(brand?.title ?? ''),
       'import.meta.env.VITE_BRAND_TAGLINE': JSON.stringify(brand?.tagline ?? '一款本地桌面 AI 伙伴'),
       'import.meta.env.VITE_DEFAULT_AGENT_ID': JSON.stringify(brand?.defaultAgentId ?? 'local-assistant'),
+      // 宿主工具族 / 安全询问：与 node 侧 setProductConfig 读同一份 product.json。
+      'import.meta.env.VITE_HOST_TOOLS': JSON.stringify(JSON.stringify(product.hostTools ?? {})),
+      'import.meta.env.VITE_APPROVAL': JSON.stringify(product.approval ?? 'host'),
     },
     resolve: {
       alias: {

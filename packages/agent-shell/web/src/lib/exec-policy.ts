@@ -6,6 +6,8 @@
  * = 关闭逐条命令沙箱。工具审批（允许/拒绝）仍按原策略生效。
  */
 
+import { hostToolChrome } from './host-tools';
+
 export type ExecPolicy = 'workspace' | 'full';
 
 export const EXEC_POLICY_STORAGE_KEY = 'agent-exec-policy';
@@ -16,6 +18,7 @@ export function parseExecPolicy(value: unknown): ExecPolicy {
 
 export function readStoredExecPolicy(): ExecPolicy {
   if (typeof localStorage === 'undefined') return 'workspace';
+  if (!hostToolChrome('local-fs')) return 'workspace';
   return parseExecPolicy(localStorage.getItem(EXEC_POLICY_STORAGE_KEY));
 }
 

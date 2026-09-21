@@ -14,6 +14,7 @@ import {
   type LocalExecutor,
 } from '../local-executor.js';
 import type { TerminalManager } from '../terminal-manager.js';
+import { getResolvedHostTools } from '../host-tools-runtime.js';
 
 export interface VisibleTerminalExecDeps {
   localExecutor: LocalExecutor;
@@ -45,6 +46,9 @@ export function createVisibleTerminalExec(deps: VisibleTerminalExecDeps) {
   const { localExecutor, terminalManager } = deps;
 
   return async function maybeExecInTerminal(req: LocalExecRequest): Promise<LocalExecResult | null> {
+    if (!getResolvedHostTools().terminal.chrome) {
+      return null;
+    }
     if (req.command) {
       req.command = rewriteExeCommandIfNeeded(req.command);
     }

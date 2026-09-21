@@ -103,6 +103,7 @@ import {
 import { parseChatTitle } from "@/lib/chat-title";
 import { getDateGroupLabel, getDateGroupPriority } from "@/lib/date-groups";
 import { getElectronBridge, isElectron } from "@/lib/electron-bridge";
+import { hostToolChrome } from "@/lib/host-tools";
 import {
   createProject,
   deleteProject,
@@ -173,7 +174,7 @@ function ProjectOverflowMenu({
   onClose: () => void;
   onRename: () => void;
   onChangeFolder: () => void;
-  onReveal: () => void;
+  onReveal?: () => void;
   onDelete: () => void;
 }) {
   const pos = placeProjectMenu(anchor);
@@ -229,6 +230,7 @@ function ProjectOverflowMenu({
           <LuFolderOpen className="h-3.5 w-3.5 shrink-0 text-agent-muted-foreground" />
           编辑项目
         </button>
+        {onReveal && (
         <button
           type="button"
           role="menuitem"
@@ -239,6 +241,7 @@ function ProjectOverflowMenu({
           <LuFolder className="h-3.5 w-3.5 shrink-0 text-agent-muted-foreground" />
           {revealLabel}
         </button>
+        )}
         <div className="mx-1 my-1 border-t border-agent-border/60" />
         <button
           type="button"
@@ -351,8 +354,10 @@ export function AgentSidebar({
     anchor: HTMLElement;
   } | null>(null);
 
+  const showProjectsChrome = hostToolChrome("projects");
+
   const fetchProjects = useCallback(async () => {
-    if (!isElectron()) return;
+    if (!isElectron() || !hostToolChrome("projects")) return;
     try {
       const res = await listProjects();
       setProjects(res.projects || []);
@@ -547,8 +552,11 @@ export function AgentSidebar({
   // 顶层按项目分组：无项目对话（含项目已被删但列表还没刷新的孤儿会话）
   // 保持原有的日期分组；每个项目一个分组，组内按 pin + 时间排序。
   const knownProjectIds = useMemo(
-    () => new Set(projects.map((p) => p.id)),
-    [projects],
+    () =>
+      showProjectsChrome
+        ? new Set(projects.map((p) => p.id))
+        : new Set<string>(),
+    [projects, showProjectsChrome],
   );
 
   const noProjectChats = useMemo(
@@ -561,11 +569,13 @@ export function AgentSidebar({
 
   const projectGroups = useMemo(
     () =>
-      projects.map((project) => ({
-        project,
-        items: normalizedChats.filter((c) => c.projectId === project.id),
-      })),
-    [projects, normalizedChats],
+      showProjectsChrome
+        ? projects.map((project) => ({
+            project,
+            items: normalizedChats.filter((c) => c.projectId === project.id),
+          }))
+        : [],
+    [projects, normalizedChats, showProjectsChrome],
   );
 
   const chatGroups = useMemo(() => {
@@ -750,15 +760,17 @@ export function AgentSidebar({
   // `menu:open-terminal`). Same pattern as `menu:new-chat` above. The
   // terminal is a toggleable panel beside the chat, so this just flips
   // the layout state owned by AgentLayout.
+  const showTerminalChrome = hostToolChrome("terminal");
+
   useEffect(() => {
-    if (!bridge?.onMenuOpenTerminal) return;
+    if (!showTerminalChrome || !bridge?.onMenuOpenTerminal) return;
     bridge.onMenuOpenTerminal(() => {
       onToggleRightPanel("terminal");
     });
     return () => {
       bridge.offMenuOpenTerminal?.();
     };
-  }, [bridge, onToggleRightPanel]);
+  }, [bridge, onToggleRightPanel, showTerminalChrome]);
 
   const hasElectron = isElectron();
 
@@ -861,7 +873,7 @@ export function AgentSidebar({
             </span>
           </button>
           <div className="flex items-center gap-1">
-            {hasElectron && (
+            {hasElectron && showProjectsChrome && (
               <button
                 type="button"
                 onClick={() => setCreateProjectOpen(true)}
@@ -893,7 +905,8 @@ export function AgentSidebar({
             ) : (
               <>
                 {/* 项目分组在前：组头可折叠，hover 出 + 新建对话 / ·· 菜单 */}
-                {projectGroups.map(({ project, items }) => (
+                {showProjectsChrome &&
+                  projectGroups.map(({ project, items }) => (
                   <div key={project.id} className="mb-1">
                     <div className="group/proj relative">
                       {renamingProjectId === project.id ? (
@@ -1036,6 +1049,7 @@ export function AgentSidebar({
       {/* ───── Footer: 右侧面板切换（终端 | 包槽位）+ 设置 ───── */}
       <div className="flex-shrink-0 border-t border-agent-border/40 px-2.5 py-1.5">
         {chatSlots.length === 0 ? (
+          showTerminalChrome ? (
           <button
             type="button"
             onClick={() => onToggleRightPanel("terminal")}
@@ -1054,12 +1068,14 @@ export function AgentSidebar({
               {isMac ? "⌘T" : "Ctrl+T"}
             </span>
           </button>
+          ) : null
         ) : (
           <div
             role="group"
             aria-label="右侧面板切换"
             className="flex h-7 w-full items-center gap-0.5 rounded-full bg-agent-foreground/5 p-0.5"
           >
+            {showTerminalChrome ? (
             <button
               type="button"
               onClick={() => onToggleRightPanel("terminal")}
@@ -1075,6 +1091,7 @@ export function AgentSidebar({
               <LuTerminal className="h-3.5 w-3.5" />
               <span>终端</span>
             </button>
+            ) : null}
             {chatSlots.map((slot) => (
               <button
                 key={slot.slotId}
@@ -1137,10 +1154,14 @@ export function AgentSidebar({
                 setProjectMenu(null);
                 setEditingProjectId(project.id);
               }}
-              onReveal={() => {
-                setProjectMenu(null);
-                void handleRevealProjectFolder(project.folderPath);
-              }}
+              onReveal={
+                hostToolChrome("local-fs")
+                  ? () => {
+                      setProjectMenu(null);
+                      void handleRevealProjectFolder(project.folderPath);
+                    }
+                  : undefined
+              }
               onDelete={() => void handleDeleteProject(project.id)}
             />
           );

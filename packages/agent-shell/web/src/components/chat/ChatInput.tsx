@@ -32,6 +32,7 @@ import {
 } from 'react-icons/lu';
 import type { LocalChat, LocalChatAgent } from '@/lib/local-api';
 import type { ExecPolicy } from '@/lib/exec-policy';
+import { hostToolChrome } from '@/lib/host-tools';
 import type { AttachmentFile } from '@/lib/attachments';
 import type { SteerOutcome } from '@steerable/agent-ui';
 import {
@@ -1112,8 +1113,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const trimmed = value.trim();
     const canSend = (trimmed.length > 0 || actualFiles.length > 0) && !disabled && !isStreaming;
 
+    const allowFileAttach = hostToolChrome('local-fs');
+
     const handleDragOver = (event: React.DragEvent) => {
       event.preventDefault();
+      if (!allowFileAttach) return;
       if (event.dataTransfer.types.includes('Files') && !disabled) {
         setIsDragging(true);
       }
@@ -1143,7 +1147,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     // 按钮点击 → 触发隐藏的 <input type="file" multiple>，由浏览器/Electron
     // 直接弹出系统文件选择框（不依赖 IPC，避免「点击无反应」）。
     const handlePickFiles = () => {
-      if (disabled) return;
+      if (disabled || !allowFileAttach) return;
       fileInputRef.current?.click();
     };
     const handleFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1158,7 +1162,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       event.preventDefault();
       setIsDragging(false);
 
-      if (disabled) return;
+      if (disabled || !allowFileAttach) return;
 
       const droppedFiles = Array.from(event.dataTransfer.files);
       if (droppedFiles.length > 0) {
@@ -1831,6 +1835,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                 />
               )}
               {toolbarExtras}
+              {allowFileAttach && (
+                <>
               <button
                 type="button"
                 onClick={handlePickFiles}
@@ -1851,6 +1857,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                 tabIndex={-1}
                 onChange={handleFileInputChange}
               />
+                </>
+              )}
               {onOpenSettings && (
                 <button
                   type="button"

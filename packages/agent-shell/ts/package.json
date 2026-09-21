@@ -15,6 +15,10 @@
   "type": "module",
   "main": "dist/runtime.js",
   "exports": {
+    "./host-tools": {
+      "types": "./dist/host-tools.d.ts",
+      "default": "./dist/host-tools.js"
+    },
     "./auth": {
       "types": "./dist/auth/index.d.ts",
       "default": "./dist/auth/index.js"

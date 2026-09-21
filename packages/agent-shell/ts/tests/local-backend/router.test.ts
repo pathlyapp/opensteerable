@@ -32,6 +32,7 @@ import type { ToolRouter } from '../../src/tool-router.js';
 import type { TaskService } from '../../src/local-backend/task-service.js';
 import { registerAuthProvider, type Principal } from '../../src/auth/index.js';
 import type { ScopedStore } from '../../src/storage/scoped-store.js';
+import { setProductConfig } from '../../src/product-config.js';
 
 function makeRouter(options: {
   toolRouter?: Record<string, unknown>;
@@ -630,6 +631,20 @@ describe('项目路由', () => {
 
     const list = await router.handle({ method: 'GET', path: '/api/v2/projects' });
     expect((list.data as Record<string, any>).projects).toHaveLength(1);
+  });
+
+  it('产品关掉 projects 时列表/创建返回 403', async () => {
+    setProductConfig({ hostTools: { projects: false } });
+    const registry = makeProjectRegistry();
+    const router = makeRouter({ toolRouter: makeToolRouter({ projectRegistry: registry }) });
+    const list = await router.handle({ method: 'GET', path: '/api/v2/projects' });
+    expect(list.status).toBe(403);
+    const created = await router.handle({
+      method: 'POST',
+      path: '/api/v2/projects',
+      body: { name: '演示', folderPath: '/tmp/demo' },
+    });
+    expect(created.status).toBe(403);
   });
 
   it('POST 不带 folderPath 时分配默认家目录并创建', async () => {

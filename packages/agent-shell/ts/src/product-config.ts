@@ -35,6 +35,16 @@ export interface ProductConfig {
    * 数据；中性 shell 缺省 'agent-shell.db'。
    */
   dbFileName?: string;
+  /**
+   * 宿主工具族：产品声明引入哪些工具。缺省全开。
+   * 形状由 host-tools 解析；本模块只存声明、不依赖解析器。
+   */
+  hostTools?: Record<string, boolean | { capability?: boolean; chrome?: boolean }>;
+  /**
+   * 命令安全询问：host = 弹宿主审批；off = 本轮不挂审批。缺省 host。
+   * STEERABLE_APPROVAL=0 仍是调试逃生口。
+   */
+  approval?: 'host' | 'off';
 }
 
 let productConfig: ProductConfig | null = null;
@@ -53,4 +63,9 @@ export function setProductConfig(config: ProductConfig): void {
 /** 读取已注入的产品配置；未注入返回空对象（中性框架行为）。 */
 export function getProductConfig(): ProductConfig {
   return productConfig ?? {};
+}
+
+/** 测试用：清掉已注入的产品配置，避免用例互相污染。 */
+export function resetProductConfigForTests(): void {
+  productConfig = null;
 }

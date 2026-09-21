@@ -27,6 +27,7 @@ import {
 } from './router-testkit.js';
 import { LocalBackendRouter } from '../../src/local-backend/router.js';
 import type { ToolRouter } from '../../src/tool-router.js';
+import { setProductConfig } from '../../src/product-config.js';
 
 function makeRouter(options: {
   toolRouter?: Record<string, unknown>;
@@ -1300,5 +1301,34 @@ describe('回合产物文件列表', () => {
     } finally {
       await fs.rm(work, { recursive: true, force: true });
     }
+  });
+});
+
+describe('产品宿主工具族钳死围栏与审批', () => {
+  it('approval:off 不挂 host 审批', async () => {
+    setProductConfig({ approval: 'off' });
+    const { seen } = installStream(() => {});
+    const chat = await seedChat();
+    await makeRouter().handleStream(
+      { method: 'POST', path: `/api/v2/chats/${chat.id}/send`, body: { message: 'hi' } },
+      makeEmitCapture().emit,
+    );
+    expect(seen[0].approval).toBeUndefined();
+    expect(seen[0].worldState.input.permissions.approval).toBe('off');
+  });
+
+  it('local-fs chrome 关掉时客户端 full 被钳死 workspace', async () => {
+    setProductConfig({ hostTools: { 'local-fs': { chrome: false } } });
+    const { seen } = installStream(() => {});
+    const chat = await seedChat();
+    await makeRouter().handleStream(
+      {
+        method: 'POST',
+        path: `/api/v2/chats/${chat.id}/send`,
+        body: { message: 'hi', execPolicy: 'full' },
+      },
+      makeEmitCapture().emit,
+    );
+    expect(seen[0].execSandbox.enabled).toBe(true);
   });
 });

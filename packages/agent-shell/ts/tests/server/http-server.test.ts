@@ -31,6 +31,7 @@ import {
 } from '../../src/server/http-server.js';
 import { registerPackHttpRoutes, resetPackHttpRoutes } from '../../src/host/http-routes.js';
 import { registerAuthProvider } from '../../src/auth/index.js';
+import { resetProductConfigForTests, setProductConfig } from '../../src/product-config.js';
 
 const mocks = vi.hoisted(() => ({
   selectNativeDirectory: vi.fn(),
@@ -127,6 +128,7 @@ describe('BS HTTP server', () => {
 
   afterEach(async () => {
     resetPackHttpRoutes();
+    resetProductConfigForTests();
     await new Promise<void>((resolve) => server.close(() => resolve()));
     rmSync(webDistDir, { recursive: true, force: true });
   });
@@ -639,6 +641,25 @@ describe('BS HTTP server', () => {
       expect(res.status).toBe(500);
       expect(await res.json()).toEqual({ detail: 'internal error' });
       expect(mocks.routerHandle).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('产品宿主工具族路由钳死', () => {
+    it('关掉终端 chrome 时 /host/terminal/* 返回 403', async () => {
+      setProductConfig({ hostTools: { terminal: false } });
+      const res = await get('/host/terminal/list');
+      expect(res.status).toBe(403);
+      expect(mocks.terminalList).not.toHaveBeenCalled();
+    });
+
+    it('local-fs 只关 chrome 时拒绝打开/附件，仍放行选目录与模型侧 exec', async () => {
+      setProductConfig({ hostTools: { 'local-fs': { chrome: false } } });
+      expect((await post('/host/local/open-path', { path: '/tmp' })).status).toBe(403);
+      expect((await post('/host/attachments/save', { chatId: 'c1', files: [] })).status).toBe(403);
+      mocks.selectNativeDirectory.mockResolvedValue({ canceled: true, filePaths: [] });
+      expect((await post('/host/local/select-directory', { title: '源文件夹' })).status).toBe(200);
+      mocks.executeShell.mockResolvedValue({ success: true });
+      expect((await post('/host/local/exec-shell', { command: 'pwd' })).status).toBe(200);
     });
   });
 });

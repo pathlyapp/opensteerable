@@ -1,0 +1,94 @@
+/**
+ * 渲染层读构建期注入的宿主工具族 / 安全询问。
+ * 解析规则与 ts/src/host-tools.ts 对齐：缺省全开；对象必须显式 chrome:true。
+ */
+
+export type HostToolFamilyId =
+  | 'terminal'
+  | 'local-fs'
+  | 'projects'
+  | 'background-tasks'
+  | 'mcp'
+  | 'web'
+  | 'plugins';
+
+export interface HostToolFamilySurface {
+  capability: boolean;
+  chrome: boolean;
+}
+
+export type HostToolsConfig = Partial<
+  Record<HostToolFamilyId, boolean | { capability?: boolean; chrome?: boolean }>
+>;
+
+export type ResolvedHostTools = Record<HostToolFamilyId, HostToolFamilySurface>;
+
+const FAMILY_IDS: readonly HostToolFamilyId[] = [
+  'terminal',
+  'local-fs',
+  'projects',
+  'background-tasks',
+  'mcp',
+  'web',
+  'plugins',
+];
+
+function resolveSurface(
+  value: boolean | { capability?: boolean; chrome?: boolean } | undefined,
+): HostToolFamilySurface {
+  if (value === undefined || value === true) return { capability: true, chrome: true };
+  if (value === false) return { capability: false, chrome: false };
+  return {
+    capability: value.capability !== false,
+    chrome: value.chrome === true,
+  };
+}
+
+export function resolveWebHostTools(config?: HostToolsConfig | null): ResolvedHostTools {
+  const out = {} as ResolvedHostTools;
+  for (const id of FAMILY_IDS) {
+    out[id] = resolveSurface(config?.[id]);
+  }
+  return out;
+}
+
+function readHostToolsConfig(): HostToolsConfig {
+  const raw = import.meta.env.VITE_HOST_TOOLS;
+  if (!raw) return {};
+  try {
+    const parsed = typeof raw === 'string' ? (JSON.parse(raw) as unknown) : raw;
+    return parsed && typeof parsed === 'object' ? (parsed as HostToolsConfig) : {};
+  } catch {
+    return {};
+  }
+}
+
+let cached: ResolvedHostTools | null = null;
+
+export function getWebHostTools(): ResolvedHostTools {
+  cached ??= resolveWebHostTools(readHostToolsConfig());
+  return cached;
+}
+
+export function hostToolChrome(id: HostToolFamilyId): boolean {
+  return getWebHostTools()[id].chrome;
+}
+
+export function hostToolCapability(id: HostToolFamilyId): boolean {
+  return getWebHostTools()[id].capability;
+}
+
+export function isWebApprovalEnabled(): boolean {
+  return import.meta.env.VITE_APPROVAL !== 'off';
+}
+
+export function sanitizeRightPanelKind(kind: string | null | undefined): string | null {
+  if (!kind) return null;
+  if (kind === 'terminal') return hostToolChrome('terminal') ? 'terminal' : null;
+  return kind;
+}
+
+/** 测试用：清掉缓存，让下次按新 env 重读。 */
+export function resetWebHostToolsForTests(): void {
+  cached = null;
+}

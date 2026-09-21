@@ -11,7 +11,8 @@
  *  - 项目模式显式 cd 到 req.cwd（共享 session 不会自己换目录）；
  *  - shell 枚举映射让 agent 看到真实方言。
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetProductConfigForTests, setProductConfig } from '../src/product-config.js';
 
 const mocks = vi.hoisted(() => ({
   detectDangerousCommand: vi.fn(() => null as string | null),
@@ -73,6 +74,17 @@ describe('mapSessionShell', () => {
 });
 
 describe('maybeExecInTerminal · 路由决策', () => {
+  afterEach(() => {
+    resetProductConfigForTests();
+  });
+
+  it('产品未引入可见终端时回退 headless', async () => {
+    setProductConfig({ hostTools: { terminal: false } });
+    const exec = makeExec();
+    expect(await exec({ command: 'pwd' })).toBeNull();
+    expect(mocks.ensurePrimary).not.toHaveBeenCalled();
+  });
+
   it('多行命令回退 headless（返回 null，不碰终端）', async () => {
     const exec = makeExec();
     expect(await exec({ command: 'ls\ncat x' })).toBeNull();

@@ -25,7 +25,6 @@
  */
 
 import path from 'node:path';
-import os from 'node:os';
 
 import { llmService, getSidecarSupervisor } from '../llm/index.js';
 import { sidecarWireProvider } from '../storage/llm-settings.js';
@@ -38,6 +37,7 @@ import {
 } from './coreloop-stream.js';
 import { builtinSubagentParam } from './subagent-profiles.js';
 import { buildExecSandbox } from '../sidecar/exec-sandbox.js';
+import { resolveTurnApproval } from '../host-tools-runtime.js';
 import type { WorktreeService } from './worktree-service.js';
 import {
   readSidecarHistoryEntries,
@@ -408,14 +408,7 @@ export class TaskService {
         ? await this.deps.resolveChatWorkspaceRoot(chatId)
         : null);
     const execSandbox = buildExecSandbox(fenceRoot ? [fenceRoot] : []);
-    const approval: SidecarChatStreamRequest['approval'] =
-      process.env.STEERABLE_APPROVAL === '0'
-        ? undefined
-        : {
-            mode: 'host',
-            timeoutMs: 120_000,
-            storePath: path.join(os.homedir(), '.steerable', 'approvals.json'),
-          };
+    const approval: SidecarChatStreamRequest['approval'] = resolveTurnApproval();
 
     // depth-1：任务回合没有 task_run（不能再派生任务），其余工具面与
     // 普通回合一致；task_status / task_result 保留（任务可以自查/互查）。

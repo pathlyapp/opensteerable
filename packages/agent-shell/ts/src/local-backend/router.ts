@@ -62,6 +62,8 @@ import { ToolRouter } from '../tool-router.js';
 import { setDefaultExecTimeoutMs } from '../local-executor.js';
 import { allowEgressForBaseUrl, getActiveEgressBroker, getEgressPosture } from '../sidecar/egress-proxy.js';
 import { buildExecSandbox, parseExecPolicy } from '../sidecar/exec-sandbox.js';
+import { clampExecPolicy } from '../host-tools.js';
+import { getResolvedHostTools, resolveTurnApproval } from '../host-tools-runtime.js';
 import { SidecarSupervisor } from '../sidecar/index.js';
 import { diagnoseLlmConnection } from './llm-diagnose.js';
 import {
@@ -557,6 +559,9 @@ export class LocalBackendRouter {
         typeof payload.projectId === 'string' && payload.projectId.trim()
           ? payload.projectId.trim()
           : null;
+      if (projectId && !getResolvedHostTools().projects.capability) {
+        return { status: 403, data: { detail: 'Projects are disabled for this product' } };
+      }
       if (projectId) {
         const project = this.toolRouter.projectRegistry?.get(projectId);
         if (!project) {
@@ -599,6 +604,12 @@ export class LocalBackendRouter {
     // ───── 项目模式：projects CRUD ─────
     // 项目记录存 electron-store（agent-projects.json），chat.project_id 存
     // SQLite。删除项目不删会话——会话降级为无项目对话。
+    if (
+      (pathname === '/api/v2/projects' || pathname.startsWith('/api/v2/projects/')) &&
+      !getResolvedHostTools().projects.capability
+    ) {
+      return { status: 403, data: { error: 'Projects are disabled for this product' } };
+    }
     if (pathname === '/api/v2/projects') {
       const registry = this.toolRouter.projectRegistry;
       if (!registry) {
@@ -855,6 +866,9 @@ export class LocalBackendRouter {
       // （必须真实存在，防止把会话挂到幽灵项目上）。
       let projectIdUpdate: string | null | undefined;
       if ('projectId' in payload) {
+        if (!getResolvedHostTools().projects.capability) {
+          return { status: 403, data: { detail: 'Projects are disabled for this product' } };
+        }
         if (payload.projectId === null) {
           projectIdUpdate = null;
         } else if (typeof payload.projectId === 'string' && payload.projectId) {
@@ -3312,21 +3326,15 @@ export class LocalBackendRouter {
         ...collectPackExecWritableRoots(chatId),
         workspaceRoot,
       ],
-      { policy: parseExecPolicy(payload.execPolicy) },
+      { policy: clampExecPolicy(parseExecPolicy(payload.execPolicy), getResolvedHostTools()) },
     );
 
     // W4-1: approval algebra, host mode — every tool call is gated by the
     // Electron approval UI over the reverse channel. The durable scope
     // (allow_always / deny_always) persists per tool category under
-    // ~/.steerable (writable inside the layer-1 sandbox). STEERABLE_APPROVAL=0
-    // restores the legacy ungated behavior.
-    const approval = process.env.STEERABLE_APPROVAL === '0'
-      ? undefined
-      : {
-          mode: 'host' as const,
-          timeoutMs: 120_000,
-          storePath: path.join(os.homedir(), '.steerable', 'approvals.json'),
-        };
+    // ~/.steerable (writable inside the layer-1 sandbox). 产品
+    // approval:"off" 或 STEERABLE_APPROVAL=0 本轮不挂审批。
+    const approval = resolveTurnApproval();
 
     let assistantText = '';
     const executedActions: Array<Record<string, unknown>> = [];

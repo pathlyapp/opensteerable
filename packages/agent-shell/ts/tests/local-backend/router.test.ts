@@ -657,6 +657,28 @@ describe('项目路由', () => {
     }
   });
 
+  it('POST 展开 ~ 源文件夹路径', async () => {
+    const documentsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'proj-tilde-'));
+    const prev = process.env.STEERABLE_DOCUMENTS_DIR;
+    process.env.STEERABLE_DOCUMENTS_DIR = documentsDir;
+    try {
+      const registry = makeProjectRegistry();
+      const router = makeRouter({ toolRouter: makeToolRouter({ projectRegistry: registry }) });
+      const created = await router.handle({
+        method: 'POST',
+        path: '/api/v2/projects',
+        body: { name: '演示', sourceFolders: ['~/src-a'] },
+      });
+      expect(created.status).toBe(200);
+      const project = (created.data as Record<string, any>).project;
+      expect(project.sourceFolders).toEqual([path.join(os.homedir(), 'src-a')]);
+    } finally {
+      if (prev === undefined) delete process.env.STEERABLE_DOCUMENTS_DIR;
+      else process.env.STEERABLE_DOCUMENTS_DIR = prev;
+      fs.rmSync(documentsDir, { recursive: true, force: true });
+    }
+  });
+
   it('PUT /api/v2/projects/:id：不存在 404，其他校验错误 400', async () => {
     const registry = makeProjectRegistry([
       { id: 'proj-1', name: '旧名', folderPath: '/tmp/p1', trusted: false },

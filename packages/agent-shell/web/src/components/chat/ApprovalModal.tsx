@@ -161,8 +161,8 @@ export function ApprovalPromptMenu({
                 </p>
               )}
               <p className="mt-2 text-[11px] leading-relaxed text-agent-muted-foreground">
-                默认在工作区沙箱中执行（只能写入当前项目）。写入 Downloads
-                等项目外路径会被系统拒绝；需要时在输入框把沙箱切到「完整权限」后再让
+                默认在工作区沙箱中执行（只能写入当前项目或本对话工作区）。写入
+                Downloads 等工作区外路径会被系统拒绝；需要时在输入框把沙箱切到「完整权限」后再让
                 Agent 重试。
               </p>
             </>

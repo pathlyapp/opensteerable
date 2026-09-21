@@ -7,11 +7,22 @@
  */
 
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { getBrand } from './brand.js';
 import { getDocumentsDir } from './runtime.js';
 
 const UNSAFE_DIR_CHARS = /[\\/:*?"<>|]/g;
+
+/** 把 `~` / `~/…` 展开成绝对路径；其它输入原样（已 trim）。 */
+export function expandUserPath(folder: string): string {
+  const trimmed = folder.trim();
+  if (trimmed === '~') return os.homedir();
+  if (trimmed.startsWith('~/') || trimmed.startsWith('~\\')) {
+    return path.join(os.homedir(), trimmed.slice(2));
+  }
+  return trimmed;
+}
 
 export function sanitizeProjectDirName(name: string): string {
   const trimmed = name
@@ -58,4 +69,35 @@ export function allocateProjectHome(
 
 export function ensureProjectHome(folderPath: string): void {
   fs.mkdirSync(folderPath, { recursive: true });
+}
+
+/** 无项目对话的工作区子目录名（与托管项目家目录并列，避免撞名）。 */
+export const CHAT_WORKSPACES_DIR = 'conversations';
+
+/**
+ * 无项目对话的工作区路径：`Documents/<应用名>/conversations/<chatId>/`。
+ * 不落盘；调用方用 {@link ensureChatWorkspace} 创建。
+ */
+export function chatWorkspacePath(
+  chatId: string,
+  options?: {
+    documentsDir?: string;
+    appFolderName?: string;
+  },
+): string {
+  const id = sanitizeProjectDirName(chatId);
+  return path.join(appProjectsRoot(options), CHAT_WORKSPACES_DIR, id);
+}
+
+/** 确保无项目对话工作区存在，返回绝对路径。 */
+export function ensureChatWorkspace(
+  chatId: string,
+  options?: {
+    documentsDir?: string;
+    appFolderName?: string;
+  },
+): string {
+  const folderPath = chatWorkspacePath(chatId, options);
+  ensureProjectHome(folderPath);
+  return folderPath;
 }

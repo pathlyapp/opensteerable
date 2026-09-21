@@ -2,12 +2,16 @@
  * 项目默认家目录：Documents/<应用名>/<项目名>/，重名追加 -2。
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import os, { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
   allocateProjectHome,
   appProjectsRoot,
+  chatWorkspacePath,
+  CHAT_WORKSPACES_DIR,
+  ensureChatWorkspace,
+  expandUserPath,
   sanitizeProjectDirName,
 } from '../src/project-home.js';
 
@@ -17,6 +21,14 @@ afterEach(() => {
   for (const dir of temps.splice(0)) {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+describe('expandUserPath', () => {
+  it('展开 ~ 与 ~/…，其它路径只 trim', () => {
+    expect(expandUserPath('~')).toBe(os.homedir());
+    expect(expandUserPath('~/src')).toBe(path.join(os.homedir(), 'src'));
+    expect(expandUserPath('  /tmp/a  ')).toBe('/tmp/a');
+  });
 });
 
 describe('sanitizeProjectDirName', () => {
@@ -48,5 +60,23 @@ describe('allocateProjectHome', () => {
     expect(appProjectsRoot({ documentsDir: '/tmp/docs', appFolderName: 'Steerable Shell' })).toBe(
       path.join('/tmp/docs', 'Steerable Shell'),
     );
+  });
+});
+
+describe('ensureChatWorkspace', () => {
+  it('落在 Documents/应用名/conversations/chatId 并创建目录', () => {
+    const documentsDir = mkdtempSync(path.join(tmpdir(), 'chat-ws-'));
+    temps.push(documentsDir);
+    const folder = ensureChatWorkspace('chat-abc', {
+      documentsDir,
+      appFolderName: '测试助手',
+    });
+    expect(folder).toBe(
+      path.join(documentsDir, '测试助手', CHAT_WORKSPACES_DIR, 'chat-abc'),
+    );
+    expect(folder).toBe(
+      chatWorkspacePath('chat-abc', { documentsDir, appFolderName: '测试助手' }),
+    );
+    expect(existsSync(folder)).toBe(true);
   });
 });

@@ -18,7 +18,7 @@ export interface ReverseToolDeps {
   onBlocked?: (info: { command: string; rules: string[] }) => void;
   /**
    * 项目模式：按 chatId 解析项目根（绝对路径），无绑定/已删除返回 null。
-   * main.ts 注入 LocalBackendRouter.resolveChatProject 的适配；未注入时
+   * main.ts 注入对话可写根（项目家目录或无项目对话工作区）；未注入时
    * 项目围栏不生效（CLI/test 场景）。
    */
   resolveProjectRoot?: (chatId: string) => Promise<string | null>;

@@ -540,7 +540,7 @@ vi.mock('../../src/llm/index.js', () => ({
 vi.mock('../../src/runtime.js', () => ({
   getAppRootDir: () => '/tmp/app-root',
   getDocumentsDir: () =>
-    process.env.STEERABLE_DOCUMENTS_DIR || `${process.env.HOME ?? '/tmp'}/Documents`,
+    process.env.STEERABLE_DOCUMENTS_DIR || '/tmp/steerable-test-documents',
   shellOpenPath: (target: string) => h.shellOpenPath(target),
 }));
 

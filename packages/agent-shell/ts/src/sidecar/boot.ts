@@ -37,7 +37,7 @@ import type { SidecarReverseHandler } from './types.js';
 export interface HostSidecarDeps {
   store: ScopedStore;
   toolRouter: ToolRouter;
-  /** W4-2 项目模式围栏：chatId → 项目根（无项目对话返回 null）。 */
+  /** W4-2 围栏：chatId → 项目家目录或无项目对话工作区。 */
   resolveProjectRoot: (chatId: string) => Promise<string | null>;
   /**
    * 项目模式之外额外放行的只读根（会话附件目录等）。文件写入仍只受

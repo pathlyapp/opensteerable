@@ -253,6 +253,36 @@ describe('会话路由', () => {
     expect(await h.store.getChat(data.chatId)).not.toBeNull();
   });
 
+  it('无项目对话工作区落在 Documents/应用名/conversations/<chatId>', async () => {
+    const documentsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-ws-'));
+    const prev = process.env.STEERABLE_DOCUMENTS_DIR;
+    process.env.STEERABLE_DOCUMENTS_DIR = documentsDir;
+    try {
+      const router = makeRouter();
+      const created = await router.handle({ method: 'POST', path: '/api/v2/chats/new', body: {} });
+      const chatId = (created.data as Record<string, any>).chatId as string;
+      const root = await router.resolveChatWorkspaceRoot(chatId);
+      expect(root).toBe(path.join(documentsDir, 'Steerable Shell', 'conversations', chatId));
+      expect(fs.existsSync(root)).toBe(true);
+
+      const registry = makeProjectRegistry([
+        { id: 'proj-1', name: '项目一', folderPath: '/tmp/proj-1', trusted: false },
+      ]);
+      const boundRouter = makeRouter({ toolRouter: makeToolRouter({ projectRegistry: registry }) });
+      const bound = await boundRouter.handle({
+        method: 'POST',
+        path: '/api/v2/chats/new',
+        body: { projectId: 'proj-1' },
+      });
+      const boundId = (bound.data as Record<string, any>).chatId as string;
+      expect(await boundRouter.resolveChatWorkspaceRoot(boundId)).toBe('/tmp/proj-1');
+    } finally {
+      if (prev === undefined) delete process.env.STEERABLE_DOCUMENTS_DIR;
+      else process.env.STEERABLE_DOCUMENTS_DIR = prev;
+      fs.rmSync(documentsDir, { recursive: true, force: true });
+    }
+  });
+
   it('POST /api/v2/chats/new 带存在的 projectId 绑定项目；不存在则 400', async () => {
     const registry = makeProjectRegistry([
       { id: 'proj-1', name: '项目一', folderPath: '/tmp/proj-1', trusted: false },
@@ -1737,13 +1767,17 @@ describe('resolve-paths 路由', () => {
     }
   });
 
-  it('未绑定项目的会话：相对路径按 home 落地', async () => {
-    const name = `resolve-paths-home-${Date.now()}.txt`;
-    const target = path.join(os.homedir(), name);
-    fs.writeFileSync(target, 'x');
+  it('未绑定项目的会话：相对路径按对话工作区落地', async () => {
+    const documentsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'resolve-ws-'));
+    const prev = process.env.STEERABLE_DOCUMENTS_DIR;
+    process.env.STEERABLE_DOCUMENTS_DIR = documentsDir;
+    const name = `resolve-paths-ws-${Date.now()}.txt`;
     try {
       const router = makeRouter();
       const chat = await h.store.createChat('新对话', 'agent-a');
+      const root = await router.resolveChatWorkspaceRoot(chat.id);
+      const target = path.join(root, name);
+      fs.writeFileSync(target, 'x');
       const res = await router.handle({
         method: 'POST',
         path: '/api/v2/local/resolve-paths',
@@ -1753,7 +1787,9 @@ describe('resolve-paths 路由', () => {
         resolved: [{ candidate: `./${name}`, path: target, isDirectory: false }],
       });
     } finally {
-      fs.rmSync(target, { force: true });
+      if (prev === undefined) delete process.env.STEERABLE_DOCUMENTS_DIR;
+      else process.env.STEERABLE_DOCUMENTS_DIR = prev;
+      fs.rmSync(documentsDir, { recursive: true, force: true });
     }
   });
 

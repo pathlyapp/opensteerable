@@ -397,6 +397,7 @@ export function createBsServer(deps: BsServerDeps): Server {
       return;
     }
 
+    log.warn(`[bs] ${method} ${pathname} -> 404`);
     sendJson(res, 404, { detail: `Unknown host endpoint: ${method} ${pathname}` });
   }
 

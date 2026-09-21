@@ -22,6 +22,9 @@ Design:
 - **Children stay out of the parent record.** A child's transcript is its
   own loop's; hosts that want child traces subscribe via ``event_sink``
   (lifecycle events with lineage) or wrap children in their own hooks.
+- **Session state is isolated.** A child runs with its durable record id as
+  ``chat_id`` when available, otherwise a pool-local id, so session-scoped
+  tools such as ``todo_write`` cannot overwrite a sibling or parent list.
 """
 
 from __future__ import annotations
@@ -30,6 +33,7 @@ import asyncio
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
+from itertools import count
 from typing import Any
 
 from .llm import LLMMessage
@@ -40,6 +44,7 @@ logger = logging.getLogger(__name__)
 #: Grace between a cooperative close (``loop.cancel()``) and the hard-cancel
 #: backstop for a child that fails to wind down.
 _CLOSE_GRACE_S = 2.0
+_POOL_CONTEXT_SEQUENCE = count(1)
 
 
 class OrchestrationBudgetExceeded(Exception):
@@ -144,6 +149,7 @@ class AgentPool:
         self._config = config
         self._depth = depth
         self._lineage = lineage
+        self._context_namespace = next(_POOL_CONTEXT_SEQUENCE)
         self._loop_factory = loop_factory
         self._event_sink = event_sink
         self._children: dict[str, _ChildHandle] = {}
@@ -241,7 +247,14 @@ class AgentPool:
         answer_parts: list[str] = []
         status = "completed"
         try:
-            async for event in handle.loop.run(seed, tools=handle.schemas):
+            async for event in handle.loop.run(
+                seed,
+                tools=handle.schemas,
+                chat_id=(
+                    handle.loop.record_id
+                    or f"subagent:{self._context_namespace}:{handle.child_id}"
+                ),
+            ):
                 if event.kind == "content_delta":
                     answer_parts.append(str(event.data.get("delta") or ""))
                 elif event.kind == "completion":

@@ -250,9 +250,11 @@ from .spill import FilesystemSpillStore, InMemorySpillStore, SpillHooks, SpillSt
 from .storage import StorageAdapter
 from .subagent import (
     FilteredToolsExecutor,
+    PARENT_INPUT_TOOL_NAME,
     SubagentConfig,
     SubagentExecutor,
     SubagentRegistry,
+    parent_input_tool_descriptor,
     subagent_tool_descriptor,
 )
 from .tokens import (
@@ -285,6 +287,7 @@ __all__ = [
     "MODEL_INFOS",
     "MODEL_PRICES",
     "MODEL_TOKEN_FACTORS",
+    "PARENT_INPUT_TOOL_NAME",
     "REASONING_EFFORT_ORDER",
     "RECORD_FORMAT_VERSION",
     "ReasoningEffortUnsupported",
@@ -465,6 +468,7 @@ __all__ = [
     "load_transcript",
     "make_ask_user_tool",
     "make_todo_write_tool",
+    "parent_input_tool_descriptor",
     "matches_conditions",
     "mcp_invoker",
     "merge_patch",

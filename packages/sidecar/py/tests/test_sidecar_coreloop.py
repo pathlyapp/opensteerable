@@ -1149,6 +1149,146 @@ async def test_subagent_optin_advertises_and_executes_delegation() -> None:
 
 
 @pytest.mark.asyncio
+async def test_subagent_can_use_todo_write_with_an_isolated_child_context() -> None:
+    """The sidecar-local todo tool is assembled before the subagent snapshots
+    its tool domain, and the child dispatches it under its own record id."""
+    from steerable_sidecar.todo_tools import register_todo_write, todo_store
+
+    provider = _ScriptedProvider(
+        [
+            _tool_round(
+                ToolCall(
+                    id="d1",
+                    name="delegate_subagent",
+                    arguments={"task": "plan and finish"},
+                )
+            ),
+            _tool_round(
+                ToolCall(
+                    id="t1",
+                    name="todo_write",
+                    arguments={
+                        "todos": [
+                            {
+                                "id": "child-step",
+                                "content": "finish child work",
+                                "status": "completed",
+                            }
+                        ]
+                    },
+                )
+            ),
+            _text_round("child answer"),
+            _text_round("parent final"),
+        ]
+    )
+    sidecar = _make_sidecar(provider)
+    register_todo_write(sidecar.tools)
+
+    _sid, events = await _run_stream(
+        sidecar,
+        {
+            "provider": "openai_compat",
+            "model": "fake",
+            "chatId": "chat-todo-child",
+            "messages": [{"role": "user", "content": "delegate"}],
+            "useCoreLoop": True,
+            "toolsViaHost": True,
+        },
+    )
+
+    child_tools = [
+        tool["function"]["name"]
+        for tool in (provider.stream_kwargs[1].get("tools") or [])
+    ]
+    assert "todo_write" in child_tools
+    assert "ask_user" not in child_tools
+    assert todo_store().get("chat-todo-child") == []
+    assert todo_store().get("chat-todo-child:child:0.1") == [
+        {
+            "id": "child-step",
+            "content": "finish child work",
+            "status": "completed",
+        }
+    ]
+    done = [payload for method, payload in events if method == "stream.done"]
+    assert done[0]["status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_subagent_explicit_empty_tool_filter_excludes_todo_write() -> None:
+    """An explicit allowlist remains exact; session tools do not widen it."""
+    from steerable_sidecar.todo_tools import register_todo_write
+
+    provider = _ScriptedProvider(
+        [
+            _tool_round(
+                ToolCall(
+                    id="d1",
+                    name="delegate_subagent",
+                    arguments={
+                        "task": "try todo",
+                        "subagent_type": "restricted",
+                    },
+                )
+            ),
+            _tool_round(
+                ToolCall(
+                    id="t1",
+                    name="todo_write",
+                    arguments={
+                        "todos": [
+                            {
+                                "id": "blocked",
+                                "content": "must not persist",
+                                "status": "completed",
+                            }
+                        ]
+                    },
+                )
+            ),
+            _text_round("todo was denied"),
+            _text_round("parent final"),
+        ]
+    )
+    sidecar = _make_sidecar(provider)
+    register_todo_write(sidecar.tools)
+
+    _sid, events = await _run_stream(
+        sidecar,
+        {
+            "provider": "openai_compat",
+            "model": "fake",
+            "chatId": "chat-filtered-child",
+            "messages": [{"role": "user", "content": "delegate"}],
+            "useCoreLoop": True,
+            "toolsViaHost": True,
+            "subagent": {
+                "profiles": {
+                    "restricted": {
+                        "toolFilter": [],
+                    }
+                }
+            },
+        },
+    )
+
+    child_tools = [
+        tool["function"]["name"]
+        for tool in (provider.stream_kwargs[1].get("tools") or [])
+    ]
+    assert child_tools == ["request_parent_input"]
+    child_retry = "\n".join(
+        str(getattr(message, "content_text", "") or "")
+        for message in provider.seen_messages[2]
+    )
+    assert "tool_not_delegated" in child_retry
+    assert "todo_write" in child_retry
+    done = [payload for method, payload in events if method == "stream.done"]
+    assert done[0]["status"] == "completed"
+
+
+@pytest.mark.asyncio
 async def test_subagent_on_by_default() -> None:
     """Delegate-on-pool unification: delegate_subagent is the default
     multi-agent surface — no params needed for the descriptor to reach the

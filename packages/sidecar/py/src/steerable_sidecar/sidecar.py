@@ -1875,6 +1875,22 @@ class Sidecar:
                 store=JsonApprovalStore(store_path) if store_path else None,
                 timeout_s=(float(timeout_ms) / 1000.0) if timeout_ms else None,
             )
+        # Child-safe sidecar-local tools must be visible and dispatchable
+        # before SubagentExecutor snapshots its tool domain. User interaction
+        # is deliberately absent: children report questions through
+        # request_parent_input and the parent owns ask_user.
+        child_local_names: list[str] = []
+        if self.tools.get("todo_write") is not None:
+            from steerable_agent_runtime import todo_write_tool_descriptor
+            from .run_code import RunCodeBoundExecutor
+
+            child_local_names.append("todo_write")
+            tools = [*(tools or []), todo_write_tool_descriptor()]
+            executor = RunCodeBoundExecutor(
+                executor,
+                router=self.tools,
+                local_names=child_local_names,
+            )
         # subagent: the delegation seam is ON BY DEFAULT (delegate-on-pool
         # unification) — delegate_subagent is the model's single multi-agent
         # surface; the six-tool orchestration family below is the opt-in
@@ -2127,13 +2143,11 @@ class Sidecar:
             # (mirrors subagent/skills above) or the model never sees run_code.
             tools = [*(tools or []), run_code_tool_descriptor()]
         # todo_write: session task list (CC TodoWrite parity). Registered
-        # unconditionally at boot, so it is advertised every turn; dispatch
-        # is intercepted locally like run_code (the host does not know it).
+        # unconditionally at boot and advertised above before the subagent
+        # snapshots its domain. Keep it in this outer dispatcher too so
+        # parent run_code calls capture the complete executor chain.
         if self.tools.get("todo_write") is not None:
-            from steerable_agent_runtime import todo_write_tool_descriptor
-
             local_names.append("todo_write")
-            tools = [*(tools or []), todo_write_tool_descriptor()]
         # run_js/wait_js: conversational JS PTC (the codex CodeModeHost
         # counterpart). Same router-answered local dispatch as run_code; the
         # session binds to this run's chatId inside the tool.

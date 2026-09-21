@@ -63,6 +63,23 @@ describe('mcp-server-registry / CRUD', () => {
     expect(registry.getCachedTools(entry.id)).toBeNull();
   });
 
+  it('seedProductServers 按需写入，同名不覆盖', () => {
+    const registry = makeRegistry();
+    registry.seedProductServers(undefined);
+    expect(registry.list()).toEqual([]);
+    registry.seedProductServers([
+      { name: 'notes', command: 'npx', args: ['-y', 'apple-notes-mcp'] },
+    ]);
+    expect(registry.list()).toHaveLength(1);
+    expect(registry.list()[0].command).toBe('npx');
+    registry.update(registry.list()[0].id, { command: 'uvx' });
+    registry.seedProductServers([
+      { name: 'notes', command: 'npx', args: ['-y', 'apple-notes-mcp'] },
+    ]);
+    expect(registry.list()).toHaveLength(1);
+    expect(registry.get('notes')?.command).toBe('uvx');
+  });
+
   it('delete 移除并失效缓存；不存在的 id 返回 false', () => {
     const registry = makeRegistry();
     const entry = registry.create({ name: 'a', command: 'npx' });

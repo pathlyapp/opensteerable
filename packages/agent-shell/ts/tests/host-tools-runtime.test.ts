@@ -2,7 +2,12 @@
  * 产品注入的 hostTools / approval 是服务端真源。
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { resetProductConfigForTests, setProductConfig } from '../src/product-config.js';
+import {
+  isShellBuiltinAgentEnabled,
+  isShellBuiltinSkillEnabled,
+  resetProductConfigForTests,
+  setProductConfig,
+} from '../src/product-config.js';
 import {
   getResolvedHostTools,
   isProductApprovalEnabled,
@@ -65,6 +70,34 @@ describe('resolveTurnChatMode', () => {
   it('产品只留 agent 时客户端 plan 被钳死', () => {
     setProductConfig({ chatModes: ['agent'] });
     expect(resolveTurnChatMode('plan')).toBe('agent');
+  });
+});
+
+describe('isShellBuiltinAgentEnabled', () => {
+  it('未声明或缺省全关', () => {
+    expect(isShellBuiltinAgentEnabled('local-assistant')).toBe(false);
+    expect(isShellBuiltinAgentEnabled('all-round-assistant')).toBe(false);
+  });
+
+  it('产品显式 true 才引入', () => {
+    setProductConfig({ builtinAgents: { 'local-assistant': true } });
+    expect(isShellBuiltinAgentEnabled('local-assistant')).toBe(true);
+    expect(isShellBuiltinAgentEnabled('all-round-assistant')).toBe(false);
+  });
+});
+
+describe('isShellBuiltinSkillEnabled', () => {
+  it('未声明或缺省全关', () => {
+    expect(isShellBuiltinSkillEnabled('00-identity')).toBe(false);
+  });
+
+  it('true 引入全部；对象只开点名的目录', () => {
+    setProductConfig({ builtinSkills: true });
+    expect(isShellBuiltinSkillEnabled('00-identity')).toBe(true);
+    resetProductConfigForTests();
+    setProductConfig({ builtinSkills: { '80-tool-usage': true } });
+    expect(isShellBuiltinSkillEnabled('80-tool-usage')).toBe(true);
+    expect(isShellBuiltinSkillEnabled('00-identity')).toBe(false);
   });
 });
 

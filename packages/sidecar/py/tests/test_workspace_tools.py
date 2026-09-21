@@ -15,6 +15,7 @@ from steerable_sidecar import workspace_tools as workspace_tools_mod
 from steerable_sidecar.workspace_tools import (
     _BASH_SCHEMA,
     _MAX_OUTPUT,
+    follow_log_wait,
     pgrep_self_wait,
     refuse_truncated_overwrite,
     short_timeout_wrap,
@@ -502,10 +503,19 @@ def test_short_timeout_wrap_detects_vm_compile() -> None:
     assert not short_timeout_wrap("timeout 3600 qemu-system-x86_64 -nographic")
 
 
+def test_follow_log_wait_detects_blocking_tail() -> None:
+    assert follow_log_wait('tail -f -n 0 build.log | grep -m1 "BUILD_SUCCESS"')
+    assert follow_log_wait("tail --follow=name /tmp/build.log")
+    assert follow_log_wait("tail -Fn 20 /tmp/build.log")
+    assert not follow_log_wait("tail -n 20 /tmp/build.log")
+    assert not follow_log_wait("printf '%s' '-f'; tail build.log")
+
+
 def test_bash_schema_warns_against_short_timeout() -> None:
     desc = _BASH_SCHEMA["properties"]["command"]["description"]
     assert "timeout N" in desc
     assert "3600s" in desc
+    assert "tail -f" in desc
 
 
 @pytest.mark.asyncio
@@ -541,6 +551,20 @@ async def test_bash_refuses_short_timeout_wrap(tmp_path: Path) -> None:
     assert refused.success is False
     assert "timeout" in (refused.error or "")
     assert "3600s" in (refused.error or "")
+
+
+@pytest.mark.asyncio
+async def test_bash_refuses_follow_log_wait(tmp_path: Path) -> None:
+    router = workspace_tools_for_cwd(tmp_path)
+    refused = await _call(
+        router,
+        "bash",
+        {"command": 'tail -f -n 0 build.log | grep -m1 "BUILD_SUCCESS"'},
+    )
+    assert refused.success is False
+    assert refused.needsFollowup is True
+    assert "tail -f" in (refused.error or "")
+    assert "wait" in (refused.error or "")
 
 
 def test_refuse_truncated_overwrite_thresholds() -> None:

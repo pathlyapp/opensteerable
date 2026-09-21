@@ -57,7 +57,8 @@ _BASH_SCHEMA = {
                 "not poll with `sleep 290`. Do not wrap compile, VM, or train "
                 "in `timeout N` with N under 300 — bash already caps at 3600s. "
                 "Do not wait with `while pgrep -f ...` (pgrep matches the "
-                "wait loop). Background long jobs and `wait $!`, or poll a "
+                "wait loop). Do not `tail -f` a log until a string appears. "
+                "Background long jobs and `wait $!`, or poll a "
                 "pidfile."
             ),
         },
@@ -99,6 +100,20 @@ _SHORT_TIMEOUT_MAX_SEC = 299
 _SHORT_TIMEOUT_ERROR = (
     "Refusing `timeout N` around compile/VM with N under 300s. Bash already "
     "caps at 3600s. Drop the timeout wrapper so the job can finish."
+)
+# cheap-12 compile-compcert hung Harbor 7200s on
+# `tail -f … | grep -m1 BUILD_SUCCESS`. Same class as pgrep-self-wait:
+# the bash tool never returns, so Harbor's wait_for raises AgentTimeoutError
+# and evals.run fails the smoke job.
+_FOLLOW_LOG_CMD = re.compile(r"\btail\b[^\n|;]{0,80}", re.IGNORECASE)
+_FOLLOW_LOG_FLAG = re.compile(
+    r"(?:--follow\b|(?<![-\w])-F\b|(?<![-\w])-\w*f\w*)",
+    re.IGNORECASE,
+)
+_FOLLOW_LOG_ERROR = (
+    "Refusing `tail -f` / `tail --follow`: it blocks this bash call until "
+    "the file grows or the 3600s cap. Background the job "
+    "(`cmd & pid=$!`) and `wait \"$pid\"`, or poll a pidfile."
 )
 _READ_SCHEMA = {
     "type": "object",
@@ -549,6 +564,10 @@ def workspace_tools_for_cwd(
         if short_timeout_wrap(command):
             return ToolResult(
                 success=False, error=_SHORT_TIMEOUT_ERROR, needsFollowup=True
+            )
+        if follow_log_wait(command):
+            return ToolResult(
+                success=False, error=_FOLLOW_LOG_ERROR, needsFollowup=True
             )
         return await run(command, root)
 
@@ -1263,6 +1282,19 @@ def short_timeout_wrap(command: str) -> bool:
         if int(match.group(1)) <= _SHORT_TIMEOUT_MAX_SEC:
             return True
     return False
+
+
+def follow_log_wait(command: str) -> bool:
+    """True when ``command`` follows a file with ``tail -f`` / ``--follow``.
+
+    A one-shot ``tail -n 20`` is fine. ``tail -f … | grep -m1`` is not:
+    bash holds the loop until the compile finishes or Harbor kills the trial.
+    """
+    text = command or ""
+    return any(
+        _FOLLOW_LOG_FLAG.search(chunk.group(0))
+        for chunk in _FOLLOW_LOG_CMD.finditer(text)
+    )
 
 
 def _resolve_under(root: Path, path: str, *, jailed: bool = False) -> Path:

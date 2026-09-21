@@ -410,7 +410,13 @@ def any_verifier_reward(jobs_dir: Path) -> bool:
 
 
 def _trial_outcomes(jobs_dir: Path) -> dict[str, str]:
-    """task id → ``1`` / ``0`` / ``exception``. Later Harbor jobs overwrite."""
+    """Task id → ``1`` / ``0`` / ``exception``. Later Harbor jobs overwrite.
+
+    A verifier reward wins over an exception from the same trial. Harbor
+    records an ``AgentTimeoutError`` as an exception even after running the
+    verifier and assigning reward 0; that is a scored task failure, not an
+    unscored harness error.
+    """
     out: dict[str, str] = {}
     for result in sorted(jobs_dir.glob("*/result.json")):
         try:
@@ -492,11 +498,15 @@ def _print_summary(jobs_dir: Path, *, require_mean: float | None = None) -> int:
         print(f"harbor result missing stats: {latest}", file=sys.stderr)
         return EXIT_HARBOR
     print(json.dumps(stats, indent=2, sort_keys=True))
+    outcomes = _trial_outcomes(jobs_dir)
     if len(results) == 1:
-        errored = int(stats.get("n_errored_trials") or 0)
+        errored = (
+            sum(1 for value in outcomes.values() if value == "exception")
+            if outcomes
+            else int(stats.get("n_errored_trials") or 0)
+        )
         mean = _job_mean(stats)
     else:
-        outcomes = _trial_outcomes(jobs_dir)
         errored = sum(1 for value in outcomes.values() if value == "exception")
         n = len(outcomes)
         ones = sum(1 for value in outcomes.values() if value.startswith("1"))
@@ -509,6 +519,16 @@ def _print_summary(jobs_dir: Path, *, require_mean: float | None = None) -> int:
     _append_github_step_summary(latest, mean=mean, n_errored=int(errored))
     if errored:
         print(f"harbor reported {errored} errored trial(s)", file=sys.stderr)
+        return EXIT_HARBOR
+    incomplete = sum(
+        int(stats.get(key) or 0)
+        for key in ("n_running_trials", "n_pending_trials", "n_cancelled_trials")
+    )
+    if incomplete:
+        print(
+            f"harbor result has {incomplete} incomplete trial(s)",
+            file=sys.stderr,
+        )
         return EXIT_HARBOR
     if require_mean is not None:
         if mean is None or mean + 1e-9 < require_mean:

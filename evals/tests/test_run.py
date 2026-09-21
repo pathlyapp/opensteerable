@@ -323,6 +323,31 @@ def test_env_start_error_tasks_detects_dataset_remote_protocol(tmp_path: Path) -
     assert any_verifier_reward(tmp_path) is False
 
 
+def test_env_start_error_tasks_ignores_scored_agent_timeout(tmp_path: Path) -> None:
+    """Agent execution uses compose exec too; its traceback is not startup."""
+    trial = tmp_path / "2026-09-21__14-58-33" / "raman-fitting__u74ELUP"
+    trial.mkdir(parents=True)
+    traceback = (
+        "File harbor/environments/docker/docker.py in _run_docker_compose_command\n"
+        "asyncio.exceptions.CancelledError\n"
+        "harbor.trial.errors.AgentTimeoutError: timed out after 2700 seconds\n"
+    )
+    (trial / "exception.txt").write_text(traceback)
+    (trial / "result.json").write_text(
+        json.dumps(
+            {
+                "verifier_result": {"rewards": {"reward": 0.0}},
+                "exception_info": {
+                    "exception_type": "AgentTimeoutError",
+                    "exception_message": "timed out after 2700 seconds",
+                    "exception_traceback": traceback,
+                },
+            }
+        )
+    )
+    assert env_start_error_tasks(tmp_path) == ()
+
+
 def test_empty_shard_is_skipped_only_for_an_explicit_task_list(capsys) -> None:
     """Finishing a cancelled catalog dispatches fewer ids than the matrix has
     shards. A split still has to fill every shard or its tail goes unnoticed."""

@@ -329,6 +329,24 @@ def _env_start_hit(text: str) -> bool:
     return any(marker in lowered for marker in _ENV_START_MARKERS)
 
 
+def _trial_has_verifier_reward(trial_dir: Path) -> bool:
+    """True when Harbor already produced a score for this trial.
+
+    Agent timeouts unwind through Docker's compose-exec implementation, so
+    their traceback contains ``_run_docker_compose_command`` too. Once the
+    verifier assigned reward 0 or 1, the trial is complete and must not be
+    retried as an environment-start failure.
+    """
+    try:
+        payload = json.loads((trial_dir / "result.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    if not isinstance(payload, dict):
+        return False
+    rewards = ((payload.get("verifier_result") or {}).get("rewards")) or {}
+    return rewards.get("reward") is not None
+
+
 def env_start_error_tasks(jobs_dir: Path) -> tuple[str, ...]:
     """Catalog ids whose Harbor trial died in docker compose / image pull."""
     found: list[str] = []
@@ -343,6 +361,8 @@ def env_start_error_tasks(jobs_dir: Path) -> tuple[str, ...]:
         found.append(task)
 
     for exc in sorted(jobs_dir.rglob("exception.txt")):
+        if _trial_has_verifier_reward(exc.parent):
+            continue
         try:
             text = exc.read_text(encoding="utf-8", errors="replace")
         except OSError:
@@ -358,7 +378,12 @@ def env_start_error_tasks(jobs_dir: Path) -> tuple[str, ...]:
             payload = json.loads(result.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             continue
-        info = payload.get("exception_info") if isinstance(payload, dict) else None
+        if not isinstance(payload, dict):
+            continue
+        rewards = ((payload.get("verifier_result") or {}).get("rewards")) or {}
+        if rewards.get("reward") is not None:
+            continue
+        info = payload.get("exception_info")
         if not isinstance(info, dict):
             continue
         text = " ".join(

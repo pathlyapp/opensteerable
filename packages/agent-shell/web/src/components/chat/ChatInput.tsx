@@ -32,7 +32,7 @@ import {
 } from 'react-icons/lu';
 import type { LocalChat, LocalChatAgent } from '@/lib/local-api';
 import type { ExecPolicy } from '@/lib/exec-policy';
-import { getWebChatModes, hostToolChrome, settingsChrome } from '@/lib/host-tools';
+import { getWebChatModes, hostToolCapability, settingsChrome } from '@/lib/host-tools';
 import type { AttachmentFile } from '@/lib/attachments';
 import type { SteerOutcome } from '@steerable/agent-ui';
 import {
@@ -1113,7 +1113,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const trimmed = value.trim();
     const canSend = (trimmed.length > 0 || actualFiles.length > 0) && !disabled && !isStreaming;
 
-    const allowFileAttach = hostToolChrome('local-fs');
+    const allowFileAttach = hostToolCapability('local-fs');
 
     const handleDragOver = (event: React.DragEvent) => {
       event.preventDefault();
@@ -1844,6 +1844,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                 className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-agent-muted-foreground transition-colors hover:bg-agent-foreground/5 hover:text-agent-foreground disabled:cursor-not-allowed disabled:opacity-50"
                 title="上传文件（可多选）"
                 aria-label="上传文件"
+                data-testid="chat-attach"
               >
                 <LuPaperclip className="h-3 w-3" />
               </button>

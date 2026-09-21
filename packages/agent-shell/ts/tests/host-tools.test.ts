@@ -67,11 +67,11 @@ describe('clampExecPolicy', () => {
 describe('isHostRouteAllowed', () => {
   const etown = resolveHostTools(etownConfig);
 
-  it('公文：可见终端与本机打开/附件入口拒绝；选目录留给项目/技能', () => {
+  it('公文：可见终端与本机打开拒绝；附件跟能力走，选目录留给项目/技能', () => {
     expect(isHostRouteAllowed('/host/terminal/list', etown)).toBe(false);
     expect(isHostRouteAllowed('/host/terminal/exec', etown)).toBe(false);
     expect(isHostRouteAllowed('/host/local/open-path', etown)).toBe(false);
-    expect(isHostRouteAllowed('/host/attachments/save', etown)).toBe(false);
+    expect(isHostRouteAllowed('/host/attachments/save', etown)).toBe(true);
     expect(isHostRouteAllowed('/host/local/select-directory', etown)).toBe(true);
   });
 
@@ -197,11 +197,17 @@ describe('isHostIpcAllowed', () => {
     expect(isHostIpcAllowed('terminal:list', resolveHostTools({ terminal: true }))).toBe(true);
   });
 
-  it('本机打开 / 附件入口跟 chrome 走；选目录与模型侧 local:* 仍开', () => {
+  it('本机打开跟 chrome 走；附件跟能力走；选目录与模型侧 local:* 仍开', () => {
     expect(isHostIpcAllowed('local:open-path', etown)).toBe(false);
-    expect(isHostIpcAllowed('attachments:save', etown)).toBe(false);
+    expect(isHostIpcAllowed('attachments:save', etown)).toBe(true);
     expect(isHostIpcAllowed('local:select-directory', etown)).toBe(true);
     expect(isHostIpcAllowed('local:exec-shell', etown)).toBe(true);
     expect(isHostIpcAllowed('local:read-file', etown)).toBe(true);
+  });
+
+  it('整族关掉后附件入口也关', () => {
+    const off = resolveHostTools({ 'local-fs': false });
+    expect(isHostIpcAllowed('attachments:save', off)).toBe(false);
+    expect(isHostRouteAllowed('/host/attachments/save', off)).toBe(false);
   });
 });

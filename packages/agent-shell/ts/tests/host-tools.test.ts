@@ -8,12 +8,14 @@ import {
   clampChatMode,
   clampExecPolicy,
   familyForHostToolName,
+  hasGeneralSettingsChrome,
   isApprovalEnabled,
   isHostIpcAllowed,
   isHostRouteAllowed,
   isHostToolCapabilityEnabled,
   resolveChatModes,
   resolveHostTools,
+  resolveSettingsChrome,
   sanitizeRightPanelKind,
 } from '../src/host-tools.js';
 
@@ -158,6 +160,31 @@ describe('resolveChatModes / clampChatMode', () => {
 
   it('空数组回落 Agent', () => {
     expect(resolveChatModes([])).toEqual(['agent']);
+  });
+});
+
+describe('resolveSettingsChrome', () => {
+  it('缺省全开', () => {
+    const chrome = resolveSettingsChrome();
+    expect(chrome.appearance).toBe(true);
+    expect(chrome.llm).toBe(true);
+    expect(chrome.agents).toBe(true);
+    expect(hasGeneralSettingsChrome(chrome)).toBe(true);
+  });
+
+  it('false 藏入口；关了的宿主工具族一并藏对应设置段', () => {
+    const chrome = resolveSettingsChrome(
+      { diagnose: false, security: false, telemetry: false },
+      resolveHostTools({ mcp: false, plugins: false, web: false }),
+    );
+    expect(chrome.appearance).toBe(true);
+    expect(chrome.llm).toBe(true);
+    expect(chrome.diagnose).toBe(false);
+    expect(chrome.security).toBe(false);
+    expect(chrome.telemetry).toBe(false);
+    expect(chrome.mcp).toBe(false);
+    expect(chrome.skills).toBe(false);
+    expect(chrome['web-search']).toBe(false);
   });
 });
 

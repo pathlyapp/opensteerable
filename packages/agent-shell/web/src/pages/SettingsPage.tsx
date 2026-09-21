@@ -19,12 +19,15 @@ import { TelemetrySettingsPanel } from '@/components/settings/TelemetrySettingsP
 import { UsagePanel } from '@/components/settings/UsagePanel';
 import { WebSearchSettingsPanel } from '@/components/settings/WebSearchSettingsPanel';
 import { getPackSettingsPanels } from '@/packs/registry';
+import { settingsChrome } from '@/lib/host-tools';
 import type { AgentOutletContext } from '@/layouts/AgentLayout';
 
 type SettingsSection = 'skills' | 'mcp' | 'agents' | 'general';
 
 function resolveSection(raw: string | null): SettingsSection {
-  if (raw === 'skills' || raw === 'mcp' || raw === 'agents') return raw;
+  if (raw === 'skills' && settingsChrome('skills')) return 'skills';
+  if (raw === 'mcp' && settingsChrome('mcp')) return 'mcp';
+  if (raw === 'agents' && settingsChrome('agents')) return 'agents';
   return 'general';
 }
 
@@ -61,7 +64,7 @@ export function SettingsPage() {
     <div className="flex h-full w-full flex-col overflow-hidden">
       <header className="flex h-9 flex-shrink-0 items-center justify-between gap-2 border-b border-agent-border px-2.5">
         <h1 className="text-xs font-semibold text-agent-foreground">{title}</h1>
-        {section === 'general' && (
+        {section === 'general' && settingsChrome('llm') && (
           <SettingsSaveButton
             testId="settings-header-save"
             saving={llmSaveUi.saving}
@@ -112,6 +115,7 @@ export function SettingsPage() {
 
           {section === 'general' && (
             <>
+              {settingsChrome('appearance') && (
               <section className="space-y-2" data-testid="settings-section-appearance">
                 <h2 className="flex items-center gap-1.5 text-xs font-semibold text-agent-foreground">
                   <LuMonitor className="h-3.5 w-3.5 text-agent-muted-foreground" />
@@ -119,7 +123,9 @@ export function SettingsPage() {
                 </h2>
                 <AppearanceSettingsPanel />
               </section>
+              )}
 
+              {settingsChrome('llm') && (
               <section className="space-y-2" data-testid="settings-section-llm">
                 <h2 className="flex items-center gap-1.5 text-xs font-semibold text-agent-foreground">
                   <LuSettings className="h-3.5 w-3.5 text-agent-muted-foreground" />
@@ -131,7 +137,9 @@ export function SettingsPage() {
                   onSaveUiChange={setLlmSaveUi}
                 />
               </section>
+              )}
 
+              {settingsChrome('web-search') && (
               <section className="space-y-2" data-testid="settings-section-web-search">
                 <h2 className="flex items-center gap-1.5 text-xs font-semibold text-agent-foreground">
                   <LuSearch className="h-3.5 w-3.5 text-agent-muted-foreground" />
@@ -139,7 +147,9 @@ export function SettingsPage() {
                 </h2>
                 <WebSearchSettingsPanel />
               </section>
+              )}
 
+              {settingsChrome('usage') && (
               <section className="space-y-2" data-testid="settings-section-usage">
                 <h2 className="flex items-center gap-1.5 text-xs font-semibold text-agent-foreground">
                   <LuChartBar className="h-3.5 w-3.5 text-agent-muted-foreground" />
@@ -147,7 +157,9 @@ export function SettingsPage() {
                 </h2>
                 <UsagePanel />
               </section>
+              )}
 
+              {settingsChrome('diagnose') && (
               <section className="space-y-2" data-testid="settings-section-diagnose">
                 <h2 className="flex items-center gap-1.5 text-xs font-semibold text-agent-foreground">
                   <LuNetwork className="h-3.5 w-3.5 text-agent-muted-foreground" />
@@ -155,7 +167,9 @@ export function SettingsPage() {
                 </h2>
                 <DiagnoseSettingsPanel />
               </section>
+              )}
 
+              {settingsChrome('security') && (
               <section className="space-y-2" data-testid="settings-section-security">
                 <h2 className="flex items-center gap-1.5 text-xs font-semibold text-agent-foreground">
                   <LuShieldCheck className="h-3.5 w-3.5 text-agent-muted-foreground" />
@@ -163,7 +177,9 @@ export function SettingsPage() {
                 </h2>
                 <SecuritySettingsPanel />
               </section>
+              )}
 
+              {settingsChrome('insights') && (
               <section className="space-y-2" data-testid="settings-section-insights">
                 <h2 className="flex items-center gap-1.5 text-xs font-semibold text-agent-foreground">
                   <LuChartBar className="h-3.5 w-3.5 text-agent-muted-foreground" />
@@ -171,7 +187,9 @@ export function SettingsPage() {
                 </h2>
                 <InsightsSettingsPanel />
               </section>
+              )}
 
+              {settingsChrome('telemetry') && (
               <section className="space-y-2" data-testid="settings-section-telemetry">
                 <h2 className="flex items-center gap-1.5 text-xs font-semibold text-agent-foreground">
                   <LuActivity className="h-3.5 w-3.5 text-agent-muted-foreground" />
@@ -179,6 +197,7 @@ export function SettingsPage() {
                 </h2>
                 <TelemetrySettingsPanel />
               </section>
+              )}
 
               {/* 场景包设置面板（1.2 起由包渲染层贡献）。
                   包经 packs/registry 注册，未激活 flavor 的产物里没有包组件。 */}

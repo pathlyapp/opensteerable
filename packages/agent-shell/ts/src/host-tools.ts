@@ -51,6 +51,73 @@ export function clampChatMode(
   return requested === 'plan' && modes.includes('plan') ? 'plan' : 'agent';
 }
 
+/** 设置入口：侧栏页 + 综合设置分段。缺省全开；`false` 只藏入口。 */
+export const SETTINGS_ITEM_IDS = [
+  'agents',
+  'skills',
+  'mcp',
+  'appearance',
+  'llm',
+  'web-search',
+  'usage',
+  'diagnose',
+  'security',
+  'insights',
+  'telemetry',
+] as const;
+
+export type SettingsItemId = (typeof SETTINGS_ITEM_IDS)[number];
+
+export const GENERAL_SETTINGS_ITEM_IDS = [
+  'appearance',
+  'llm',
+  'web-search',
+  'usage',
+  'diagnose',
+  'security',
+  'insights',
+  'telemetry',
+] as const;
+
+export type SettingsChromeConfig = Partial<Record<SettingsItemId, boolean>>;
+
+export type ResolvedSettingsChrome = Record<SettingsItemId, boolean>;
+
+function settingsFollowsHostTool(
+  id: SettingsItemId,
+  tools: ResolvedHostTools,
+): boolean {
+  if (id === 'skills') return tools.plugins.chrome;
+  if (id === 'mcp') return tools.mcp.chrome;
+  if (id === 'web-search') return tools.web.chrome;
+  return true;
+}
+
+/**
+ * 产品 `settings`：未声明的项全开。关了的宿主工具族会一并藏对应设置段
+ * （skills←plugins、mcp、web-search←web）。
+ */
+export function resolveSettingsChrome(
+  value?: unknown,
+  tools: ResolvedHostTools = resolveHostTools(),
+): ResolvedSettingsChrome {
+  const config =
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  const out = {} as ResolvedSettingsChrome;
+  for (const id of SETTINGS_ITEM_IDS) {
+    out[id] = config[id] !== false && settingsFollowsHostTool(id, tools);
+  }
+  return out;
+}
+
+export function hasGeneralSettingsChrome(
+  chrome: ResolvedSettingsChrome = resolveSettingsChrome(),
+): boolean {
+  return GENERAL_SETTINGS_ITEM_IDS.some((id) => chrome[id]);
+}
+
 export const LOCAL_FS_TOOL_NAMES = [
   'local_exec_shell',
   'local_read_file',

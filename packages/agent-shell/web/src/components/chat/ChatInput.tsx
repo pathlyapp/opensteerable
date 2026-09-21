@@ -32,7 +32,7 @@ import {
 } from 'react-icons/lu';
 import type { LocalChat, LocalChatAgent } from '@/lib/local-api';
 import type { ExecPolicy } from '@/lib/exec-policy';
-import { getWebChatModes, hostToolChrome } from '@/lib/host-tools';
+import { getWebChatModes, hostToolChrome, settingsChrome } from '@/lib/host-tools';
 import type { AttachmentFile } from '@/lib/attachments';
 import type { SteerOutcome } from '@steerable/agent-ui';
 import {
@@ -2150,6 +2150,7 @@ function AgentSelect({
               </button>
             );
           })}
+          {settingsChrome('agents') && (
           <button
             type="button"
             role="menuitem"
@@ -2163,6 +2164,7 @@ function AgentSelect({
             <LuBot className="h-3.5 w-3.5 shrink-0" />
             <span className="text-xs font-medium">管理智能体</span>
           </button>
+          )}
         </div>
       )}
     </div>

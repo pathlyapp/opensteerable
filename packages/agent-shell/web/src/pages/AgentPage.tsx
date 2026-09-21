@@ -22,7 +22,7 @@ import {
   readStoredExecPolicy,
   type ExecPolicy,
 } from "@/lib/exec-policy";
-import { clampWebChatMode, hostToolChrome } from "@/lib/host-tools";
+import { clampWebChatMode, hostToolChrome, settingsChrome } from "@/lib/host-tools";
 import type { ExecutedAction } from "@/components/chat/ExecutedActionsCard";
 import { inspectTaskTitle, type InspectTaskInput } from "@/components/chat/executed-actions-model";
 import type { ChildInfo } from "@/components/chat/OrchestrationChildrenCard";
@@ -1122,7 +1122,9 @@ function AgentChatView({
         suggestedReplies={visibleSuggestedReplies}
         onSelectSuggestion={handleSelectSuggestion}
         onOpenSettings={
-          isElectron() ? () => setLlmSettingsOpen(true) : undefined
+          isElectron() && settingsChrome("llm")
+            ? () => setLlmSettingsOpen(true)
+            : undefined
         }
         inputToolbarExtras={
           <ModelPicker
@@ -1190,7 +1192,7 @@ function AgentChatView({
           </>
         }
       />
-      {isElectron() && (
+      {isElectron() && settingsChrome("llm") && (
         <LocalLlmSettingsModal
           open={llmSettingsOpen}
           onClose={() => setLlmSettingsOpen(false)}
@@ -1374,7 +1376,9 @@ function EmptyChatGate() {
             selectedAgentId={ctx.selectedAgentId}
             onSelectAgent={handleSelectAgent}
             onOpenSettings={
-              isElectron() ? () => setLlmSettingsOpen(true) : undefined
+              isElectron() && settingsChrome("llm")
+                ? () => setLlmSettingsOpen(true)
+                : undefined
             }
             toolbarExtras={
               <ModelPicker
@@ -1422,7 +1426,7 @@ function EmptyChatGate() {
           </p>
         )}
       </div>
-      {isElectron() && (
+      {isElectron() && settingsChrome("llm") && (
         <LocalLlmSettingsModal
           open={llmSettingsOpen}
           onClose={() => setLlmSettingsOpen(false)}

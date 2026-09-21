@@ -113,6 +113,85 @@ export function clampWebChatMode(requested: unknown): ChatModeId {
   return requested === 'plan' && getWebChatModes().includes('plan') ? 'plan' : 'agent';
 }
 
+export const SETTINGS_ITEM_IDS = [
+  'agents',
+  'skills',
+  'mcp',
+  'appearance',
+  'llm',
+  'web-search',
+  'usage',
+  'diagnose',
+  'security',
+  'insights',
+  'telemetry',
+] as const;
+
+export type SettingsItemId = (typeof SETTINGS_ITEM_IDS)[number];
+
+export const GENERAL_SETTINGS_ITEM_IDS = [
+  'appearance',
+  'llm',
+  'web-search',
+  'usage',
+  'diagnose',
+  'security',
+  'insights',
+  'telemetry',
+] as const;
+
+export type SettingsChromeConfig = Partial<Record<SettingsItemId, boolean>>;
+
+export type ResolvedSettingsChrome = Record<SettingsItemId, boolean>;
+
+function settingsFollowsHostTool(id: SettingsItemId, tools: ResolvedHostTools): boolean {
+  if (id === 'skills') return tools.plugins.chrome;
+  if (id === 'mcp') return tools.mcp.chrome;
+  if (id === 'web-search') return tools.web.chrome;
+  return true;
+}
+
+export function resolveWebSettingsChrome(
+  value?: unknown,
+  tools: ResolvedHostTools = resolveWebHostTools(),
+): ResolvedSettingsChrome {
+  const config =
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  const out = {} as ResolvedSettingsChrome;
+  for (const id of SETTINGS_ITEM_IDS) {
+    out[id] = config[id] !== false && settingsFollowsHostTool(id, tools);
+  }
+  return out;
+}
+
+function readSettingsConfig(): unknown {
+  const raw = import.meta.env.VITE_SETTINGS;
+  if (!raw) return undefined;
+  try {
+    return typeof raw === 'string' ? JSON.parse(raw) : raw;
+  } catch {
+    return undefined;
+  }
+}
+
+let cachedSettings: ResolvedSettingsChrome | null = null;
+
+export function getWebSettingsChrome(): ResolvedSettingsChrome {
+  cachedSettings ??= resolveWebSettingsChrome(readSettingsConfig(), getWebHostTools());
+  return cachedSettings;
+}
+
+export function settingsChrome(id: SettingsItemId): boolean {
+  return getWebSettingsChrome()[id];
+}
+
+export function hasGeneralSettingsChrome(): boolean {
+  const chrome = getWebSettingsChrome();
+  return GENERAL_SETTINGS_ITEM_IDS.some((id) => chrome[id]);
+}
+
 export function sanitizeRightPanelKind(kind: string | null | undefined): string | null {
   if (!kind) return null;
   if (kind === 'terminal') return hostToolChrome('terminal') ? 'terminal' : null;
@@ -123,4 +202,5 @@ export function sanitizeRightPanelKind(kind: string | null | undefined): string 
 export function resetWebHostToolsForTests(): void {
   cached = null;
   cachedModes = null;
+  cachedSettings = null;
 }

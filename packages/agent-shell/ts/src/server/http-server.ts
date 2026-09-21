@@ -44,6 +44,8 @@ import { saveAttachmentFiles } from '../attachments.js';
 import { selectNativeDirectory } from '../native-folder-dialog.js';
 import type { SseBus } from './sse-bus.js';
 import { getAuthProvider, type Principal } from '../auth/index.js';
+import { isHostRouteAllowed } from '../host-tools.js';
+import { getResolvedHostTools } from '../host-tools-runtime.js';
 
 /** 与 router.handleStream 内部的路由正则保持一致——只有这些路径是流式。 */
 const STREAM_PATH_PATTERNS = [
@@ -212,6 +214,10 @@ export function createBsServer(deps: BsServerDeps): Server {
   async function handleHost(req: IncomingMessage, res: ServerResponse, pathname: string): Promise<void> {
     const body = asRecord(await readJsonBody(req));
     const method = req.method ?? 'GET';
+    if (!isHostRouteAllowed(pathname, getResolvedHostTools())) {
+      sendJson(res, 403, { detail: 'Host route is disabled for this product' });
+      return;
+    }
 
     if (method === 'GET' && pathname === '/host/info') {
       const brand = getBrand();

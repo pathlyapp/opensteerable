@@ -7,8 +7,11 @@ import path from 'node:path';
 import { getProductConfig } from './product-config.js';
 import {
   buildHostApproval,
+  clampChatMode,
   isHostIpcAllowed,
+  resolveChatModes,
   resolveHostTools,
+  type ChatModeId,
   type HostToolsConfig,
   type ResolvedHostTools,
 } from './host-tools.js';
@@ -41,4 +44,8 @@ export function assertHostIpcAllowed(channel: string): void {
   if (!isHostIpcAllowed(channel, getResolvedHostTools())) {
     throw new Error(`${channel} is disabled for this product`);
   }
+}
+
+export function resolveTurnChatMode(requested: unknown): ChatModeId {
+  return clampChatMode(requested, resolveChatModes(getProductConfig().chatModes));
 }

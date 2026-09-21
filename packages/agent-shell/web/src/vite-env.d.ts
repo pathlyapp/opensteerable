@@ -8,6 +8,7 @@ interface ImportMetaEnv {
   readonly VITE_DEFAULT_AGENT_ID?: string;
   readonly VITE_HOST_TOOLS?: string;
   readonly VITE_APPROVAL?: string;
+  readonly VITE_CHAT_MODES?: string;
 }
 
 interface ImportMeta {

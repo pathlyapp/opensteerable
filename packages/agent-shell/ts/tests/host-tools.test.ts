@@ -5,12 +5,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildHostApproval,
+  clampChatMode,
   clampExecPolicy,
   familyForHostToolName,
   isApprovalEnabled,
   isHostIpcAllowed,
   isHostRouteAllowed,
   isHostToolCapabilityEnabled,
+  resolveChatModes,
   resolveHostTools,
   sanitizeRightPanelKind,
 } from '../src/host-tools.js';
@@ -138,6 +140,24 @@ describe('isApprovalEnabled', () => {
       timeoutMs: 120_000,
       storePath: '/tmp/a.json',
     });
+  });
+});
+
+describe('resolveChatModes / clampChatMode', () => {
+  it('缺省 Agent + Plan', () => {
+    expect(resolveChatModes(undefined)).toEqual(['agent', 'plan']);
+    expect(clampChatMode('plan')).toBe('plan');
+  });
+
+  it('只声明 Agent 时钳死 plan', () => {
+    const modes = resolveChatModes(['agent']);
+    expect(modes).toEqual(['agent']);
+    expect(clampChatMode('plan', modes)).toBe('agent');
+    expect(clampChatMode('agent', modes)).toBe('agent');
+  });
+
+  it('空数组回落 Agent', () => {
+    expect(resolveChatModes([])).toEqual(['agent']);
   });
 });
 

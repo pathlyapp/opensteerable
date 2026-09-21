@@ -7,6 +7,7 @@ import {
   getResolvedHostTools,
   isProductApprovalEnabled,
   resolveTurnApproval,
+  resolveTurnChatMode,
 } from '../src/host-tools-runtime.js';
 
 afterEach(() => {
@@ -49,5 +50,16 @@ describe('isProductApprovalEnabled / resolveTurnApproval', () => {
     setProductConfig({ approval: 'host' });
     process.env.STEERABLE_APPROVAL = '0';
     expect(isProductApprovalEnabled()).toBe(false);
+  });
+});
+
+describe('resolveTurnChatMode', () => {
+  it('缺省放行 plan', () => {
+    expect(resolveTurnChatMode('plan')).toBe('plan');
+  });
+
+  it('产品只留 agent 时客户端 plan 被钳死', () => {
+    setProductConfig({ chatModes: ['agent'] });
+    expect(resolveTurnChatMode('plan')).toBe('agent');
   });
 });

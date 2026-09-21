@@ -67,6 +67,9 @@ export function createProductViteConfig(options: ProductViteConfigOptions) {
       // 宿主工具族 / 安全询问：与 node 侧 setProductConfig 读同一份 product.json。
       'import.meta.env.VITE_HOST_TOOLS': JSON.stringify(JSON.stringify(product.hostTools ?? {})),
       'import.meta.env.VITE_APPROVAL': JSON.stringify(product.approval ?? 'host'),
+      'import.meta.env.VITE_CHAT_MODES': JSON.stringify(
+        JSON.stringify(product.chatModes ?? ['agent', 'plan']),
+      ),
     },
     resolve: {
       alias: {

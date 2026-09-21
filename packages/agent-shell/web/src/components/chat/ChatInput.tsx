@@ -32,7 +32,7 @@ import {
 } from 'react-icons/lu';
 import type { LocalChat, LocalChatAgent } from '@/lib/local-api';
 import type { ExecPolicy } from '@/lib/exec-policy';
-import { hostToolChrome } from '@/lib/host-tools';
+import { getWebChatModes, hostToolChrome } from '@/lib/host-tools';
 import type { AttachmentFile } from '@/lib/attachments';
 import type { SteerOutcome } from '@steerable/agent-ui';
 import {
@@ -1820,7 +1820,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                 Agent picker lives in the meta row above the box, next to
                 the project badge. min-w-0 允许窄屏时胶囊截断收缩。 */}
             <div ref={toolbarLeftRef} className="flex min-w-0 items-center gap-1">
-              {mode && onModeChange && (
+              {mode && onModeChange && getWebChatModes().length > 1 && (
                 <ModeToggle
                   mode={mode}
                   disabled={disabled || isStreaming}

@@ -1317,6 +1317,22 @@ describe('产品宿主工具族钳死围栏与审批', () => {
     expect(seen[0].worldState.input.permissions.approval).toBe('off');
   });
 
+  it('chatModes 只有 agent 时客户端 plan 被钳死', async () => {
+    setProductConfig({ chatModes: ['agent'] });
+    const { seen } = installStream(() => {});
+    const chat = await seedChat();
+    await makeRouter().handleStream(
+      {
+        method: 'POST',
+        path: `/api/v2/chats/${chat.id}/send`,
+        body: { message: '先出计划', mode: 'plan' },
+      },
+      makeEmitCapture().emit,
+    );
+    expect(seen[0].worldState.input.mode).toBe('agent');
+    expect(seen[0].systemPrompt).not.toContain('PLAN');
+  });
+
   it('local-fs chrome 关掉时客户端 full 被钳死 workspace', async () => {
     setProductConfig({ hostTools: { 'local-fs': { chrome: false } } });
     const { seen } = installStream(() => {});

@@ -82,6 +82,37 @@ export function isWebApprovalEnabled(): boolean {
   return import.meta.env.VITE_APPROVAL !== 'off';
 }
 
+export type ChatModeId = 'agent' | 'plan';
+
+const DEFAULT_CHAT_MODES: ChatModeId[] = ['agent', 'plan'];
+
+export function resolveWebChatModes(value?: unknown): ChatModeId[] {
+  if (!Array.isArray(value)) return [...DEFAULT_CHAT_MODES];
+  const allowed = DEFAULT_CHAT_MODES.filter((id) => value.includes(id));
+  return allowed.length > 0 ? allowed : ['agent'];
+}
+
+function readChatModesConfig(): unknown {
+  const raw = import.meta.env.VITE_CHAT_MODES;
+  if (!raw) return undefined;
+  try {
+    return typeof raw === 'string' ? JSON.parse(raw) : raw;
+  } catch {
+    return undefined;
+  }
+}
+
+let cachedModes: ChatModeId[] | null = null;
+
+export function getWebChatModes(): ChatModeId[] {
+  cachedModes ??= resolveWebChatModes(readChatModesConfig());
+  return cachedModes;
+}
+
+export function clampWebChatMode(requested: unknown): ChatModeId {
+  return requested === 'plan' && getWebChatModes().includes('plan') ? 'plan' : 'agent';
+}
+
 export function sanitizeRightPanelKind(kind: string | null | undefined): string | null {
   if (!kind) return null;
   if (kind === 'terminal') return hostToolChrome('terminal') ? 'terminal' : null;
@@ -91,4 +122,5 @@ export function sanitizeRightPanelKind(kind: string | null | undefined): string 
 /** 测试用：清掉缓存，让下次按新 env 重读。 */
 export function resetWebHostToolsForTests(): void {
   cached = null;
+  cachedModes = null;
 }

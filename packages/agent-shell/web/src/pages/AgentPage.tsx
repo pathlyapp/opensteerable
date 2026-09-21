@@ -1097,6 +1097,9 @@ function AgentChatView({
             onBranchSwitched={isElectron() ? onBranchTick : undefined}
             onInspectTask={ctx.inspectTask}
             tasks={tasks}
+            chatSlots={ctx.chatSlots}
+            rightPanel={ctx.rightPanel}
+            onToggleChatSlot={ctx.onToggleChatSlot}
           />
         }
         onRegenerate={

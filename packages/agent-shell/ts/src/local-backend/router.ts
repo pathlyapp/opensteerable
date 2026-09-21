@@ -95,6 +95,7 @@ import {
   allocateProjectHome,
   ensureChatWorkspace,
   ensureProjectHome,
+  expandUserPath,
 } from '../project-home.js';
 import type { TaskService } from './task-service.js';
 import { registerLiveStream, getLiveStream, removeLiveStream } from './live-stream.js';
@@ -124,7 +125,9 @@ export interface LocalBackendResponse<T = unknown> {
 
 function parseSourceFolders(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
-  return value.filter((item): item is string => typeof item === 'string' && item.trim() !== '');
+  return value
+    .filter((item): item is string => typeof item === 'string' && item.trim() !== '')
+    .map(expandUserPath);
 }
 
 /**
@@ -610,7 +613,7 @@ export class LocalBackendRouter {
           const name = String(payload.name || '');
           const sourceFolders = parseSourceFolders(payload.sourceFolders);
           let folderPath =
-            typeof payload.folderPath === 'string' ? payload.folderPath.trim() : '';
+            typeof payload.folderPath === 'string' ? expandUserPath(payload.folderPath) : '';
           if (!folderPath) {
             folderPath = allocateProjectHome(name);
             ensureProjectHome(folderPath);
@@ -643,7 +646,7 @@ export class LocalBackendRouter {
           const project = registry.update(projectId, {
             name: typeof payload.name === 'string' ? payload.name : undefined,
             folderPath:
-              typeof payload.folderPath === 'string' ? payload.folderPath : undefined,
+              typeof payload.folderPath === 'string' ? expandUserPath(payload.folderPath) : undefined,
             sourceFolders:
               payload.sourceFolders === undefined
                 ? undefined

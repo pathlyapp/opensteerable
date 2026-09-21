@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   executorInit: vi.fn(async () => {}),
   seedReadState: vi.fn(() => 0),
   getLlmSettings: vi.fn(async (): Promise<unknown> => undefined),
+  setLlmSettings: vi.fn(async (settings: unknown) => settings),
   failRunningTasks: vi.fn(async () => 0),
   getChat: vi.fn(async (): Promise<unknown> => undefined),
   recordUsageEvent: vi.fn(async () => {}),
@@ -83,6 +84,7 @@ vi.mock('../src/local-backend/task-service.js', () => ({ TaskService: class {} }
 vi.mock('../src/storage/driver.js', () => {
   const store = {
     getLlmSettings: mocks.getLlmSettings,
+    setLlmSettings: mocks.setLlmSettings,
     failRunningTasks: mocks.failRunningTasks,
     getChat: mocks.getChat,
     recordUsageEvent: mocks.recordUsageEvent,

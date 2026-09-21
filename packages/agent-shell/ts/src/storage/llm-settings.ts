@@ -158,6 +158,52 @@ export function sanitizeVendorId(raw: unknown): string | undefined {
   return id || undefined;
 }
 
+export interface ProductLlmConfig {
+  provider?: string;
+  vendorId?: string;
+  model?: string;
+  baseUrl?: string;
+  apiKey?: string;
+  apiKeyEnv?: string;
+  temperature?: number;
+  maxTotalTokens?: number;
+}
+
+/**
+ * `settings.llm` 关掉后，产品必须声明 `llm.model`。密钥优先 product.apiKey，
+ * 其次 `apiKeyEnv` 指向的环境变量，再回落已存 key（升级前用户填过的）。
+ */
+export function resolveLockedLlmSettings(
+  value: unknown,
+  env: Record<string, string | undefined> = {},
+  persisted: LlmSettings | null = null,
+): LlmSettings {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('[product-llm] settings.llm is off; product.json must declare llm');
+  }
+  const raw = value as Record<string, unknown>;
+  const model = typeof raw.model === 'string' ? raw.model.trim() : '';
+  if (!model) {
+    throw new Error('[product-llm] llm.model is required when settings.llm is off');
+  }
+  const fromProduct =
+    typeof raw.apiKey === 'string' && raw.apiKey.trim() ? raw.apiKey.trim() : undefined;
+  const envName = typeof raw.apiKeyEnv === 'string' ? raw.apiKeyEnv.trim() : '';
+  const fromEnv = envName ? env[envName]?.trim() || undefined : undefined;
+  const fromPersisted = persisted?.apiKey?.trim() || undefined;
+  return mergeLlmSettings({
+    provider: sanitizeLlmProvider(raw.provider ?? persisted?.provider ?? 'openai-compat'),
+    vendorId: sanitizeVendorId(raw.vendorId),
+    model,
+    baseUrl: typeof raw.baseUrl === 'string' ? raw.baseUrl : persisted?.baseUrl,
+    apiKey: fromProduct || fromEnv || fromPersisted,
+    temperature: typeof raw.temperature === 'number' ? raw.temperature : undefined,
+    maxTotalTokens:
+      typeof raw.maxTotalTokens === 'number' ? raw.maxTotalTokens : persisted?.maxTotalTokens,
+    execTimeoutSeconds: persisted?.execTimeoutSeconds,
+  });
+}
+
 /** Sidecar `agent.chat.stream` 的 provider 字段。 */
 export function sidecarWireProvider(provider: LlmProvider): string {
   switch (provider) {

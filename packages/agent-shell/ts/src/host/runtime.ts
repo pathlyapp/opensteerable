@@ -49,6 +49,7 @@ import { getChatAttachmentsDir } from '../attachments.js';
 import { ensureChatWorkspace } from '../project-home.js';
 import { recordInsightTurn } from '../insights/record.js';
 import { llmService } from '../llm/index.js';
+import { isProductLlmLocked, resolveRuntimeLlmSettings } from '../host-tools-runtime.js';
 import {
   getPackAssemblies,
   type PackAssemblyDeps,
@@ -137,22 +138,18 @@ export async function createHostRuntime(options: HostRuntimeOptions): Promise<Ho
   // 生效，这里负责进程重启后的恢复）。
   {
     const persistedLlmSettings = await defaultStore.getLlmSettings();
+    const runtimeLlmSettings = resolveRuntimeLlmSettings(persistedLlmSettings);
+    if (isProductLlmLocked()) {
+      await defaultStore.setLlmSettings(runtimeLlmSettings);
+    }
     setDefaultExecTimeoutMs(
-      persistedLlmSettings?.execTimeoutSeconds
-        ? persistedLlmSettings.execTimeoutSeconds * 1000
+      runtimeLlmSettings.execTimeoutSeconds
+        ? runtimeLlmSettings.execTimeoutSeconds * 1000
         : null,
     );
-    llmService.initialize(
-      persistedLlmSettings ?? {
-        provider: 'ollama',
-        model: 'llama3.1:8b',
-        baseUrl: 'http://127.0.0.1:11434',
-        temperature: 0.3,
-      },
-      {
-        setLlmSettings: (settings) => defaultStore.setLlmSettings(settings),
-      },
-    );
+    llmService.initialize(runtimeLlmSettings, {
+      setLlmSettings: (settings) => defaultStore.setLlmSettings(settings),
+    });
   }
   const localScriptRegistry = new LocalScriptRegistry();
   const terminalManager = new TerminalManager();

@@ -11,10 +11,16 @@ import {
   isHostIpcAllowed,
   resolveChatModes,
   resolveHostTools,
+  resolveSettingsChrome,
   type ChatModeId,
   type HostToolsConfig,
   type ResolvedHostTools,
 } from './host-tools.js';
+import {
+  DEFAULT_LLM_SETTINGS,
+  resolveLockedLlmSettings,
+  type LlmSettings,
+} from './storage/llm-settings.js';
 
 export function getResolvedHostTools(): ResolvedHostTools {
   return resolveHostTools(getProductConfig().hostTools as HostToolsConfig | undefined);
@@ -48,4 +54,16 @@ export function assertHostIpcAllowed(channel: string): void {
 
 export function resolveTurnChatMode(requested: unknown): ChatModeId {
   return clampChatMode(requested, resolveChatModes(getProductConfig().chatModes));
+}
+
+export function isProductLlmLocked(): boolean {
+  return !resolveSettingsChrome(getProductConfig().settings).llm;
+}
+
+/** 设置页开着走已存/出厂默认；关掉则钉死 product.json 的 llm。 */
+export function resolveRuntimeLlmSettings(persisted: LlmSettings | null): LlmSettings {
+  if (!isProductLlmLocked()) {
+    return persisted ?? DEFAULT_LLM_SETTINGS;
+  }
+  return resolveLockedLlmSettings(getProductConfig().llm, process.env, persisted);
 }

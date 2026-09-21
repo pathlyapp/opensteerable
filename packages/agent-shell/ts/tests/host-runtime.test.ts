@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => ({
   recordInsightTurn: vi.fn(),
   projectGet: vi.fn((): unknown => undefined),
   refreshAllEnabled: vi.fn(async () => {}),
+  seedProductServers: vi.fn(),
   setTaskServices: vi.fn(),
   registerToolContributions: vi.fn(),
   listModelSchemas: vi.fn(() => []),
@@ -66,6 +67,7 @@ vi.mock('../src/tool-router.js', () => ({
 vi.mock('../src/mcp-server-registry.js', () => ({
   McpServerRegistry: class {
     refreshAllEnabled = mocks.refreshAllEnabled;
+    seedProductServers = mocks.seedProductServers;
   },
 }));
 vi.mock('../src/project-registry.js', () => ({
@@ -153,6 +155,7 @@ describe('createHostRuntime · 装配', () => {
     expect(rt.localBackendRouter).toBeDefined();
     expect(mocks.setTaskServices).toHaveBeenCalledOnce();
     expect(mocks.bindWorkspaceSkillRoots).toHaveBeenCalledOnce();
+    expect(mocks.seedProductServers).toHaveBeenCalledOnce();
   });
 
   it('终端事件转发到广播（data / exit / spawned）', async () => {

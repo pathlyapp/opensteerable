@@ -36,6 +36,15 @@ _REMINDER_HOOK = re.compile(r"'action': 'reminder'")
 #: Delivery wrap-up livelock (``STEERABLE_LIVELOCK_EMPTY_STREAK``).
 _LIVELOCK_HOOK = re.compile(r"'reason': 'forced_empty_livelock'")
 
+#: One ``hook_action`` as ``headless`` prints it: ``[hook_action {...}]`` on its
+#: own line. Fields are read individually rather than in one pattern because
+#: the Python and Rust loops build the payload dict in different key orders.
+_HOOK_ACTION_LINE = re.compile(r"\[hook_action \{.*\}\]")
+_FIELD_ACTION = re.compile(r"'action': '([^']*)'")
+_FIELD_VALUE = re.compile(r"'value': '([^']*)'")
+_FIELD_REASON = re.compile(r"'reason': '([^']*)'")
+_FIELD_HONORED = re.compile(r"'honored': (True|False)")
+
 EXIT_OK = 0
 EXIT_USAGE = 1
 
@@ -122,6 +131,95 @@ def extras(root: Path) -> str:
             f"{reminders[arm]} reminder hook_action  "
             f"{livelock[arm]} livelock"
         )
+    return "\n".join(lines)
+
+
+class Decisions(NamedTuple):
+    """Per-round loop decisions for one arm, counted over its trials.
+
+    ``routes`` is the data-need routing verdict histogram. It needs both
+    outcomes to mean anything: ``require_tool`` alone is a count of
+    interventions with no denominator, and a run with no verdicts at all means
+    routing never ran rather than that it allowed every turn.
+
+    ``forced_dropped`` is the subset of recorded ``tool_choice`` gates that the
+    vendor downgraded to ``auto`` on the wire (Z.AI GLM, Qwen/DeepSeek
+    thinking). When it equals ``forced`` the gate is a no-op for that model, so
+    any arm comparison that assumes forcing worked is measuring nothing.
+    """
+
+    routes: dict[str, int]
+    forced: int
+    forced_dropped: int
+    discipline: dict[str, int]
+
+
+def decisions(root: Path) -> dict[str, Decisions]:
+    """``arm → Decisions`` over every trial log under ``root``."""
+    routes: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    discipline: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    forced: dict[str, int] = defaultdict(int)
+    dropped: dict[str, int] = defaultdict(int)
+    arms: set[str] = set()
+    for log in sorted(root.rglob("agent/headless.log")):
+        arm = _arm_of(log, root)
+        arms.add(arm)
+        try:
+            text = log.read_text(errors="replace")
+        except OSError:
+            continue
+        for line in text.splitlines():
+            if not _HOOK_ACTION_LINE.search(line):
+                continue
+            found = _FIELD_ACTION.search(line)
+            action = found.group(1) if found else ""
+            if action == "data_need_route":
+                verdict = _FIELD_VALUE.search(line)
+                routes[arm][verdict.group(1) if verdict else "unknown"] += 1
+            elif action == "tool_choice":
+                forced[arm] += 1
+                honored = _FIELD_HONORED.search(line)
+                if honored is not None and honored.group(1) == "False":
+                    dropped[arm] += 1
+            elif action == "retry":
+                reason = _FIELD_REASON.search(line)
+                discipline[arm][reason.group(1) if reason else "unknown"] += 1
+    return {
+        arm: Decisions(
+            routes=dict(routes[arm]),
+            forced=forced[arm],
+            forced_dropped=dropped[arm],
+            discipline=dict(discipline[arm]),
+        )
+        for arm in sorted(arms)
+    }
+
+
+def decisions_report(data: dict[str, Decisions]) -> str:
+    """Per-arm decision counts: the variance baseline's readout.
+
+    Pass rate moves only when an outcome flips, so a change that alters how
+    the loop decides shows up here rounds before it shows up in the verdict.
+    """
+    lines = []
+    for arm, counts in data.items():
+        if not (counts.routes or counts.forced or counts.discipline):
+            continue
+        routes = (
+            "  ".join(f"{name}={n}" for name, n in sorted(counts.routes.items()))
+            or "not recorded"
+        )
+        lines.append(f"arm {arm}: data-need route {routes}")
+        if counts.forced:
+            lines.append(
+                f"arm {arm}: tool_choice gates {counts.forced}, "
+                f"{counts.forced_dropped} downgraded by the vendor"
+            )
+        if counts.discipline:
+            reasons = "  ".join(
+                f"{name}={n}" for name, n in sorted(counts.discipline.items())
+            )
+            lines.append(f"arm {arm}: before_completion retry {reasons}")
     return "\n".join(lines)
 
 
@@ -276,6 +374,7 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_USAGE
     data = collect(args.root)
     extra = extras(args.root)
+    verdicts = decisions_report(decisions(args.root))
     if not data:
         if extra:
             print(extra)
@@ -283,6 +382,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"no trial results under {args.root}", file=sys.stderr)
         return EXIT_USAGE
     print(report(data))
+    if verdicts:
+        print()
+        print(verdicts)
     if extra:
         print()
         print(extra)

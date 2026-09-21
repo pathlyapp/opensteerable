@@ -162,6 +162,19 @@ class OpenAICompatProvider:
     # Public API
     # ------------------------------------------------------------------
 
+    def honors_forced_tool_choice(self) -> bool:
+        """Whether ``tool_choice="required"`` reaches the wire unchanged.
+
+        ``_build_body`` downgrades it to ``auto`` for vendors that reject the
+        forced value, which makes a caller's gate a silent no-op. Callers that
+        record the gate (the loop's ``hook_action``) ask first so the trace
+        distinguishes a gate that held from one the vendor dropped.
+        """
+        compat = self.compat or OpenAICompatFlags()
+        return compat.supports_forced_tool_choice and not (
+            _thinking_rejects_forced_tool_choice(self.model, self.base_url)
+        )
+
     async def complete(
         self,
         messages: Sequence[LLMMessage],
@@ -385,16 +398,13 @@ class OpenAICompatProvider:
             for key, value in preset.extra_body.items():
                 if key not in body:
                     body[key] = value
-        # ``tool_choice=required`` downgrade paths:
-        #  - compat flag: vendors whose thinking mode 400s the forced value
-        #    (DeepSeek: "Thinking mode does not support this tool_choice");
-        #  - model-name paths host flags cannot cover: Z.AI GLM, OpenRouter
-        #    Qwen thinking, OpenRouter DeepSeek thinking. Harbor still logs
-        #    the hook; the wire must send auto or the trial dies on round 0
-        #    (failed-prev 33335200327, cheap-12 Qwen×steerable 34439098611).
-        if body.get("tool_choice") == "required" and (
-            not compat.supports_forced_tool_choice
-            or _thinking_rejects_forced_tool_choice(self.model, self.base_url)
+        # ``tool_choice=required`` downgrade (see honors_forced_tool_choice):
+        # the wire must send auto for these vendors or the trial dies on round
+        # 0 (failed-prev 33335200327, cheap-12 Qwen×steerable 34439098611).
+        # The caller's ``hook_action`` carries ``honored: false`` here, so a
+        # forced turn that the vendor dropped stays distinguishable in traces.
+        if body.get("tool_choice") == "required" and not (
+            self.honors_forced_tool_choice()
         ):
             body["tool_choice"] = "auto"
         # W6-8: clamp the requested reasoning effort to a level the model

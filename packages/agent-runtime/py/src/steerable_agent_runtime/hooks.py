@@ -32,7 +32,7 @@ existing behavior.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Literal, Protocol, runtime_checkable
 
 from steerable_agent_protocol.generated import ToolCall, ToolResult
@@ -118,6 +118,26 @@ class RewriteRequest:
     bracket: CompactionBracket | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class DecisionNote:
+    """A hook verdict the loop should record even though it changed nothing.
+
+    Verdicts that *act* are already visible as ``hook_action`` (a rewrite, an
+    append, a ``tool_choice``). The verdict that declined to act leaves no
+    trace, so a trajectory cannot distinguish "the data-need router allowed a
+    no-tool turn" from "routing never ran" — and that is exactly the
+    denominator a routing-variance measurement needs.
+
+    ``value`` carries the verdict itself (a route name, a chosen option) and
+    ``probability`` the backend's confidence when it reports one.
+    """
+
+    action: str
+    reason: str
+    value: str | None = None
+    probability: float | None = None
+
+
 @dataclass(slots=True)
 class PreStepAction:
     """Outcome of a ``pre_step`` hook.
@@ -131,6 +151,9 @@ class PreStepAction:
     this step's LLM call — the data-need router uses it to force a tool call
     on the first round of a data-seeking turn. Pass-through value, forwarded
     as a provider kwarg; providers that cannot honor it ignore it.
+
+    ``notes`` records verdicts that took no action, so a hook's decision rate
+    is measurable and not just its intervention rate.
     """
 
     kind: Literal["proceed", "reject"] = "proceed"
@@ -138,6 +161,7 @@ class PreStepAction:
     rewrite: RewriteRequest | None = None
     reason: str | None = None
     tool_choice: str | None = None
+    notes: tuple[DecisionNote, ...] = ()
     #: Label for the ``hook_action`` event when this action appended context
     #: (a rewrite is labelled by its own ``RewriteRequest.action``). Skill
     #: catalog injection owns ``"skill_catalog"``; the generic default is
@@ -327,6 +351,9 @@ class ChainHooks:
       after a rewrite fold into that rewrite — "hook1 rewrites, hook2
       appends" is exactly ``replace_all`` then ``append``. The first
       ``reject`` wins; the first non-``None`` ``tool_choice`` wins.
+      ``notes`` accumulate from every hook in order: a note describes a
+      decision instead of declaring one, so the hook that loses the
+      ``tool_choice`` must still have its verdict recorded.
     - ``post_tool_result``: the result threads through each hook in order.
     - ``on_request_error``: the first ``retry`` decision wins; if every hook
       says ``fail``, the first failure reason is surfaced.
@@ -356,10 +383,14 @@ class ChainHooks:
         appends: list[TranscriptAppend] = []
         append_action: str | None = None
         reason: str | None = None
+        notes: list[DecisionNote] = []
         for hook in self._hooks:
             action = await hook.pre_step(current, ctx)
+            notes.extend(action.notes)
             if action.kind == "reject":
-                return action
+                # A reject ends the turn, but the verdicts that preceded it
+                # still describe how the turn got there.
+                return replace(action, notes=tuple(notes))
             if action.rewrite is not None:
                 # The rewriter computed against the current projection, so
                 # its message list already contains any earlier appends.
@@ -391,6 +422,7 @@ class ChainHooks:
             reason=reason,
             tool_choice=tool_choice,
             append_action=append_action,
+            notes=tuple(notes),
         )
 
     async def compact_now(

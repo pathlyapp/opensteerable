@@ -9,6 +9,7 @@ import { ChatInput } from './ChatInput';
 vi.mock('@/lib/host-tools', () => ({
   hostToolChrome: () => true,
   getWebChatModes: () => ['agent'],
+  settingsChrome: () => true,
 }));
 
 afterEach(() => cleanup());

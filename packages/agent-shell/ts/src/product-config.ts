@@ -49,6 +49,10 @@ export interface ProductConfig {
    * 对话模式。缺省 `['agent','plan']`。只留一种时渲染层不显示切换。
    */
   chatModes?: Array<'agent' | 'plan'>;
+  /**
+   * 设置入口。缺省全开。`false` 藏对应侧栏页或综合设置分段。
+   */
+  settings?: Record<string, boolean>;
 }
 
 let productConfig: ProductConfig | null = null;

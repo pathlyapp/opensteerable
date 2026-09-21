@@ -15,7 +15,7 @@ import {
   useChatsAndAgents,
   type UseChatsAndAgentsResult,
 } from '@/hooks/useChatsAndAgents';
-import { hostToolChrome, sanitizeRightPanelKind } from '@/lib/host-tools';
+import { hostToolChrome, sanitizeRightPanelKind, settingsChrome } from '@/lib/host-tools';
 
 /**
  * AgentLayout wraps `/agent`, `/agent/:chatId`, and `/` (default) with a
@@ -504,7 +504,7 @@ function AgentLayoutContent() {
                 } satisfies AgentOutletContext}
               />
             </div>
-            <InsightsConsentBanner />
+            {settingsChrome('insights') && <InsightsConsentBanner />}
           </div>
           {(rightPanel !== null || inspectedTask !== null) && (
             <>

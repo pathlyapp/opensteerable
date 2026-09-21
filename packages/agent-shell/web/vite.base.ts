@@ -70,6 +70,7 @@ export function createProductViteConfig(options: ProductViteConfigOptions) {
       'import.meta.env.VITE_CHAT_MODES': JSON.stringify(
         JSON.stringify(product.chatModes ?? ['agent', 'plan']),
       ),
+      'import.meta.env.VITE_SETTINGS': JSON.stringify(JSON.stringify(product.settings ?? {})),
     },
     resolve: {
       alias: {

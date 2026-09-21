@@ -103,7 +103,7 @@ import {
 import { parseChatTitle } from "@/lib/chat-title";
 import { getDateGroupLabel, getDateGroupPriority } from "@/lib/date-groups";
 import { getElectronBridge, isElectron } from "@/lib/electron-bridge";
-import { hostToolChrome } from "@/lib/host-tools";
+import { hasGeneralSettingsChrome, hostToolChrome, settingsChrome } from "@/lib/host-tools";
 import {
   createProject,
   deleteProject,
@@ -811,6 +811,7 @@ export function AgentSidebar({
             <LuPlus className="h-3.5 w-3.5" />
             <span>新对话</span>
           </button>
+          {settingsChrome("agents") && (
           <button
             type="button"
             onClick={() => navigate("/settings?section=agents")}
@@ -826,6 +827,8 @@ export function AgentSidebar({
             <LuBot className="h-3.5 w-3.5" />
             <span>智能体管理</span>
           </button>
+          )}
+          {settingsChrome("skills") && (
           <button
             type="button"
             onClick={() => navigate("/settings?section=skills")}
@@ -841,6 +844,8 @@ export function AgentSidebar({
             <LuBlocks className="h-3.5 w-3.5" />
             <span>Skill 设置</span>
           </button>
+          )}
+          {settingsChrome("mcp") && (
           <button
             type="button"
             onClick={() => navigate("/settings?section=mcp")}
@@ -856,6 +861,7 @@ export function AgentSidebar({
             <LuPlug className="h-3.5 w-3.5" />
             <span>MCP 设置</span>
           </button>
+          )}
         </div>
         <div className="flex flex-shrink-0 items-center justify-between py-1 pl-2.5 pr-2.5">
           <button
@@ -1112,6 +1118,7 @@ export function AgentSidebar({
             ))}
           </div>
         )}
+        {hasGeneralSettingsChrome() && (
         <button
           type="button"
           onClick={() => navigate("/settings")}
@@ -1127,6 +1134,7 @@ export function AgentSidebar({
           <LuSettings className="h-3.5 w-3.5" />
           <span>设置</span>
         </button>
+        )}
       </div>
 
       {projectMenu &&

@@ -77,16 +77,18 @@ export function CreateProjectModal({
       addSourceFolder(typed);
       return;
     }
-    const result = await getElectronBridge()?.local?.selectDirectory({
-      title: '添加源文件夹',
-    });
-    if (!result || result.canceled || result.filePaths.length === 0) {
-      if (!getElectronBridge()?.local?.selectDirectory) {
-        setError('请输入文件夹路径');
-      }
+    const picker = getElectronBridge()?.local?.selectDirectory;
+    if (!picker) {
+      setError('请输入文件夹路径');
       return;
     }
-    addSourceFolder(result.filePaths[0]);
+    try {
+      const result = await picker({ title: '添加源文件夹' });
+      if (!result || result.canceled || result.filePaths.length === 0) return;
+      addSourceFolder(result.filePaths[0]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
   };
 
   const handleSubmit = async () => {

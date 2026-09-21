@@ -75,6 +75,19 @@ describe('CreateProjectModal', () => {
     );
   });
 
+  it('系统选择器接口失败时显示错误', async () => {
+    bridgeStub!.local!.selectDirectory = vi.fn(async () => {
+      throw new Error('Unknown host endpoint: POST /host/local/select-directory');
+    });
+    renderModal();
+    fireEvent.click(screen.getByTestId('create-project-add-folder'));
+    await waitFor(() =>
+      expect(screen.getByRole('alert').textContent).toContain(
+        'Unknown host endpoint: POST /host/local/select-directory',
+      ),
+    );
+  });
+
   it('无系统选择器时可用输入框添加源文件夹', async () => {
     bridgeStub = null;
     const { onCreate } = renderModal();

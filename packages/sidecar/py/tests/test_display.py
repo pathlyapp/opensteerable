@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import socket
 import struct
 import threading
@@ -176,7 +177,10 @@ def test_capture_rfb_rejects_authenticated_server() -> None:
 
 
 @pytest.mark.asyncio
-async def test_capture_display_tool_writes_png(tmp_path: Path) -> None:
+async def test_capture_display_tool_writes_png(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("STEERABLE_READ_IMAGES", raising=False)
     server = _RfbServer()
     server.start()
     assert server.ready.wait(1)
@@ -198,8 +202,12 @@ async def test_capture_display_tool_writes_png(tmp_path: Path) -> None:
     assert result.success is True
     assert result.data["protocol"] == "vnc"
     assert result.data["width"] == 2
-    assert (tmp_path / "desk.png").read_bytes().startswith(b"\x89PNG")
+    png = (tmp_path / "desk.png").read_bytes()
+    assert png.startswith(b"\x89PNG")
     assert result.data["content"].startswith("PNG 2x2")
+    blob = result.data["_image"]
+    assert blob["media_type"] == "image/png"
+    assert base64.b64decode(blob["b64"]) == png
 
 
 @pytest.mark.asyncio

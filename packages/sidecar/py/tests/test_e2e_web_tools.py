@@ -213,4 +213,10 @@ async def test_headless_no_web_tools_flag_removes_the_pair_from_the_model_reques
     assert "web_fetch" not in stripped_tools
     assert "web_search" not in stripped_tools
     # The workspace tools are unaffected by the flag.
-    assert {"bash", "read_file", "write_file", "edit_file"} <= stripped_tools
+    assert {
+        "bash",
+        "read_file",
+        "write_file",
+        "edit_file",
+        "capture_display",
+    } <= stripped_tools

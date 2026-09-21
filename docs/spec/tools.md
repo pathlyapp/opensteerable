@@ -377,6 +377,29 @@ be expressed in a closed proxy list, so arbitrary fetches then fail at the
 proxy. The marker without any proxy env is a misconfiguration and fails loud
 with an actionable error instead of hanging behind an absent proxy.
 
+## Display capture (sidecar)
+
+`capture_display` (`steerable_sidecar/display.py`) reads the **client
+framebuffer** of a remote display, not a hypervisor-private screenshot.
+Headless and ACP get it through `workspace_tools_for_cwd`; Harbor keeps it
+when `--no-web-tools` is set, because the capture stays inside the trial
+container.
+
+The first protocol is unauthenticated RFB/VNC. Targets accept the usual
+VNC forms (`vnc://host:1`, `:1`, `host:5901`). Display numbers 0–99 map
+to TCP `5900+N`; values 5900–65535 are raw ports. A hypervisor
+`screendump` can show a live guest while the VNC client frame the grader
+(or a user) sees is stale — this tool captures the latter.
+
+`nudge=true` sends a one-pixel RFB pointer move before the snapshot so a
+stale client framebuffer can refresh. Optional `path` writes the PNG into
+the workspace. The tool result reuses `read_file`'s image path: an ASCII
+preview in `data.content`, and `data._image` when `STEERABLE_READ_IMAGES=1`.
+
+Authenticated VNC, RDP, and other display protocols are out of scope for
+this revision; an unknown URL scheme fails with a followup-able error
+instead of falling back to a local file or QEMU monitor.
+
 ## Completion semantics
 
 `isTerminalResult(result)` (TS) /

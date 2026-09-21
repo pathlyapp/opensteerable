@@ -150,6 +150,32 @@ def _bmp_gray_rows(raw: bytes) -> tuple[int, int, list[list[int]]] | None:
     return width, height, rows
 
 
+def encode_png_rgb(width: int, height: int, rgb: bytes) -> bytes:
+    """Encode 8-bit RGB rows as a filter-none truecolor PNG."""
+    if width <= 0 or height <= 0:
+        raise ValueError("PNG width and height must be positive")
+    expected = width * height * 3
+    if len(rgb) != expected:
+        raise ValueError(f"RGB buffer is {len(rgb)} bytes, expected {expected}")
+    raw = bytearray()
+    stride = width * 3
+    for y in range(height):
+        raw.append(0)
+        raw.extend(rgb[y * stride : (y + 1) * stride])
+
+    def chunk(tag: bytes, data: bytes) -> bytes:
+        crc = zlib.crc32(tag + data) & 0xFFFFFFFF
+        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", crc)
+
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    return (
+        _PNG_MAGIC
+        + chunk(b"IHDR", ihdr)
+        + chunk(b"IDAT", zlib.compress(bytes(raw), 9))
+        + chunk(b"IEND", b"")
+    )
+
+
 def ascii_png_preview(raw: bytes, *, max_w: int = 80, max_h: int = 80) -> str | None:
     """Bounded ASCII preview for 8-bit PNG, baseline JPEG, or uncompressed BMP."""
     parsed = _png_gray_rows(raw)

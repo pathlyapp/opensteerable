@@ -241,6 +241,33 @@ _BASH_SESSION_SCHEMA = {
     },
 }
 
+_CAPTURE_DISPLAY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "target": {
+            "type": "string",
+            "description": (
+                "Remote display the client or grader sees. RFB/VNC: "
+                "vnc://host:1, :1, host:5901. Display numbers 0-99 map to "
+                "TCP 5900+N. This is the VNC framebuffer, not a hypervisor "
+                "screendump."
+            ),
+        },
+        "path": {
+            "type": "string",
+            "description": "Optional workspace path to write the captured PNG.",
+        },
+        "nudge": {
+            "type": "boolean",
+            "description": (
+                "Send a tiny pointer move over RFB before the snapshot so a "
+                "stale client framebuffer refreshes."
+            ),
+        },
+    },
+    "required": ["target"],
+}
+
 _WRITE_STDIN_SCHEMA = {
     "type": "object",
     "properties": {
@@ -342,7 +369,8 @@ def workspace_tools_for_cwd(
     contract is offline must say so: TB 2.1 tasks are solved from the
     container alone, and a reachable ``web_fetch`` both confounds a harness
     comparison and lets a trial answer from outside the environment under
-    test.
+    test. ``capture_display`` stays registered: it reads a display inside
+    the workspace, not the public web.
 
     ``run_code`` defaults to ``STEERABLE_RUN_CODE=1``. Harbor does not
     special-case it the way web tools are omitted; leave the env unset
@@ -950,6 +978,65 @@ def workspace_tools_for_cwd(
             "close it. Send '\\x03' for Ctrl-C."
         ),
         schema=_WRITE_STDIN_SCHEMA,
+        require_consent=False,
+    )
+
+    async def capture_display(
+        target: str,
+        path: str | None = None,
+        nudge: bool = False,
+    ) -> ToolResult:
+        from .display import DisplayError, capture_rfb, parse_display_target
+        from .png_ascii import encode_png_rgb
+
+        try:
+            spec = parse_display_target(target)
+        except ValueError as exc:
+            return ToolResult(success=False, error=str(exc), needsFollowup=True)
+        try:
+            frame = await asyncio.to_thread(
+                capture_rfb, spec.host, spec.port, nudge=bool(nudge)
+            )
+        except DisplayError as exc:
+            return ToolResult(success=False, error=str(exc), needsFollowup=True)
+        png = encode_png_rgb(frame.width, frame.height, frame.rgb)
+        preview = ascii_png_preview(png) or f"PNG {frame.width}x{frame.height}"
+        data: dict[str, object] = {
+            "target": spec.canonical,
+            "protocol": spec.protocol,
+            "host": spec.host,
+            "port": spec.port,
+            "width": frame.width,
+            "height": frame.height,
+            "nudged": bool(nudge),
+            "content": preview,
+            "kind": "png_ascii",
+        }
+        if path:
+            try:
+                dest = _resolve_under(root, path, jailed=jailed)
+            except ValueError as exc:
+                return ToolResult(success=False, error=str(exc), needsFollowup=True)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(png)
+            data["path"] = str(dest)
+        blob = _image_blob(png)
+        if blob is not None:
+            data["_image"] = blob
+        return ToolResult(success=True, data=data)
+
+    router.register(
+        capture_display,
+        name="capture_display",
+        mode="read",
+        description=(
+            "Capture the client-visible remote display (RFB/VNC framebuffer). "
+            "Use this when a VM, noVNC page, or grader will look at VNC — "
+            "not QEMU screendump or another hypervisor-private screenshot. "
+            "Returns an ASCII preview; PNG attaches as an image when "
+            "STEERABLE_READ_IMAGES=1. Optional path writes the PNG."
+        ),
+        schema=_CAPTURE_DISPLAY_SCHEMA,
         require_consent=False,
     )
 

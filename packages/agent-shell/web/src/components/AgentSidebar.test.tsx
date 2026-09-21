@@ -10,7 +10,8 @@
  *   - 副作用：进入会话路由同步 selectedAgentId、菜单 Cmd+N / Cmd+T 订阅与
  *     退订、滚动接近底部自动加载下一页；
  *   - 项目模式（Electron）：项目分组与折叠、孤儿会话回落日期分组、
- *     新建（弹窗填名称 + 可选源文件夹）/ 内联重命名 / 换文件夹 / 两段确认删除。
+ *     新建（弹窗填名称 + 可选源文件夹）；组头 hover 为 + 新建对话 / ·· 菜单
+ *     （重命名 / 编辑项目多源文件夹 / 访达或文件管理器 / 两段确认删除）。
  * 智能体挑选列表已迁到 ChatInput（见组件头注释），侧栏只剩同步副作用可测。
  */
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -35,12 +36,14 @@ const listProjects = vi.fn();
 const createProject = vi.fn();
 const updateProject = vi.fn();
 const deleteProject = vi.fn();
+const openLocalPath = vi.fn();
 
 vi.mock('@/lib/local-api', () => ({
   listProjects: (...args: unknown[]) => listProjects(...args),
   createProject: (...args: unknown[]) => createProject(...args),
   updateProject: (...args: unknown[]) => updateProject(...args),
   deleteProject: (...args: unknown[]) => deleteProject(...args),
+  openLocalPath: (...args: unknown[]) => openLocalPath(...args),
 }));
 
 vi.mock('@/brand', () => ({
@@ -59,7 +62,9 @@ beforeEach(() => {
   createProject.mockReset();
   updateProject.mockReset();
   deleteProject.mockReset();
+  openLocalPath.mockReset();
   listProjects.mockResolvedValue({ projects: [] });
+  openLocalPath.mockResolvedValue({ success: true });
 });
 
 afterEach(() => {
@@ -241,6 +246,11 @@ function renderSidebar(
   );
 
   return { createChat, data, onToggleRightPanel, onCollapse, ...utils };
+}
+
+function openProjectMenu() {
+  fireEvent.click(screen.getByLabelText('项目菜单'));
+  expect(screen.getByTestId('project-overflow-menu')).toBeTruthy();
 }
 
 /** 按 data-chat-id 取会话行容器。 */
@@ -673,6 +683,36 @@ describe('AgentSidebar 项目模式（Electron）', () => {
     expect(screen.getByTestId('loc').textContent).toBe('/agent?projectId=proj-1');
   });
 
+  it('项目组头 hover 只有新建对话和菜单，管理动作在菜单里', async () => {
+    setPlatform('MacIntel');
+    enterElectron([makeProject({ id: 'proj-1', name: '项目甲' })]);
+    renderSidebar('/agent');
+
+    await screen.findByText('项目甲');
+    expect(screen.getByTitle('在此项目下新建对话')).toBeTruthy();
+    expect(screen.getByLabelText('项目菜单')).toBeTruthy();
+    expect(screen.queryByTitle('重命名项目')).toBeNull();
+    expect(screen.queryByTitle('编辑项目')).toBeNull();
+
+    openProjectMenu();
+    expect(screen.getByText('0 个会话')).toBeTruthy();
+    expect(screen.getByTitle('重命名项目')).toBeTruthy();
+    expect(screen.getByTitle('编辑项目')).toBeTruthy();
+    expect(screen.getByTitle('在访达中显示')).toBeTruthy();
+    expect(screen.getByTitle('删除项目（会话保留为无项目对话）')).toBeTruthy();
+  });
+
+  it('项目菜单：在访达中显示会打开项目文件夹', async () => {
+    setPlatform('MacIntel');
+    enterElectron([makeProject({ id: 'proj-1', name: '项目甲', folderPath: '/tmp/proj-a' })]);
+    renderSidebar('/agent');
+
+    await screen.findByText('项目甲');
+    openProjectMenu();
+    fireEvent.click(screen.getByTitle('在访达中显示'));
+    await waitFor(() => expect(openLocalPath).toHaveBeenCalledWith('/tmp/proj-a'));
+  });
+
   it('新建项目：打开弹窗填名称后创建并刷新列表', async () => {
     enterElectron([]);
     createProject.mockResolvedValue({ success: true, project: makeProject() });
@@ -702,6 +742,7 @@ describe('AgentSidebar 项目模式（Electron）', () => {
     renderSidebar('/agent');
 
     await screen.findByText('项目甲');
+    openProjectMenu();
     fireEvent.click(screen.getByTitle('重命名项目'));
     const input = screen.getByDisplayValue('项目甲');
     fireEvent.change(input, { target: { value: '项目甲改' } });
@@ -716,6 +757,7 @@ describe('AgentSidebar 项目模式（Electron）', () => {
     renderSidebar('/agent');
 
     await screen.findByText('项目甲');
+    openProjectMenu();
     fireEvent.click(screen.getByTitle('重命名项目'));
     const input = screen.getByDisplayValue('项目甲');
     fireEvent.keyDown(input, { key: 'Escape' });
@@ -729,6 +771,7 @@ describe('AgentSidebar 项目模式（Electron）', () => {
     renderSidebar('/agent');
 
     await screen.findByText('项目甲');
+    openProjectMenu();
     fireEvent.click(screen.getByTitle('重命名项目'));
     const input = screen.getByDisplayValue('项目甲');
     fireEvent.change(input, { target: { value: '   ' } });
@@ -738,18 +781,33 @@ describe('AgentSidebar 项目模式（Electron）', () => {
     expect(updateProject).not.toHaveBeenCalled();
   });
 
-  it('更换绑定文件夹：选中新路径后调 updateProject', async () => {
-    const { selectDirectory } = enterElectron([makeProject({ id: 'proj-1', name: '项目甲' })]);
-    selectDirectory.mockResolvedValue({ canceled: false, filePaths: ['/tmp/new-dir'] });
+  it('编辑项目：保存名称与多个源文件夹', async () => {
+    enterElectron([
+      makeProject({ id: 'proj-1', name: '项目甲', sourceFolders: ['/tmp/old'] }),
+    ]);
     updateProject.mockResolvedValue({ success: true, project: makeProject() });
     renderSidebar('/agent');
 
     await screen.findByText('项目甲');
-    fireEvent.click(screen.getByTitle('更换绑定文件夹'));
+    openProjectMenu();
+    fireEvent.click(screen.getByTitle('编辑项目'));
+    expect(screen.getByTestId('edit-project-dialog')).toBeTruthy();
+    expect(screen.getByText('/tmp/old')).toBeTruthy();
+
+    fireEvent.change(screen.getByTestId('edit-project-folder-path'), {
+      target: { value: '/tmp/new' },
+    });
+    fireEvent.click(screen.getByTestId('edit-project-add-folder'));
+    fireEvent.change(screen.getByTestId('edit-project-name'), { target: { value: '项目甲改' } });
+    fireEvent.click(screen.getByTestId('edit-project-submit'));
+
     await waitFor(() =>
-      expect(updateProject).toHaveBeenCalledWith('proj-1', { folderPath: '/tmp/new-dir' }),
+      expect(updateProject).toHaveBeenCalledWith('proj-1', {
+        name: '项目甲改',
+        sourceFolders: ['/tmp/old', '/tmp/new'],
+      }),
     );
-    expect(selectDirectory).toHaveBeenCalledWith({ title: '重新选择项目文件夹' });
+    await waitFor(() => expect(listProjects).toHaveBeenCalledTimes(2));
   });
 
   it('删除项目两段确认：第二次点击才删除并刷新会话列表', async () => {
@@ -758,6 +816,7 @@ describe('AgentSidebar 项目模式（Electron）', () => {
     const { data } = renderSidebar('/agent');
 
     await screen.findByText('项目甲');
+    openProjectMenu();
     fireEvent.click(screen.getByTitle('删除项目（会话保留为无项目对话）'));
     expect(deleteProject).not.toHaveBeenCalled();
 

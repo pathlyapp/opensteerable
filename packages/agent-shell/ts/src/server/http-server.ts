@@ -41,6 +41,7 @@ import type { createApprovalBridge } from '../sidecar/reverse-approval.js';
 import type { createAskUserBridge } from '../sidecar/reverse-ask-user.js';
 import { getBrand } from '../brand.js';
 import { saveAttachmentFiles } from '../attachments.js';
+import { selectNativeDirectory } from '../native-folder-dialog.js';
 import type { SseBus } from './sse-bus.js';
 import { getAuthProvider, type Principal } from '../auth/index.js';
 
@@ -312,6 +313,11 @@ export function createBsServer(deps: BsServerDeps): Server {
     }
 
     // ─── local（对齐 local:* IPC） ───
+    if (method === 'POST' && pathname === '/host/local/select-directory') {
+      const title = typeof body.title === 'string' ? body.title : undefined;
+      sendJson(res, 200, await selectNativeDirectory({ title }));
+      return;
+    }
     if (method === 'POST' && pathname === '/host/local/exec-shell') {
       const request = body as unknown as LocalExecRequest;
       const viaTerminal = await maybeExecInTerminal(request);

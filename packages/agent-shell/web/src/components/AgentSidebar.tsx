@@ -64,7 +64,7 @@
  *   │ ⬡ Skill 设置                    │ ← /settings?section=skills（独立页）
  *   │ 🔌 MCP 设置                     │ ← /settings?section=mcp（独立页）
  *   │  会话 v                     📁+ │ ← 📁+ 打开新建项目弹窗
- *   │  v 📁 项目A · 3      (hover: +✏📂🗑)│ ← 项目组：折叠/新建/重命名/换文件夹/删
+ *   │  v 📁 项目A · 3      (hover: +··)│ ← + 新建对话；·· 菜单：重命名/换目录/访达/删
  *   │   ...（项目内对话）              │
  *   │   今天                          │
  *   │   ...（无项目对话，按日期分组）  │ ← 无项目排在项目分组之后
@@ -78,6 +78,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   LuChevronDown,
@@ -97,6 +98,7 @@ import {
   LuFolderPlus,
   LuPencil,
   LuPlug,
+  LuEllipsis,
 } from "react-icons/lu";
 import { parseChatTitle } from "@/lib/chat-title";
 import { getDateGroupLabel, getDateGroupPriority } from "@/lib/date-groups";
@@ -105,6 +107,7 @@ import {
   createProject,
   deleteProject,
   listProjects,
+  openLocalPath,
   updateProject,
   type LocalChat,
   type LocalChatAgent,
@@ -138,6 +141,125 @@ function AgentDot({
     >
       {agentInitial(agent)}
     </span>
+  );
+}
+
+function placeProjectMenu(anchor: HTMLElement): { top: number; left: number } {
+  const box = anchor.getBoundingClientRect();
+  const width = 224;
+  const left = Math.min(box.right + 4, window.innerWidth - width - 8);
+  return { top: Math.max(8, box.top), left };
+}
+
+function ProjectOverflowMenu({
+  project,
+  chatCount,
+  anchor,
+  revealLabel,
+  confirmDelete,
+  deleting,
+  onClose,
+  onRename,
+  onChangeFolder,
+  onReveal,
+  onDelete,
+}: {
+  project: LocalProject;
+  chatCount: number;
+  anchor: HTMLElement;
+  revealLabel: string;
+  confirmDelete: boolean;
+  deleting: boolean;
+  onClose: () => void;
+  onRename: () => void;
+  onChangeFolder: () => void;
+  onReveal: () => void;
+  onDelete: () => void;
+}) {
+  const pos = placeProjectMenu(anchor);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return createPortal(
+    <>
+      <div className="fixed inset-0 z-[90]" onClick={onClose} />
+      <div
+        role="menu"
+        className="fixed z-[91] w-56 overflow-hidden rounded-2xl border border-agent-border bg-agent-canvas p-1 shadow-lg"
+        style={pos}
+        data-testid="project-overflow-menu"
+      >
+        <div className="px-2 py-1.5">
+          <div className="flex items-center gap-2 text-xs font-medium text-agent-foreground">
+            <LuFolder className="h-3.5 w-3.5 shrink-0 text-agent-muted-foreground" />
+            <span className="min-w-0 truncate">{project.name}</span>
+          </div>
+          <div className="mt-0.5 pl-[22px] text-[10px] text-agent-muted-foreground">
+            {chatCount} 个会话
+          </div>
+          <div
+            className="mt-0.5 truncate pl-[22px] font-mono text-[10px] text-agent-muted-foreground/70"
+            title={project.folderPath}
+          >
+            {project.folderPath}
+          </div>
+        </div>
+        <div className="mx-1 my-1 border-t border-agent-border/60" />
+        <button
+          type="button"
+          role="menuitem"
+          title="重命名项目"
+          onClick={onRename}
+          className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs text-agent-foreground hover:bg-agent-foreground/5"
+        >
+          <LuPencil className="h-3.5 w-3.5 shrink-0 text-agent-muted-foreground" />
+          重命名
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          title="编辑项目"
+          onClick={onChangeFolder}
+          className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs text-agent-foreground hover:bg-agent-foreground/5"
+        >
+          <LuFolderOpen className="h-3.5 w-3.5 shrink-0 text-agent-muted-foreground" />
+          编辑项目
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          title={revealLabel}
+          onClick={onReveal}
+          className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs text-agent-foreground hover:bg-agent-foreground/5"
+        >
+          <LuFolder className="h-3.5 w-3.5 shrink-0 text-agent-muted-foreground" />
+          {revealLabel}
+        </button>
+        <div className="mx-1 my-1 border-t border-agent-border/60" />
+        <button
+          type="button"
+          role="menuitem"
+          disabled={deleting}
+          title={
+            confirmDelete
+              ? "再次点击确认删除（会话会保留为无项目对话）"
+              : "删除项目（会话保留为无项目对话）"
+          }
+          onClick={onDelete}
+          className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs hover:bg-agent-destructive/10 ${
+            confirmDelete ? "text-agent-destructive" : "text-agent-foreground"
+          }`}
+        >
+          <LuTrash2 className={`h-3.5 w-3.5 shrink-0 ${deleting ? "animate-pulse" : ""}`} />
+          {confirmDelete ? "再次点击确认删除" : "删除项目"}
+        </button>
+      </div>
+    </>,
+    document.body,
   );
 }
 
@@ -205,8 +327,8 @@ export function AgentSidebar({
 
   // ───── 项目模式 ─────
   // 项目列表从 local-backend 拉取（electron-store 持久化）。会话按
-  // projectId 分组：项目分组在上（每个项目一个可折叠分组，组头支持内联
-  // 管理：新建对话 / 重命名 / 换文件夹 / 删除），无项目对话在下（日期分组）。
+  // projectId 分组：项目分组在上（组头 hover：+ 新建对话 / ·· 菜单），
+  // 无项目对话在下（日期分组）。
   const [projects, setProjects] = useState<LocalProject[]>([]);
   const [collapsedProjectIds, setCollapsedProjectIds] = useState<Set<string>>(
     () => new Set(),
@@ -223,6 +345,11 @@ export function AgentSidebar({
   );
   const [projectError, setProjectError] = useState<string | null>(null);
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [projectMenu, setProjectMenu] = useState<{
+    id: string;
+    anchor: HTMLElement;
+  } | null>(null);
 
   const fetchProjects = useCallback(async () => {
     if (!isElectron()) return;
@@ -274,47 +401,79 @@ export function AgentSidebar({
     [renamingValue, fetchProjects],
   );
 
-  const handleChangeProjectFolder = useCallback(
-    async (projectId: string) => {
-      if (!isElectron()) return;
+  const handleUpdateProject = useCallback(
+    async (
+      projectId: string,
+      input: { name: string; sourceFolders: string[] },
+    ) => {
       setProjectError(null);
       try {
-        const result = await bridge?.local?.selectDirectory({
-          title: "重新选择项目文件夹",
+        await updateProject(projectId, {
+          name: input.name,
+          sourceFolders: input.sourceFolders,
         });
-        if (!result || result.canceled || result.filePaths.length === 0) return;
-        await updateProject(projectId, { folderPath: result.filePaths[0] });
         await fetchProjects();
       } catch (err) {
-        setProjectError(err instanceof Error ? err.message : String(err));
+        const message = err instanceof Error ? err.message : String(err);
+        setProjectError(message);
+        throw err instanceof Error ? err : new Error(message);
       }
     },
-    [bridge, fetchProjects],
+    [fetchProjects],
+  );
+
+  const removeProject = useCallback(
+    async (projectId: string) => {
+      if (deletingProjectId === projectId) return;
+      try {
+        setDeletingProjectId(projectId);
+        await deleteProject(projectId);
+        setConfirmDeleteProjectId(null);
+        setProjectMenu(null);
+        setEditingProjectId(null);
+        await fetchProjects();
+        await data.refreshChats();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setProjectError(message);
+        throw err instanceof Error ? err : new Error(message);
+      } finally {
+        setDeletingProjectId(null);
+      }
+    },
+    [deletingProjectId, fetchProjects, data],
   );
 
   const handleDeleteProject = useCallback(
     async (projectId: string) => {
-      if (deletingProjectId === projectId) return;
       // 与会话删除同款两段确认：第一次点击武装红色按钮，第二次才真删。
       if (confirmDeleteProjectId !== projectId) {
         setConfirmDeleteProjectId(projectId);
         return;
       }
       try {
-        setDeletingProjectId(projectId);
-        // 后端会把该项目下的会话降级为无项目对话（不删会话）。
-        await deleteProject(projectId);
-        setConfirmDeleteProjectId(null);
-        await fetchProjects();
-        await data.refreshChats();
-      } catch (err) {
-        setProjectError(err instanceof Error ? err.message : String(err));
-      } finally {
-        setDeletingProjectId(null);
+        await removeProject(projectId);
+      } catch {
+        // 横幅已写 projectError
       }
     },
-    [confirmDeleteProjectId, deletingProjectId, fetchProjects, data],
+    [confirmDeleteProjectId, removeProject],
   );
+
+  const closeProjectMenu = useCallback(() => {
+    setProjectMenu(null);
+    setConfirmDeleteProjectId(null);
+  }, []);
+
+  const handleRevealProjectFolder = useCallback(async (folderPath: string) => {
+    setProjectError(null);
+    try {
+      const res = await openLocalPath(folderPath);
+      if (!res.success && res.error) setProjectError(res.error);
+    } catch (err) {
+      setProjectError(err instanceof Error ? err.message : String(err));
+    }
+  }, []);
 
   const toggleProjectCollapsed = useCallback((projectId: string) => {
     setCollapsedProjectIds((prev) => {
@@ -733,7 +892,7 @@ export function AgentSidebar({
               </div>
             ) : (
               <>
-                {/* 项目分组在前：组头可折叠，hover 出内联管理动作 */}
+                {/* 项目分组在前：组头可折叠，hover 出 + 新建对话 / ·· 菜单 */}
                 {projectGroups.map(({ project, items }) => (
                   <div key={project.id} className="mb-1">
                     <div className="group/proj relative">
@@ -767,16 +926,16 @@ export function AgentSidebar({
                             className="flex w-full min-w-0 items-center px-2.5 pb-0.5 pt-1.5 text-[10px] font-medium uppercase tracking-wider text-agent-muted-foreground/80 transition-colors hover:text-agent-foreground"
                             title={`${project.name}\n${project.folderPath}`}
                           >
-                            <span className="mr-1">
+                            <LuFolder className="mr-1 h-3 w-3 shrink-0" />
+                            <span className="min-w-0 truncate normal-case">
+                              {project.name}
+                            </span>
+                            <span className="ml-0.5 shrink-0">
                               {collapsedProjectIds.has(project.id) ? (
                                 <LuChevronDown className="h-3 w-3" />
                               ) : (
                                 <LuChevronUp className="h-3 w-3" />
                               )}
-                            </span>
-                            <LuFolder className="mr-1 h-3 w-3 shrink-0" />
-                            <span className="min-w-0 truncate normal-case">
-                              {project.name}
                             </span>
                             {items.length > 0 && (
                               <span className="ml-1 shrink-0 font-normal">
@@ -784,8 +943,13 @@ export function AgentSidebar({
                               </span>
                             )}
                           </button>
-                          {/* 内联管理：新建对话 / 重命名 / 换文件夹 / 删除（两段确认） */}
-                          <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-hover/proj:opacity-100">
+                          <div
+                            className={`absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5 transition-opacity ${
+                              projectMenu?.id === project.id
+                                ? "opacity-100"
+                                : "opacity-0 group-hover/proj:opacity-100"
+                            }`}
+                          >
                             <button
                               type="button"
                               onClick={() => handleOpenNewChat(project.id)}
@@ -796,45 +960,21 @@ export function AgentSidebar({
                             </button>
                             <button
                               type="button"
-                              onClick={() => {
-                                setRenamingProjectId(project.id);
-                                setRenamingValue(project.name);
+                              aria-label="项目菜单"
+                              aria-expanded={projectMenu?.id === project.id}
+                              onClick={(event) => {
+                                const button = event.currentTarget;
+                                setConfirmDeleteProjectId(null);
+                                setProjectMenu((current) =>
+                                  current?.id === project.id
+                                    ? null
+                                    : { id: project.id, anchor: button },
+                                );
                               }}
                               className="flex h-5 w-5 items-center justify-center rounded-full text-agent-muted-foreground hover:bg-agent-foreground/10 hover:text-agent-foreground"
-                              title="重命名项目"
+                              title="项目菜单"
                             >
-                              <LuPencil className="h-3 w-3" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void handleChangeProjectFolder(project.id)
-                              }
-                              className="flex h-5 w-5 items-center justify-center rounded-full text-agent-muted-foreground hover:bg-agent-foreground/10 hover:text-agent-foreground"
-                              title="更换绑定文件夹"
-                            >
-                              <LuFolderOpen className="h-3 w-3" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void handleDeleteProject(project.id)
-                              }
-                              disabled={deletingProjectId === project.id}
-                              className={`flex h-5 w-5 items-center justify-center rounded-full transition-colors ${
-                                confirmDeleteProjectId === project.id
-                                  ? "bg-agent-destructive/10 text-agent-destructive hover:bg-agent-destructive/20"
-                                  : "text-agent-muted-foreground hover:bg-agent-foreground/10 hover:text-agent-destructive"
-                              }`}
-                              title={
-                                confirmDeleteProjectId === project.id
-                                  ? "再次点击确认删除（会话会保留为无项目对话）"
-                                  : "删除项目（会话保留为无项目对话）"
-                              }
-                            >
-                              <LuTrash2
-                                className={`h-3 w-3 ${deletingProjectId === project.id ? "animate-pulse" : ""}`}
-                              />
+                              <LuEllipsis className="h-3 w-3" />
                             </button>
                           </div>
                         </>
@@ -972,11 +1112,63 @@ export function AgentSidebar({
         </button>
       </div>
 
+      {projectMenu &&
+        (() => {
+          const project = projects.find((item) => item.id === projectMenu.id);
+          if (!project) return null;
+          const chatCount =
+            projectGroups.find((group) => group.project.id === project.id)
+              ?.items.length ?? 0;
+          return (
+            <ProjectOverflowMenu
+              project={project}
+              chatCount={chatCount}
+              anchor={projectMenu.anchor}
+              revealLabel={isMac ? "在访达中显示" : "在文件管理器中显示"}
+              confirmDelete={confirmDeleteProjectId === project.id}
+              deleting={deletingProjectId === project.id}
+              onClose={closeProjectMenu}
+              onRename={() => {
+                setProjectMenu(null);
+                setRenamingProjectId(project.id);
+                setRenamingValue(project.name);
+              }}
+              onChangeFolder={() => {
+                setProjectMenu(null);
+                setEditingProjectId(project.id);
+              }}
+              onReveal={() => {
+                setProjectMenu(null);
+                void handleRevealProjectFolder(project.folderPath);
+              }}
+              onDelete={() => void handleDeleteProject(project.id)}
+            />
+          );
+        })()}
+
       <CreateProjectModal
         open={createProjectOpen}
         onClose={() => setCreateProjectOpen(false)}
         onCreate={handleCreateProject}
       />
+      {editingProjectId &&
+        (() => {
+          const project = projects.find((item) => item.id === editingProjectId);
+          if (!project) return null;
+          return (
+            <CreateProjectModal
+              open
+              mode="edit"
+              initial={{
+                name: project.name,
+                sourceFolders: project.sourceFolders ?? [],
+              }}
+              onClose={() => setEditingProjectId(null)}
+              onCreate={(input) => handleUpdateProject(project.id, input)}
+              onDelete={() => removeProject(project.id)}
+            />
+          );
+        })()}
     </div>
   );
 }

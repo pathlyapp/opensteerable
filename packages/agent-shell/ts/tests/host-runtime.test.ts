@@ -75,6 +75,7 @@ vi.mock('../src/project-registry.js', () => ({
 vi.mock('../src/local-backend/router.js', () => ({
   LocalBackendRouter: class {
     resolveChatProject = vi.fn(() => null);
+    resolveChatWorkspaceRoot = vi.fn(async () => '/tmp/chat-ws');
   },
 }));
 vi.mock('../src/local-backend/worktree-service.js', () => ({ WorktreeService: class {} }));

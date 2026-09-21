@@ -76,6 +76,11 @@ export interface TaskServiceDeps {
   worktreeService: WorktreeService;
   /** chatId → 绑定项目（无项目对话返回 null）。与 router.resolveChatProject 同源。 */
   resolveChatProject: (chatId: string) => Promise<{ name: string; folderPath: string } | null>;
+  /**
+   * 无项目对话的可写根（Documents/<应用>/conversations/<chatId>）。
+   * 测试可不传，围栏回落为仅 scratch。
+   */
+  resolveChatWorkspaceRoot?: (chatId: string) => Promise<string>;
   /** 任务终态 / 推理过程广播（renderer 任务面板与右侧过程栏）。 */
   broadcast?: (
     eventName: 'task-updated' | 'task-process',
@@ -395,8 +400,13 @@ export class TaskService {
     const settings = llmService.getSettings();
     const project = await this.deps.resolveChatProject(chatId);
     // 4.6b 整合：worktree 任务的围栏根 = worktree 路径（更紧——任务摸不到
-    // 主检出）；否则沿用项目根。writableRoots 同理收窄。
-    const fenceRoot = worktreePath ?? project?.folderPath ?? null;
+    // 主检出）；否则项目家目录，再否则对话工作区。
+    const fenceRoot =
+      worktreePath ??
+      project?.folderPath ??
+      (this.deps.resolveChatWorkspaceRoot
+        ? await this.deps.resolveChatWorkspaceRoot(chatId)
+        : null);
     const execSandbox = buildExecSandbox(fenceRoot ? [fenceRoot] : []);
     const approval: SidecarChatStreamRequest['approval'] =
       process.env.STEERABLE_APPROVAL === '0'

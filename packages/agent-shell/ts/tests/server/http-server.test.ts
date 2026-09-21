@@ -20,6 +20,9 @@ import type { Server } from 'node:http';
 vi.mock('../../src/storage/index.js', () => ({
   localStore: { addMessage: vi.fn() },
 }));
+vi.mock('../../src/native-folder-dialog.js', () => ({
+  selectNativeDirectory: mocks.selectNativeDirectory,
+}));
 
 import {
   createBsServer,
@@ -30,6 +33,7 @@ import { registerPackHttpRoutes, resetPackHttpRoutes } from '../../src/host/http
 import { registerAuthProvider } from '../../src/auth/index.js';
 
 const mocks = vi.hoisted(() => ({
+  selectNativeDirectory: vi.fn(),
   routerHandle: vi.fn(),
   routerHandleStream: vi.fn(),
   executeShell: vi.fn(),
@@ -322,6 +326,16 @@ describe('BS HTTP server', () => {
       mocks.executeShell.mockResolvedValue({ success: true, stdout: 'via-executor' });
       const direct = await (await post('/host/local/exec-shell', { command: 'ls' })).json();
       expect(direct.stdout).toBe('via-executor');
+    });
+
+    it('local/select-directory 调用系统选择器并回传结果', async () => {
+      mocks.selectNativeDirectory.mockResolvedValue({
+        canceled: false,
+        filePaths: ['/tmp/src'],
+      });
+      const body = await (await post('/host/local/select-directory', { title: '添加源文件夹' })).json();
+      expect(body).toEqual({ canceled: false, filePaths: ['/tmp/src'] });
+      expect(mocks.selectNativeDirectory).toHaveBeenCalledWith({ title: '添加源文件夹' });
     });
 
     it('local/read-file、write-file、open-path 透传请求体', async () => {

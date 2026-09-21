@@ -353,7 +353,7 @@ export interface ResolvedLocalPath {
 
 /**
  * 批量确认正文里提到的路径是否真实存在（用于决定行内代码要不要变成可点击）。
- * 相对路径由后端按对话绑定的项目根解析，无项目时按 home；不存在的候选不回。
+ * 相对路径由后端按对话绑定的项目根解析，无项目时按对话工作区；不存在的候选不回。
  */
 export async function resolveLocalPaths(candidates: string[], chatId?: string | null) {
   return bridge().localBackend.request<{ resolved: ResolvedLocalPath[] }>({
@@ -489,7 +489,7 @@ export async function createProject(input: {
 
 export async function updateProject(
   projectId: string,
-  updates: { name?: string; folderPath?: string },
+  updates: { name?: string; folderPath?: string; sourceFolders?: string[] },
 ) {
   return bridge().localBackend.request<{ success: boolean; project: LocalProject }>({
     method: 'PUT',

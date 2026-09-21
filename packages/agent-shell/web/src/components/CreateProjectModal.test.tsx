@@ -1,5 +1,5 @@
 /**
- * CreateProjectModal：名称必填、源文件夹可追加、提交把两者交给 onCreate。
+ * CreateProjectModal：名称必填、源文件夹可追加多个；编辑模式回填后保存。
  */
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -73,5 +73,92 @@ describe('CreateProjectModal', () => {
     await waitFor(() =>
       expect(onCreate).toHaveBeenCalledWith({ name: '演示', sourceFolders: ['/tmp/src-a'] }),
     );
+  });
+
+  it('无系统选择器时可用输入框添加源文件夹', async () => {
+    bridgeStub = null;
+    const { onCreate } = renderModal();
+    fireEvent.change(screen.getByTestId('create-project-name'), { target: { value: '演示' } });
+    fireEvent.change(screen.getByTestId('create-project-folder-path'), {
+      target: { value: '~/code/src' },
+    });
+    fireEvent.click(screen.getByTestId('create-project-add-folder'));
+    await waitFor(() => expect(screen.getByText('~/code/src')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('create-project-submit'));
+    await waitFor(() =>
+      expect(onCreate).toHaveBeenCalledWith({ name: '演示', sourceFolders: ['~/code/src'] }),
+    );
+  });
+
+  it('编辑模式回填名称和多个源文件夹，保存时一并提交', async () => {
+    const onCreate = vi.fn(async () => {});
+    const onClose = vi.fn();
+    render(
+      <CreateProjectModal
+        open
+        mode="edit"
+        initial={{ name: '项目甲', sourceFolders: ['/tmp/old'] }}
+        onClose={onClose}
+        onCreate={onCreate}
+      />,
+    );
+
+    expect(screen.getByTestId('edit-project-dialog')).toBeTruthy();
+    expect(screen.getByDisplayValue('项目甲')).toBeTruthy();
+    expect(screen.getByText('/tmp/old')).toBeTruthy();
+
+    fireEvent.change(screen.getByTestId('edit-project-folder-path'), {
+      target: { value: '/tmp/new' },
+    });
+    fireEvent.click(screen.getByTestId('edit-project-add-folder'));
+    await waitFor(() => expect(screen.getByText('/tmp/new')).toBeTruthy());
+
+    fireEvent.change(screen.getByTestId('edit-project-name'), { target: { value: '项目甲改' } });
+    fireEvent.click(screen.getByTestId('edit-project-submit'));
+    await waitFor(() =>
+      expect(onCreate).toHaveBeenCalledWith({
+        name: '项目甲改',
+        sourceFolders: ['/tmp/old', '/tmp/new'],
+      }),
+    );
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('编辑模式可移除源文件夹后保存空列表', async () => {
+    const onCreate = vi.fn(async () => {});
+    render(
+      <CreateProjectModal
+        open
+        mode="edit"
+        initial={{ name: '项目甲', sourceFolders: ['/tmp/old'] }}
+        onClose={vi.fn()}
+        onCreate={onCreate}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText('移除 /tmp/old'));
+    fireEvent.click(screen.getByTestId('edit-project-submit'));
+    await waitFor(() =>
+      expect(onCreate).toHaveBeenCalledWith({ name: '项目甲', sourceFolders: [] }),
+    );
+  });
+
+  it('编辑模式删除需两段确认', async () => {
+    const onDelete = vi.fn(async () => {});
+    render(
+      <CreateProjectModal
+        open
+        mode="edit"
+        initial={{ name: '项目甲', sourceFolders: [] }}
+        onClose={vi.fn()}
+        onCreate={vi.fn(async () => {})}
+        onDelete={onDelete}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('edit-project-delete'));
+    expect(onDelete).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('edit-project-delete'));
+    await waitFor(() => expect(onDelete).toHaveBeenCalled());
   });
 });

@@ -383,7 +383,7 @@ export function ProjectPickerButton({
         title={
           selected
             ? `${selected.folderPath}\n新对话将绑定到此项目`
-            : '为新对话选择项目（可不选）'
+            : '为新对话选择项目。不选则在文稿/<应用名>/conversations/ 下建立本对话工作区'
         }
       />
 

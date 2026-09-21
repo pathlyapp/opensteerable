@@ -46,6 +46,7 @@ import { createVisibleTerminalExec } from './visible-terminal-exec.js';
 import { createJsonStore } from '../json-store.js';
 import { bindWorkspaceSkillRoots } from '../local-backend/skill-loader.js';
 import { getChatAttachmentsDir } from '../attachments.js';
+import { ensureChatWorkspace } from '../project-home.js';
 import { recordInsightTurn } from '../insights/record.js';
 import { llmService } from '../llm/index.js';
 import {
@@ -238,6 +239,11 @@ export async function createHostRuntime(options: HostRuntimeOptions): Promise<Ho
     toolRouter,
     worktreeService,
     resolveChatProject: resolveChatProjectRoot,
+    resolveChatWorkspaceRoot: async (chatId) => {
+      const project = await resolveChatProjectRoot(chatId);
+      if (project) return project.folderPath;
+      return ensureChatWorkspace(chatId);
+    },
     broadcast,
   });
   toolRouter.setTaskServices({ taskService, worktreeService });
@@ -298,7 +304,7 @@ export async function createHostRuntime(options: HostRuntimeOptions): Promise<Ho
         store: defaultStore,
         toolRouter,
         resolveProjectRoot: async (chatId) =>
-          (await localBackendRouter.resolveChatProject(chatId))?.folderPath ?? null,
+          localBackendRouter.resolveChatWorkspaceRoot(chatId),
         // 项目模式下文件读写被围栏在项目目录内；会话附件目录是额外放行的
         // 只读根，保证用户上传的文件即使在项目会话里也能被 agent 读回。
         resolveAdditionalReadRoots: async (chatId) => {

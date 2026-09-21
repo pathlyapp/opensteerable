@@ -52,7 +52,7 @@ export interface ChatSessionRecord {
   title: string;
   userId: string;
   agentId: string | null;
-  /** 项目模式：绑定的项目 id（ProjectRegistry）。null = 无项目对话（不沙箱）。 */
+  /** 项目模式：绑定的项目 id（ProjectRegistry）。null = 无项目对话（用对话工作区）。 */
   projectId: string | null;
   createdAt: string;
   updatedAt: string;

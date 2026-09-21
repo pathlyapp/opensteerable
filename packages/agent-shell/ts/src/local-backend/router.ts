@@ -91,7 +91,11 @@ import { detectInterruptedTurn } from './interrupted-helper.js';
 import { dropCurrentUserMessage } from './history-helper.js';
 import { parseImageAttachments, processImageAttachments } from '../image-attachment.js';
 import { loadProjectRuleFiles } from '../project-rules.js';
-import { allocateProjectHome, ensureProjectHome } from '../project-home.js';
+import {
+  allocateProjectHome,
+  ensureChatWorkspace,
+  ensureProjectHome,
+} from '../project-home.js';
 import type { TaskService } from './task-service.js';
 import { registerLiveStream, getLiveStream, removeLiveStream } from './live-stream.js';
 import {
@@ -1960,7 +1964,7 @@ export class LocalBackendRouter {
 
     // 正文里提到的路径能否点击打开：渲染层把行内代码里「像路径」的字面量
     // 批量送来，这里落地成绝对路径并 stat 验证，只有真实存在的才回。相对
-    // 路径按对话绑定的项目根解析，无项目时按 home（同 exec 缺省 cwd 的回落）。
+    // 路径按对话绑定的项目根解析，无项目时按对话工作区。
     if (method === 'POST' && pathname === '/api/v2/local/resolve-paths') {
       const payload = this.toRecord(request.body);
       const candidates = Array.isArray(payload.candidates)
@@ -1970,7 +1974,9 @@ export class LocalBackendRouter {
         return { status: 200, data: { resolved: [] } };
       }
       const chatId = typeof payload.chatId === 'string' ? payload.chatId : '';
-      const baseDir = (chatId ? (await this.resolveChatProject(chatId))?.folderPath : null) ?? os.homedir();
+      const baseDir = chatId
+        ? await this.resolveChatWorkspaceRoot(chatId)
+        : os.homedir();
       const resolved = await resolveMentionedPaths({ candidates, baseDir });
       return { status: 200, data: { resolved } };
     }
@@ -2462,10 +2468,8 @@ export class LocalBackendRouter {
 
   /**
    * 解析当前对话绑定的项目（项目模式）。chat 没绑项目、项目已被删除、或
-   * 注册表未注入时都返回 null（= 不沙箱，行为同旧版本）。
-   *
-   * Public: main.ts 的反向通道（reverse-tools.ts）经它给 CoreLoop 路径的
-   * 工具调用补上 projectRoot 围栏。
+   * 注册表未注入时都返回 null。无项目对话的可写根见
+   * {@link LocalBackendRouter.resolveChatWorkspaceRoot}。
    */
   async resolveChatProject(chatId: string): Promise<{
     name: string;
@@ -2481,6 +2485,16 @@ export class LocalBackendRouter {
       folderPath: project.folderPath,
       sourceFolders: project.sourceFolders ?? [],
     };
+  }
+
+  /**
+   * 本对话的可写根：绑了项目用项目家目录，否则在
+   * `Documents/<应用名>/conversations/<chatId>/` 建对话工作区。
+   */
+  async resolveChatWorkspaceRoot(chatId: string): Promise<string> {
+    const project = await this.resolveChatProject(chatId);
+    if (project) return project.folderPath;
+    return ensureChatWorkspace(chatId);
   }
 
   /**
@@ -2715,6 +2729,9 @@ export class LocalBackendRouter {
     // 都追加）。硬围栏在 ToolRouter/LocalExecutor，这里让模型事先知道边界，
     // 减少越界尝试。
     const chatProject = await this.resolveChatProject(chatId);
+    const workspaceRoot = chatProject
+      ? chatProject.folderPath
+      : await this.resolveChatWorkspaceRoot(chatId);
     if (chatProject) {
       systemPrompt +=
         `\n\n【项目模式】当前对话绑定项目「${chatProject.name}」，家目录：${chatProject.folderPath}\n` +
@@ -2742,6 +2759,13 @@ export class LocalBackendRouter {
             rules.content;
         }
       }
+    } else {
+      systemPrompt +=
+        `\n\n【对话工作区】当前对话没有绑定项目。工作区：${workspaceRoot}\n` +
+        `你的文件写入（local_write_file）和命令执行（local_exec_shell）都被限制在该目录内：` +
+        `写入路径越界会被拒绝；命令默认在工作区下运行，显式指定的 cwd 越界也会被拒绝。` +
+        `请一律使用工作区内的路径（相对路径按工作区解析）。` +
+        `用户若要把对话绑到已有项目，可在输入框上方选择项目。`;
     }
 
     // @引用的历史对话（payload.referencedChatIds）：把被引用对话的最近消息
@@ -3271,17 +3295,19 @@ export class LocalBackendRouter {
     // spec (default.harness.yaml) is the single source of truth for
     // maxRounds / maxToolErrors, and an explicit request param overrides it.
     // W4-2: per-exec sandbox for shell tool calls, default-on. Writable
-    // roots = the chat's project root (project mode) — unbound chats get an
-    // empty list, so writes confine to system scratch dirs only.
+    // roots = 项目家目录，或无项目时 Documents/<应用>/conversations/<chatId>。
     // `execPolicy: 'full'`（输入框「完整权限」）关闭这一层，让 mkdir
-    // Downloads 这类项目外写入不再被 Seatbelt 拦成 Operation not permitted。
+    // Downloads 这类工作区外写入不再被 Seatbelt 拦成 Operation not permitted。
     const chatProject = await this.resolveChatProject(chatId);
+    const workspaceRoot = chatProject
+      ? chatProject.folderPath
+      : await this.resolveChatWorkspaceRoot(chatId);
     const execSandbox = buildExecSandbox(
       [
         // 场景包声明的每会话可写根（如文档包在项目根之外落盘产物的
         // 工作区）。
         ...collectPackExecWritableRoots(chatId),
-        ...(chatProject ? [chatProject.folderPath] : []),
+        workspaceRoot,
       ],
       { policy: parseExecPolicy(payload.execPolicy) },
     );
@@ -3329,7 +3355,7 @@ export class LocalBackendRouter {
     const turnStartedAtMs = Date.now();
     const turnFileRoots = [
       ...collectPackExecWritableRoots(chatId),
-      ...(chatProject ? [chatProject.folderPath] : []),
+      workspaceRoot,
     ];
 
     try {
@@ -3626,7 +3652,7 @@ export class LocalBackendRouter {
         roots: turnFileRoots,
         sinceMs: turnStartedAtMs,
         actions: executedActions,
-        projectRoot: chatProject?.folderPath ?? null,
+        projectRoot: workspaceRoot,
       });
     } catch (turnFilesErr) {
       console.warn('[local-backend] collect turn files failed', turnFilesErr);

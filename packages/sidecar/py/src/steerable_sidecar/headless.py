@@ -71,7 +71,8 @@ from .workspace_tools import workspace_tools_for_cwd
 #: partial fix is almost never ending because the budget ran out.
 _SYSTEM = (
     "You are a coding agent in a Linux workspace. Complete the user's task "
-    "with bash, read_file, write_file, edit_file, and capture_display. Prefer edit_file for "
+    "with bash, read_file, write_file, edit_file, view_image, and "
+    "capture_display. Prefer edit_file for "
     "in-place edits. Do not wait for confirmation.\n"
     "Keep going until the task is completely resolved before you end your "
     "turn. Do not stop at analysis, at a plan, or at a partial fix: carry it "
@@ -151,8 +152,9 @@ _SYSTEM = (
     "carving.\n"
     "PNG/JPEG/BMP files are pixels, not UTF-8: read_file returns an ASCII "
     "preview for 8-bit PNG, baseline JPEG, and uncompressed BMP (square "
-    "images also get a rank/file 8x8 brightness and occupancy grid); decode "
-    "exact pixels with Python (PIL/numpy) or ffmpeg.\n"
+    "images also get a rank/file 8x8 brightness and occupancy grid). When "
+    "what an image shows decides your next step, call view_image and look "
+    "at it; for exact pixel values use Python (PIL/numpy) or ffmpeg.\n"
     "Token counts must use that tokenizer's default special-token and "
     "concatenation settings: do not strip BOS/EOS or pass "
     "add_special_tokens=False unless the instruction says to.\n"
@@ -196,8 +198,9 @@ _SYSTEM_CC_ALIGN = (
 _ASCII_IMAGE_NOTE = (
     "PNG/JPEG/BMP files are pixels, not UTF-8: read_file returns an ASCII "
     "preview for 8-bit PNG, baseline JPEG, and uncompressed BMP (square "
-    "images also get a rank/file 8x8 brightness and occupancy grid); decode "
-    "exact pixels with Python (PIL/numpy) or ffmpeg.\n"
+    "images also get a rank/file 8x8 brightness and occupancy grid). When "
+    "what an image shows decides your next step, call view_image and look "
+    "at it; for exact pixel values use Python (PIL/numpy) or ffmpeg.\n"
 )
 _NATIVE_IMAGE_NOTE = (
     "PNG/JPEG files attach as images after the read_file JSON; that JSON "

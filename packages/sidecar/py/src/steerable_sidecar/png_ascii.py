@@ -111,8 +111,13 @@ def _png_gray_rows(raw: bytes) -> tuple[int, int, list[list[int]]] | None:
     return width, height, rows
 
 
-def _bmp_gray_rows(raw: bytes) -> tuple[int, int, list[list[int]]] | None:
-    """Uncompressed 24/32-bit BMP (Doom ``/tmp/frame.bmp``, QEMU screenshots)."""
+def decode_bmp_rgb(raw: bytes) -> tuple[int, int, bytes] | None:
+    """Uncompressed 24/32-bit BMP to width, height, and top-down 8-bit RGB.
+
+    Covers what the tasks actually produce — Doom's ``/tmp/frame.bmp`` and
+    QEMU screenshots. Vision endpoints do not take BMP, so callers that want
+    the model to see one re-encode this through ``encode_png_rgb``.
+    """
     if len(raw) < 54 or raw[:2] != b"BM":
         return None
     pixel_off = struct.unpack_from("<I", raw, 10)[0]
@@ -127,26 +132,43 @@ def _bmp_gray_rows(raw: bytes) -> tuple[int, int, list[list[int]]] | None:
         or planes != 1
         or compression != 0
         or bpp not in (24, 32)
-        or width > 4096
+        or width > _MAX_RASTER_EDGE
     ):
         return None
     top_down = height_s < 0
     height = abs(height_s)
-    if height <= 0 or height > 4096:
+    if height <= 0 or height > _MAX_RASTER_EDGE:
         return None
     bpp_bytes = bpp // 8
     stride = ((width * bpp_bytes + 3) // 4) * 4
     if pixel_off + stride * height > len(raw):
         return None
-    rows: list[list[int]] = []
+    rgb = bytearray(width * height * 3)
+    out = 0
     for y in range(height):
         src_y = y if top_down else height - 1 - y
         off = pixel_off + src_y * stride
-        row: list[int] = []
         for x in range(width):
             i = off + x * bpp_bytes
-            row.append((raw[i + 2] + raw[i + 1] + raw[i]) // 3)
-        rows.append(row)
+            rgb[out] = raw[i + 2]
+            rgb[out + 1] = raw[i + 1]
+            rgb[out + 2] = raw[i]
+            out += 3
+    return width, height, bytes(rgb)
+
+
+def _bmp_gray_rows(raw: bytes) -> tuple[int, int, list[list[int]]] | None:
+    decoded = decode_bmp_rgb(raw)
+    if decoded is None:
+        return None
+    width, height, rgb = decoded
+    rows = [
+        [
+            (rgb[i] + rgb[i + 1] + rgb[i + 2]) // 3
+            for i in range(y * width * 3, (y + 1) * width * 3, 3)
+        ]
+        for y in range(height)
+    ]
     return width, height, rows
 
 

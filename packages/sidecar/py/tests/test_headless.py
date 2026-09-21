@@ -94,7 +94,14 @@ def test_system_prompt_is_organised_and_bounded() -> None:
 def test_system_prompt_keeps_tools_and_grading_facts() -> None:
     """Facts the model has no way to discover from inside the container."""
     prompt = headless_mod._SYSTEM
-    for tool in ("bash", "read_file", "write_file", "edit_file", "capture_display"):
+    for tool in (
+        "bash",
+        "read_file",
+        "write_file",
+        "edit_file",
+        "view_image",
+        "capture_display",
+    ):
         assert tool in prompt
     # Each of these cost a scored task before it was written down.
     assert "still run after you stop" in prompt

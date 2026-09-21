@@ -300,6 +300,70 @@ async def test_clip_and_binary_stdout(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_view_image_attaches_pixels_without_the_read_images_flag(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Attaching follows the model asking to look, not a global read setting.
+
+    ``STEERABLE_READ_IMAGES=1`` attaches on every binary ``read_file`` and lost
+    its A/B; the same pixels through a tool the model only calls when it needs
+    to see them cost nothing on the trials that never look.
+    """
+    monkeypatch.delenv("STEERABLE_READ_IMAGES", raising=False)
+    router = workspace_tools_for_cwd(tmp_path)
+    names = {
+        t.get("name") or t.get("function", {}).get("name")
+        for t in router.describe_model()
+    }
+    assert "view_image" in names
+    raw = _gray_png(4, 2, [[0, 0, 255, 255], [0, 0, 255, 255]])
+    (tmp_path / "code.png").write_bytes(raw)
+    viewed = await _call(router, "view_image", {"path": "code.png"})
+    assert viewed.success is True
+    assert viewed.data["mediaType"] == "image/png"
+    assert viewed.data["_image"]["b64"] == base64.b64encode(raw).decode("ascii")
+    assert "PNG 4x2" in viewed.data["content"]
+
+    # read_file still only previews, and says where the pixels are.
+    preview = await _call(router, "read_file", {"path": "code.png"})
+    assert preview.success is True
+    assert "_image" not in preview.data
+    assert "view_image" in preview.data["pixels"]
+
+
+@pytest.mark.asyncio
+async def test_view_image_transcodes_bmp_and_refuses_non_images(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Vision endpoints take PNG/JPEG, so BMP is re-encoded rather than dropped.
+
+    Doom's ``/tmp/frame.bmp`` and QEMU screenshots are BMP; without the
+    transcode they stay unviewable however the model asks.
+    """
+    monkeypatch.delenv("STEERABLE_READ_IMAGES", raising=False)
+    router = workspace_tools_for_cwd(tmp_path)
+    (tmp_path / "frame.bmp").write_bytes(
+        _bgr_bmp(4, 2, [[(255, 0, 0), (0, 0, 0), (0, 0, 255), (0, 0, 255)]] * 2)
+    )
+    viewed = await _call(router, "view_image", {"path": "frame.bmp"})
+    assert viewed.success is True
+    assert viewed.data["mediaType"] == "image/png"
+    assert base64.b64decode(viewed.data["_image"]["b64"]).startswith(b"\x89PNG")
+
+    (tmp_path / "notes.txt").write_text("plain text")
+    text = await _call(router, "view_image", {"path": "notes.txt"})
+    assert text.success is False
+    assert text.needsFollowup is True
+    assert "not a PNG, JPEG, or uncompressed BMP" in (text.error or "")
+
+    (tmp_path / "huge.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 400_001)
+    oversize = await _call(router, "view_image", {"path": "huge.png"})
+    assert oversize.success is False
+    assert oversize.needsFollowup is True
+    assert "attach limit" in (oversize.error or "")
+
+
+@pytest.mark.asyncio
 async def test_read_file_attaches_png_pixels_when_enabled(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

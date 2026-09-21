@@ -26,7 +26,7 @@ from steerable_agent_runtime import ToolRouter
 from steerable_agent_runtime.llm import LLMMessage
 
 from .file_edit import EditError, EditOp, apply_edits, content_version
-from .png_ascii import ascii_png_preview
+from .png_ascii import ascii_png_preview, decode_bmp_rgb, encode_png_rgb
 from .workspace_fs import LOCAL_FS, LocalFs, WorkspaceFs, WorkspaceFsError
 
 _MAX_OUTPUT = 100_000
@@ -104,6 +104,16 @@ _READ_SCHEMA = {
     "type": "object",
     "properties": {
         "path": {"type": "string", "description": "File path relative to the workspace"},
+    },
+    "required": ["path"],
+}
+_VIEW_IMAGE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "path": {
+            "type": "string",
+            "description": "Image file path: PNG, JPEG, or uncompressed BMP.",
+        },
     },
     "required": ["path"],
 }
@@ -585,6 +595,46 @@ def workspace_tools_for_cwd(
             },
         )
 
+    async def view_image(path: str) -> ToolResult:
+        try:
+            target = _resolve_under(root, path, jailed=jailed)
+        except ValueError as exc:
+            return ToolResult(success=False, error=str(exc), needsFollowup=True)
+        try:
+            raw = target.read_bytes()
+        except (OSError, ValueError) as exc:
+            return ToolResult(success=False, error=str(exc), needsFollowup=True)
+        pixels = _attachable_pixels(raw)
+        if pixels is None:
+            return ToolResult(
+                success=False,
+                error=(
+                    f"{target} is not a PNG, JPEG, or uncompressed BMP image "
+                    f"({len(raw)} bytes). Convert it with ffmpeg or PIL and "
+                    "view the converted file."
+                ),
+                needsFollowup=True,
+            )
+        blob = _image_blob(pixels)
+        if blob is None:
+            return ToolResult(
+                success=False,
+                error=(
+                    f"{target} is {len(pixels)} bytes, over the "
+                    f"{_IMAGE_ATTACH_MAX_BYTES}-byte attach limit. Re-encode it "
+                    "smaller (ffmpeg -vf scale, PIL thumbnail) and view that file."
+                ),
+                needsFollowup=True,
+            )
+        data: dict[str, object] = {
+            "path": str(target),
+            "mediaType": blob["media_type"],
+            "_image": blob,
+        }
+        preview = ascii_png_preview(pixels)
+        if preview is not None:
+            data["content"] = preview
+        return ToolResult(success=True, data=data)
 
     async def write_file(
         path: str, content: str, expectedVersion: str | None = None
@@ -740,7 +790,8 @@ def workspace_tools_for_cwd(
         if _read_images_enabled()
         else (
             "Read a UTF-8 text file from the workspace. Prefer an absolute path. "
-            "PNG/JPEG/BMP files return an ASCII preview, not UTF-8."
+            "PNG/JPEG/BMP files return an ASCII preview, not UTF-8; view_image "
+            "shows the pixels."
         )
     )
     router.register(
@@ -749,6 +800,19 @@ def workspace_tools_for_cwd(
         mode="read",
         description=read_desc,
         schema=_READ_SCHEMA,
+        require_consent=False,
+    )
+    router.register(
+        view_image,
+        name="view_image",
+        mode="read",
+        description=(
+            "Look at an image file (PNG, JPEG, or uncompressed BMP). The pixels "
+            "are attached as an image you can see; the JSON carries only an "
+            "ASCII preview. Call this whenever what the image shows decides "
+            "your next step — read_file returns the preview alone."
+        ),
+        schema=_VIEW_IMAGE_SCHEMA,
         require_consent=False,
     )
     router.register(
@@ -988,7 +1052,6 @@ def workspace_tools_for_cwd(
         nudge: bool = False,
     ) -> ToolResult:
         from .display import DisplayError, capture_rfb, parse_display_target
-        from .png_ascii import encode_png_rgb
 
         try:
             spec = parse_display_target(target)
@@ -1086,8 +1149,9 @@ def _read_images_enabled() -> bool:
 def _image_blob(raw: bytes) -> dict[str, str] | None:
     """PNG/JPEG bytes for the next LLM request; None if too large or not those types.
 
-    ``read_file`` decides whether to call this. ``capture_display`` always
-    does: a remote display without pixels is a capture the model cannot see.
+    ``read_file`` decides whether to call this. ``capture_display`` and
+    ``view_image`` always do: both exist so the model can look at something,
+    and neither has a job left once the pixels are dropped.
     """
     if len(raw) > _IMAGE_ATTACH_MAX_BYTES:
         return None
@@ -1101,6 +1165,20 @@ def _image_blob(raw: bytes) -> dict[str, str] | None:
         "b64": base64.b64encode(raw).decode("ascii"),
         "media_type": media,
     }
+
+
+def _attachable_pixels(raw: bytes) -> bytes | None:
+    """Bytes a vision endpoint accepts: PNG/JPEG as they are, BMP re-encoded.
+
+    ``None`` when the bytes are not an image this module can hand to a model.
+    """
+    if raw.startswith(b"\x89PNG") or raw[:2] == b"\xff\xd8":
+        return raw
+    decoded = decode_bmp_rgb(raw)
+    if decoded is None:
+        return None
+    width, height, rgb = decoded
+    return encode_png_rgb(width, height, rgb)
 
 
 def _binary_read_result(target: Path, raw: bytes) -> ToolResult:
@@ -1119,10 +1197,13 @@ def _binary_read_result(target: Path, raw: bytes) -> ToolResult:
                 else "png_ascii"
             ),
         }
-        if _read_images_enabled():
-            blob = _image_blob(raw)
-            if blob is not None:
-                data["_image"] = blob
+        blob = _image_blob(raw) if _read_images_enabled() else None
+        if blob is not None:
+            data["_image"] = blob
+        else:
+            data["pixels"] = (
+                f"ASCII preview only. Call view_image on {target} to see the image."
+            )
         return ToolResult(success=True, data=data)
     kind = (
         "PNG"
@@ -1133,12 +1214,16 @@ def _binary_read_result(target: Path, raw: bytes) -> ToolResult:
         if raw[:2] == b"BM"
         else "binary"
     )
+    hint = (
+        "Decode it with Python (PIL/numpy) or `file`"
+        if kind == "binary"
+        else "Call view_image to look at it, or decode it with Python (PIL/numpy)"
+    )
     return ToolResult(
         success=False,
         error=(
-            f"{target} is {kind} ({len(raw)} bytes), not UTF-8 text. "
-            "Decode it with Python (PIL/numpy) or `file`; do not guess "
-            "contents from the filename."
+            f"{target} is {kind} ({len(raw)} bytes), not UTF-8 text. {hint}; "
+            "do not guess contents from the filename."
         ),
         needsFollowup=True,
     )

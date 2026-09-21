@@ -377,6 +377,24 @@ be expressed in a closed proxy list, so arbitrary fetches then fail at the
 proxy. The marker without any proxy env is a misconfiguration and fails loud
 with an actionable error instead of hanging behind an absent proxy.
 
+## Looking at an image (sidecar)
+
+`view_image` attaches a workspace image file as pixels the model can see,
+plus the same ASCII preview `read_file` returns. PNG and JPEG attach as they
+are; uncompressed BMP is re-encoded to PNG because vision endpoints do not
+take BMP. Over the 400 KB attach cap, or not an image, the call fails with a
+followup-able error naming the fix rather than returning a picture nobody
+can read.
+
+Attaching is unconditional here and gated on `read_file`, because the two
+tools carry different intent. A `read_file` that attached every PNG it
+touched spent context on trials that never needed to look, and lost its
+flaky A/B ([33985962466](https://github.com/pathlyapp/steerable-framework/actions/runs/33985962466)).
+`view_image` only runs when the model decided the picture matters, so the
+pixels are the whole result. `read_file`'s ASCII preview carries a `pixels`
+field pointing at `view_image`, so the affordance is discoverable without
+the harness guessing which files are worth looking at.
+
 ## Display capture (sidecar)
 
 `capture_display` (`steerable_sidecar/display.py`) reads the **client
@@ -395,7 +413,8 @@ to TCP `5900+N`; values 5900–65535 are raw ports. A hypervisor
 stale client framebuffer can refresh. Optional `path` writes the PNG into
 the workspace. The tool result reuses `read_file`'s image path: an ASCII
 preview in `data.content`, and `data._image` on every successful capture
-(same 400 KB cap). File reads stay ASCII unless `STEERABLE_READ_IMAGES=1`.
+(same 400 KB cap), for the same reason `view_image` always attaches. File
+reads stay ASCII unless `STEERABLE_READ_IMAGES=1`.
 
 Authenticated VNC, RDP, and other display protocols are out of scope for
 this revision; an unknown URL scheme fails with a followup-able error

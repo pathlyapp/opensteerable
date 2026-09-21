@@ -218,5 +218,6 @@ async def test_headless_no_web_tools_flag_removes_the_pair_from_the_model_reques
         "read_file",
         "write_file",
         "edit_file",
+        "view_image",
         "capture_display",
     } <= stripped_tools

@@ -155,6 +155,9 @@ function makeCtx(overrides: Partial<AgentOutletContext> = {}): AgentOutletContex
     registerChatMessageSender: vi.fn(),
     sendChatMessage: vi.fn(),
     inspectTask: vi.fn(),
+    chatSlots: [],
+    rightPanel: null,
+    onToggleChatSlot: vi.fn(),
     ...overrides,
   };
 }

@@ -20,7 +20,6 @@ import type { ElectronBridge } from '@/lib/electron-bridge';
 import type { UseChatsAndAgentsResult } from '@/hooks/useChatsAndAgents';
 import type { LocalChat, LocalChatAgent, LocalProject } from '@/lib/local-api';
 import type { RightPanelState } from '@/layouts/AgentLayout';
-import type { PackChatSlotContribution } from '@/packs/registry';
 
 // 可控桥桩：bridgeStub 为 null 时 isElectron() = false（纯浏览器预览路径），
 // 项目模式用例经 enterElectron() 装上带 selectDirectory 的桥。
@@ -200,7 +199,6 @@ interface RenderSidebarOptions {
   data?: Partial<UseChatsAndAgentsResult>;
   rightPanel?: RightPanelState;
   onToggleRightPanel?: (kind: string) => void;
-  chatSlots?: readonly PackChatSlotContribution[];
   onCollapse?: () => void;
 }
 
@@ -223,7 +221,6 @@ function renderSidebar(
                 data={data}
                 rightPanel={options.rightPanel ?? null}
                 onToggleRightPanel={onToggleRightPanel}
-                chatSlots={options.chatSlots ?? []}
                 onCollapse={onCollapse}
               />
               <LocationProbe />
@@ -507,27 +504,16 @@ describe('AgentSidebar 右侧面板切换', () => {
     expect(btn.className).toContain('bg-agent-foreground/10');
   });
 
-  it('有包槽位时渲染分段控件，点击槽位切换对应面板', () => {
-    const previewSlot: PackChatSlotContribution = {
-      slotId: 'preview',
-      title: '预览',
-      Icon: ({ className }: { className?: string }) => <svg className={className} />,
-      Component: () => null,
-    };
+  it('槽位入口移到 chat 标题栏后，侧栏只保留单个终端按钮', () => {
     const onToggleRightPanel = vi.fn();
-    renderSidebar('/agent', vi.fn(), {
-      chatSlots: [previewSlot],
-      rightPanel: 'preview',
-      onToggleRightPanel,
-    });
+    renderSidebar('/agent', vi.fn(), { rightPanel: 'preview', onToggleRightPanel });
 
-    const slotBtn = screen.getByTestId('sidebar-slot-preview');
-    expect(slotBtn.textContent).toContain('预览');
-    expect(slotBtn.className).toContain('bg-agent-foreground/10');
-    fireEvent.click(slotBtn);
-    expect(onToggleRightPanel).toHaveBeenCalledWith('preview');
-    // 终端按钮收进分段控件，仍然可用。
-    fireEvent.click(screen.getByTestId('sidebar-terminal'));
+    // 右侧栏位即使是包槽位，侧栏也只显示终端（能一键切回）。
+    expect(screen.queryByTestId('sidebar-slot-preview')).toBeNull();
+    const terminal = screen.getByTestId('sidebar-terminal');
+    expect(terminal.textContent).toContain('终端');
+    expect(terminal.getAttribute('title')).toContain('打开终端面板');
+    fireEvent.click(terminal);
     expect(onToggleRightPanel).toHaveBeenCalledWith('terminal');
   });
 });

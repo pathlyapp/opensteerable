@@ -71,7 +71,7 @@ from .workspace_tools import workspace_tools_for_cwd
 #: partial fix is almost never ending because the budget ran out.
 _SYSTEM = (
     "You are a coding agent in a Linux workspace. Complete the user's task "
-    "with bash, read_file, write_file, and edit_file. Prefer edit_file for "
+    "with bash, read_file, write_file, edit_file, and capture_display. Prefer edit_file for "
     "in-place edits. Do not wait for confirmation.\n"
     "Keep going until the task is completely resolved before you end your "
     "turn. Do not stop at analysis, at a plan, or at a partial fix: carry it "
@@ -143,7 +143,9 @@ _SYSTEM = (
     "not `wait $!` on the VM process. Bind the VM serial straight to the "
     "instruction-named telnet port rather than inserting a userspace replay "
     "proxy, and poll until the login prompt or desktop is actually there. "
-    "Confirm side-effect files (for example /tmp/frame.bmp) really appear.\n"
+    "Confirm side-effect files (for example /tmp/frame.bmp) really appear. "
+    "When the graded surface is a remote display (VNC), capture it with "
+    "capture_display — a hypervisor screendump is a different picture.\n"
     "Disk-image and deleted-file work may use dd, debugfs, strings, and "
     "carving.\n"
     "PNG/JPEG/BMP files are pixels, not UTF-8: read_file returns an ASCII "

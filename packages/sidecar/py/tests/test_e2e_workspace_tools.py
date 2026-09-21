@@ -32,6 +32,7 @@ EXPECTED_TOOLS = {
     "bash",
     "bash_session",
     "write_stdin",
+    "capture_display",
 }
 
 

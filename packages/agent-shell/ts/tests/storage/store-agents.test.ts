@@ -8,6 +8,10 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+  resetProductConfigForTests,
+  setProductConfig,
+} from '../../src/product-config.js';
+import {
   cleanupTestStores,
   createTestStore,
   loadStorageModule,
@@ -17,10 +21,23 @@ await loadStorageModule();
 
 afterEach(() => {
   cleanupTestStores();
+  resetProductConfigForTests();
 });
 
+const BOTH_BUILTINS = {
+  builtinAgents: { 'local-assistant': true, 'all-round-assistant': true },
+} as const;
+
 describe('LocalStore / 内置智能体种子', () => {
-  it('新库构造后种子出电脑操作员与智能助手', async () => {
+  it('未声明时新库不写入 shell 内置智能体', async () => {
+    const { store } = await createTestStore();
+    expect(await store.getChatAgent('local-assistant')).toBeNull();
+    expect(await store.getChatAgent('all-round-assistant')).toBeNull();
+    expect(await store.listChatAgents()).toEqual([]);
+  });
+
+  it('产品显式引入后种子出电脑操作员与智能助手', async () => {
+    setProductConfig(BOTH_BUILTINS);
     const { store } = await createTestStore();
     const local = await store.getChatAgent('local-assistant');
     expect(local).toMatchObject({
@@ -45,6 +62,17 @@ describe('LocalStore / 内置智能体种子', () => {
       'local-assistant',
       'all-round-assistant',
     ]);
+  });
+
+  it('不再引入时把存量行归档', async () => {
+    setProductConfig(BOTH_BUILTINS);
+    const { store } = await createTestStore();
+    expect((await store.getChatAgent('local-assistant'))?.isArchived).toBe(false);
+    resetProductConfigForTests();
+    await store.initialize();
+    expect((await store.getChatAgent('local-assistant'))?.isArchived).toBe(true);
+    expect((await store.getChatAgent('all-round-assistant'))?.isArchived).toBe(true);
+    expect(await store.listChatAgents()).toEqual([]);
   });
 });
 
@@ -143,6 +171,7 @@ describe('LocalStore / updateChatAgent 与归档', () => {
 
 describe('LocalStore / listChatAgents 排序', () => {
   it('按 sort_order 升序，内置种子被自定义小序号挤到后面', async () => {
+    setProductConfig(BOTH_BUILTINS);
     const { store } = await createTestStore();
     const first = await store.createChatAgent({ name: '排最前', sortOrder: -1 });
     const last = await store.createChatAgent({ name: '排最后', sortOrder: 99 });

@@ -25,6 +25,7 @@ import {
   type McpServerEntry,
 } from '../mcp-server-registry.js';
 import { ProjectRegistry, type ProjectRecord } from '../project-registry.js';
+import { getProductConfig } from '../product-config.js';
 import { LocalBackendRouter } from '../local-backend/router.js';
 import { WorktreeService } from '../local-backend/worktree-service.js';
 import { TaskService } from '../local-backend/task-service.js';
@@ -161,6 +162,7 @@ export async function createHostRuntime(options: HostRuntimeOptions): Promise<Ho
       defaults: { mcpServers: [] },
     }),
   );
+  mcpServerRegistry.seedProductServers(getProductConfig().builtinMcp);
   const projectRegistry = new ProjectRegistry(
     createJsonStore<{ projects: ProjectRecord[] }>({
       name: 'agent-projects',

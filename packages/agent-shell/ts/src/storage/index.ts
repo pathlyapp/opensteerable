@@ -5,6 +5,7 @@ import {
   LOCAL_ASSISTANT_AGENT_ID,
   getBrand,
 } from '../brand.js';
+import { isShellBuiltinAgentEnabled } from '../product-config.js';
 import {
   DEFAULT_LLM_SETTINGS,
   llmSettingsCarryExpiredBakedKey,
@@ -680,92 +681,106 @@ export class SqliteScopedStore implements ScopedStore {
       )
     `);
 
-    if (!hasBuiltin) {
-      insertAgent.run({
-        tenantId: this.scope.tenantId,
-        userId: this.scope.userId,
-        id: LOCAL_ASSISTANT_AGENT_ID,
-        slug: LOCAL_ASSISTANT_AGENT_ID,
-        name: '电脑操作员',
-        icon: 'Cpu',
-        color: '#4f46e5',
-        description: '默认本地助手，可调用 shell、文件与 MCP 工具。',
-        rolePrompt: '你是 **电脑操作员**，本地离线助手，回答时清晰、可执行。',
-        forbiddenPrompt: null,
-        skillIds: JSON.stringify([]),
-        toolPolicy: JSON.stringify({ mode: 'all', tools: [] }),
-        allowExternalSkills: 1,
-        loadAllSkills: 0,
-        isBuiltin: 1,
-        isArchived: 0,
-        // 激活包有主打种子（sortOrder 0）时让位到 1。
-        sortOrder: hasHeroSeed ? 1 : 0,
-        createdAt: now,
-        updatedAt: now,
-      });
-    } else {
-      this.db.prepare(`UPDATE chat_agents SET name = ?
-                       WHERE tenant_id = ? AND user_id = ? AND id = ?`)
-        .run('电脑操作员', this.scope.tenantId, this.scope.userId, LOCAL_ASSISTANT_AGENT_ID);
-      const local = this.db
-        .prepare(`SELECT role_prompt FROM chat_agents
-                  WHERE tenant_id = ? AND user_id = ? AND id = ?`)
-        .get(this.scope.tenantId, this.scope.userId, LOCAL_ASSISTANT_AGENT_ID) as { role_prompt: string } | undefined;
-      if (local?.role_prompt === '你是本地离线助手，回答时清晰、可执行。') {
-        this.db
-          .prepare(`UPDATE chat_agents SET role_prompt = ?
+    if (isShellBuiltinAgentEnabled(LOCAL_ASSISTANT_AGENT_ID)) {
+      if (!hasBuiltin) {
+        insertAgent.run({
+          tenantId: this.scope.tenantId,
+          userId: this.scope.userId,
+          id: LOCAL_ASSISTANT_AGENT_ID,
+          slug: LOCAL_ASSISTANT_AGENT_ID,
+          name: '电脑操作员',
+          icon: 'Cpu',
+          color: '#4f46e5',
+          description: '默认本地助手，可调用 shell、文件与 MCP 工具。',
+          rolePrompt: '你是 **电脑操作员**，本地离线助手，回答时清晰、可执行。',
+          forbiddenPrompt: null,
+          skillIds: JSON.stringify([]),
+          toolPolicy: JSON.stringify({ mode: 'all', tools: [] }),
+          allowExternalSkills: 1,
+          loadAllSkills: 0,
+          isBuiltin: 1,
+          isArchived: 0,
+          // 激活包有主打种子（sortOrder 0）时让位到 1。
+          sortOrder: hasHeroSeed ? 1 : 0,
+          createdAt: now,
+          updatedAt: now,
+        });
+      } else {
+        this.db.prepare(`UPDATE chat_agents SET name = ?
+                         WHERE tenant_id = ? AND user_id = ? AND id = ?`)
+          .run('电脑操作员', this.scope.tenantId, this.scope.userId, LOCAL_ASSISTANT_AGENT_ID);
+        const local = this.db
+          .prepare(`SELECT role_prompt FROM chat_agents
                     WHERE tenant_id = ? AND user_id = ? AND id = ?`)
-          .run('你是 **电脑操作员**，本地离线助手，回答时清晰、可执行。', this.scope.tenantId, this.scope.userId, LOCAL_ASSISTANT_AGENT_ID);
+          .get(this.scope.tenantId, this.scope.userId, LOCAL_ASSISTANT_AGENT_ID) as { role_prompt: string } | undefined;
+        if (local?.role_prompt === '你是本地离线助手，回答时清晰、可执行。') {
+          this.db
+            .prepare(`UPDATE chat_agents SET role_prompt = ?
+                      WHERE tenant_id = ? AND user_id = ? AND id = ?`)
+            .run('你是 **电脑操作员**，本地离线助手，回答时清晰、可执行。', this.scope.tenantId, this.scope.userId, LOCAL_ASSISTANT_AGENT_ID);
+        }
       }
+    } else if (hasBuiltin) {
+      this.db
+        .prepare(`UPDATE chat_agents SET is_archived = 1, updated_at = ?
+                  WHERE tenant_id = ? AND user_id = ? AND id = ? AND is_archived = 0`)
+        .run(now, this.scope.tenantId, this.scope.userId, LOCAL_ASSISTANT_AGENT_ID);
     }
 
     const hasAllRound = this.db
       .prepare(`SELECT id FROM chat_agents WHERE tenant_id = ? AND user_id = ? AND id = ?`)
       .get(this.scope.tenantId, this.scope.userId, ALL_ROUND_ASSISTANT_AGENT_ID) as { id: string } | undefined;
 
-    if (!hasAllRound) {
-      insertAgent.run({
-        tenantId: this.scope.tenantId,
-        userId: this.scope.userId,
-        id: ALL_ROUND_ASSISTANT_AGENT_ID,
-        slug: ALL_ROUND_ASSISTANT_AGENT_ID,
-        name: '智能助手',
-        icon: '🔮',
-        color: '#a855f7',
-        description: '全能智能体，自动加载全部已安装本地技能和工具，无需限定条件。',
-        rolePrompt: [
-          '你是 **智能助手**，一个具备高权限且集成了全部本地技能（Skills）的行动体。',
-          '你具备完整的本地命令执行（local_exec_shell）、文件读写能力，以及当前产品安装的全部场景工具。',
-          '你的系统提示词中已经无条件加载了所有已安装的本地技能与工具。',
-          '请根据用户的需求，直接、高效地调用最合适的本地工具或执行脚本来解决任务。'
-        ].join('\n'),
-        forbiddenPrompt: null,
-        skillIds: JSON.stringify([]),
-        toolPolicy: JSON.stringify({ mode: 'all', tools: [] }),
-        allowExternalSkills: 1,
-        // 「智能助手」的定位就是无条件加载全部技能（此前是 router 硬编码）。
-        loadAllSkills: 1,
-        isBuiltin: 1,
-        isArchived: 0,
-        sortOrder: 2,
-        createdAt: now,
-        updatedAt: now,
-      });
-    } else {
-      const agent = this.db.prepare(
-        `SELECT role_prompt FROM chat_agents
-         WHERE tenant_id = ? AND user_id = ? AND id = ?`,
-      ).get(this.scope.tenantId, this.scope.userId, ALL_ROUND_ASSISTANT_AGENT_ID) as { role_prompt: string } | undefined;
-      if (agent) {
-        const updatedPrompt = agent.role_prompt.replace(/全能专家助手/g, '智能助手');
-        this.db.prepare(`UPDATE chat_agents SET name = ?, role_prompt = ?
-                         WHERE tenant_id = ? AND user_id = ? AND id = ?`)
-          .run('智能助手', updatedPrompt, this.scope.tenantId, this.scope.userId, ALL_ROUND_ASSISTANT_AGENT_ID);
+    if (isShellBuiltinAgentEnabled(ALL_ROUND_ASSISTANT_AGENT_ID)) {
+      if (!hasAllRound) {
+        insertAgent.run({
+          tenantId: this.scope.tenantId,
+          userId: this.scope.userId,
+          id: ALL_ROUND_ASSISTANT_AGENT_ID,
+          slug: ALL_ROUND_ASSISTANT_AGENT_ID,
+          name: '智能助手',
+          icon: '🔮',
+          color: '#a855f7',
+          description: '全能智能体，自动加载全部已安装本地技能和工具，无需限定条件。',
+          rolePrompt: [
+            '你是 **智能助手**，一个具备高权限且集成了全部本地技能（Skills）的行动体。',
+            '你具备完整的本地命令执行（local_exec_shell）、文件读写能力，以及当前产品安装的全部场景工具。',
+            '你的系统提示词中已经无条件加载了所有已安装的本地技能与工具。',
+            '请根据用户的需求，直接、高效地调用最合适的本地工具或执行脚本来解决任务。'
+          ].join('\n'),
+          forbiddenPrompt: null,
+          skillIds: JSON.stringify([]),
+          toolPolicy: JSON.stringify({ mode: 'all', tools: [] }),
+          allowExternalSkills: 1,
+          // 「智能助手」的定位就是无条件加载全部技能（此前是 router 硬编码）。
+          loadAllSkills: 1,
+          isBuiltin: 1,
+          isArchived: 0,
+          sortOrder: 2,
+          createdAt: now,
+          updatedAt: now,
+        });
       } else {
-        this.db.prepare(`UPDATE chat_agents SET name = ?
-                         WHERE tenant_id = ? AND user_id = ? AND id = ?`)
-          .run('智能助手', this.scope.tenantId, this.scope.userId, ALL_ROUND_ASSISTANT_AGENT_ID);
+        const agent = this.db.prepare(
+          `SELECT role_prompt FROM chat_agents
+           WHERE tenant_id = ? AND user_id = ? AND id = ?`,
+        ).get(this.scope.tenantId, this.scope.userId, ALL_ROUND_ASSISTANT_AGENT_ID) as { role_prompt: string } | undefined;
+        if (agent) {
+          const updatedPrompt = agent.role_prompt.replace(/全能专家助手/g, '智能助手');
+          this.db.prepare(`UPDATE chat_agents SET name = ?, role_prompt = ?
+                           WHERE tenant_id = ? AND user_id = ? AND id = ?`)
+            .run('智能助手', updatedPrompt, this.scope.tenantId, this.scope.userId, ALL_ROUND_ASSISTANT_AGENT_ID);
+        } else {
+          this.db.prepare(`UPDATE chat_agents SET name = ?
+                           WHERE tenant_id = ? AND user_id = ? AND id = ?`)
+            .run('智能助手', this.scope.tenantId, this.scope.userId, ALL_ROUND_ASSISTANT_AGENT_ID);
+        }
       }
+    } else if (hasAllRound) {
+      this.db
+        .prepare(`UPDATE chat_agents SET is_archived = 1, updated_at = ?
+                  WHERE tenant_id = ? AND user_id = ? AND id = ? AND is_archived = 0`)
+        .run(now, this.scope.tenantId, this.scope.userId, ALL_ROUND_ASSISTANT_AGENT_ID);
     }
 
     // ─── 场景包智能体种子（0.3d） ───

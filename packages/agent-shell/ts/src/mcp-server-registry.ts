@@ -96,6 +96,14 @@ export class McpServerRegistry {
     );
   }
 
+  /** 产品预置 MCP：缺省不引入；已有同名服务不覆盖。 */
+  seedProductServers(specs: CreateMcpServerInput[] | undefined): void {
+    for (const spec of specs ?? []) {
+      if (this.get(spec.name)) continue;
+      this.create(spec);
+    }
+  }
+
   create(input: CreateMcpServerInput): McpServerEntry {
     const name = input.name.trim();
     const command = input.command.trim();

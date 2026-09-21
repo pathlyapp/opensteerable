@@ -67,6 +67,47 @@ export interface ProductConfig {
     temperature?: number;
     maxTotalTokens?: number;
   };
+  /**
+   * shell 内置智能体。按需引入，缺省全关。
+   * `true` 才种子；未声明或 `false` 不写入，已有行归档。
+   */
+  builtinAgents?: Partial<Record<'local-assistant' | 'all-round-assistant', boolean>>;
+  /**
+   * shell 内置技能。按需引入，缺省全关。
+   * `true` 引入全部；对象里 `true` 的目录才引入。设置页入口不受影响。
+   */
+  builtinSkills?: boolean | Partial<Record<string, boolean>>;
+  /**
+   * 产品预置 MCP 服务。按需引入，缺省空。已有同名服务不覆盖。
+   * 设置页入口不受影响。
+   */
+  builtinMcp?: Array<{
+    name: string;
+    command: string;
+    args?: string[];
+    env?: Record<string, string>;
+    cwd?: string;
+    enabled?: boolean;
+  }>;
+}
+
+/** shell 内置智能体：只有产品显式 `true` 才开。 */
+export function isShellBuiltinAgentEnabled(
+  id: 'local-assistant' | 'all-round-assistant',
+  config: ProductConfig = getProductConfig(),
+): boolean {
+  return config.builtinAgents?.[id] === true;
+}
+
+/** shell 内置技能：`true` 全开；否则只有对象里显式 `true` 的目录开。 */
+export function isShellBuiltinSkillEnabled(
+  id: string,
+  config: ProductConfig = getProductConfig(),
+): boolean {
+  const value = config.builtinSkills;
+  if (value === true) return true;
+  if (!value || typeof value !== 'object') return false;
+  return value[id] === true;
 }
 
 let productConfig: ProductConfig | null = null;

@@ -277,6 +277,14 @@ def test_cheap12_probe_cards_are_a_new_baseline() -> None:
     assert 'label="$label · 新基线不上首页"' in WEEKLY
 
 
+def test_explicit_catalog_tasks_accept_steerable_overrides() -> None:
+    """A failed-task experiment must vary a tunable without changing code."""
+    catalog = WEEKLY.split("  catalog:", 1)[1].split("  flaky:", 1)[0]
+    assert "github.event.inputs.tasks != ''" in catalog
+    assert "EVAL_ENV: ${{ github.event.inputs.arm_b_env }}" in catalog
+    assert "refusing override outside the STEERABLE_ namespace" in catalog
+
+
 def test_arms_matrix_references_registered_harnesses() -> None:
     suite = load_suite()
     for harness in ("default", "subagent", "minimal", "self_critique"):

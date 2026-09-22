@@ -58,7 +58,7 @@ on:
         type: string
         default: ""
       arm_b_env:
-        description: "flaky arm B overrides, `KEY=VALUE` per line. Arm A always runs the committed defaults."
+        description: "STEERABLE_ overrides, `KEY=VALUE` per line. Applied to flaky arm B, spiral-red, and explicit-task catalog experiments."
         type: string
         default: |
           STEERABLE_IDLE_STREAM_TIMEOUT_MS=0
@@ -373,6 +373,22 @@ jobs:
           rust-coreloop: ${{ github.event.inputs.agent == 'steerable' && github.event.inputs.coreloop != 'python' }}
       - run: docker info
         if: steps.gate.outputs.skip != '1'
+      - name: Explicit-task overrides
+        if: steps.gate.outputs.skip != '1' && github.event.inputs.tasks != ''
+        env:
+          EVAL_ENV: ${{ github.event.inputs.arm_b_env }}
+        run: |
+          set -eu
+          printf '%s\n' "$EVAL_ENV" | while IFS= read -r line; do
+            line="${line%$'\r'}"
+            case "$line" in
+              "") ;;
+              STEERABLE_*=*) printf '%s\n' "$line" >> "$GITHUB_ENV" ;;
+              *) echo "refusing override outside the STEERABLE_ namespace: $line" >&2; exit 1 ;;
+            esac
+          done
+          echo "explicit-task overrides:" >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' "$EVAL_ENV" | sed 's/^/    /' >> "$GITHUB_STEP_SUMMARY"
       - name: Harbor catalog shard
         if: steps.gate.outputs.skip != '1'
         env:

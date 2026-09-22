@@ -7,6 +7,7 @@ derivable from the completion event stream alone (no separate record channel).
 
 from __future__ import annotations
 
+import json
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -28,6 +29,8 @@ from steerable_agent_runtime import (
     TranscriptAppend,
 )
 from steerable_agent_runtime.llm import LLMMessage, LLMStreamChunk
+from steerable_agent_runtime.history import ContextManager
+from steerable_agent_runtime.native_bridge import _msg_to_json, _pre_step
 
 
 def make_provider(script: list[dict[str, Any]]):
@@ -230,6 +233,63 @@ async def test_chain_hooks_append_then_rewrite_folds_earlier_appends() -> None:
         "original",
         "catalog",
     ]
+
+
+@pytest.mark.asyncio
+async def test_native_pre_step_folds_append_into_rewrite_once() -> None:
+    class _RewriteAndAppend(NoopHooks):
+        async def pre_step(self, transcript, ctx):
+            return PreStepAction(
+                kind="proceed",
+                rewrite=RewriteRequest(
+                    messages=[
+                        LLMMessage.text_of("system", "system"),
+                        LLMMessage.text_of("user", "instruction"),
+                    ],
+                    reason="reset",
+                    action="livelock_reset",
+                ),
+                appends=[
+                    TranscriptAppend(
+                        LLMMessage.text_of("user", "write now"),
+                        kind="delivery.reset",
+                    )
+                ],
+                reason="forced empty",
+                append_action="delivery_nudge",
+                tool_choice="required",
+            )
+
+    provider = make_provider([{"content": "ok"}])
+    loop = CoreLoop(
+        provider,
+        RouterToolExecutor(ToolRouter()),
+        hooks=_RewriteAndAppend(),
+    )
+    original = [
+        LLMMessage.text_of("system", "old-system"),
+        LLMMessage.text_of("user", "old-instruction"),
+    ]
+    manager = ContextManager(original)
+
+    payload = json.loads(
+        await _pre_step(
+            loop,
+            manager,
+            json.dumps([_msg_to_json(message) for message in original]),
+        )
+    )
+
+    assert "appends" not in payload
+    assert payload["appended_count"] == 1
+    assert payload["action"] == "livelock_reset"
+    assert payload["append_action"] == "delivery_nudge"
+    assert payload["append_reason"] == "forced empty"
+    assert payload["tool_choice"] == "required"
+    assert [
+        "".join(part.get("text") or "" for part in message["content"])
+        for message in payload["rewrite"]
+    ] == ["system", "instruction", "write now"]
 
 
 @pytest.mark.asyncio

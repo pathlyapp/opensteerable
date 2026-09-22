@@ -80,6 +80,8 @@ _TUNING_KEYS = (
     "STEERABLE_IDLE_STREAM_TIMEOUT_MS",
     "STEERABLE_IDLE_STREAM_MAX_CHARS",
     "STEERABLE_REASONING_WITHOUT_PROGRESS_CHARS",
+    "STEERABLE_SOFT_TIMEOUT_MS",
+    "STEERABLE_HARD_TIMEOUT_SEC",
     # Sampling, for the same reason: 17 of 89 tasks flip outcome between runs
     # of the same commit, and the same task has run 10 and 48 tool calls on
     # two runs, so trajectory spread is what the flapping is made of. The
@@ -95,6 +97,7 @@ _TUNING_KEYS = (
     "STEERABLE_REMINDERS",
     "STEERABLE_DELIVERY_VERIFY",
     "STEERABLE_LIVELOCK_EMPTY_STREAK",
+    "STEERABLE_LIVELOCK_REWRITE_STREAK",
     "STEERABLE_PROMPT_CC_ALIGN",
     "STEERABLE_READ_IMAGES",
     "STEERABLE_REQUEST_RECORD_PATH",
@@ -344,6 +347,35 @@ class SteerableHarborAgent(BaseInstalledAgent):
                 timeout_sec=15,
             )
         except Exception:
+            return
+
+    async def _repair_verifier_package_state(
+        self, environment: BaseEnvironment
+    ) -> None:
+        """Finish an interrupted apt transaction before Harbor's verifier setup.
+
+        Agent setup is intentionally best-effort on old task images. When apt
+        partially upgrades a package set and then fails, Harbor's verifier
+        cannot install its own declared dependencies: the test process starts
+        without tools such as ``sshpass`` and a correct agent result scores
+        zero. A healthy package database is left untouched.
+        """
+        try:
+            await self.exec_as_root(
+                environment,
+                command=(
+                    "if command -v apt-get >/dev/null 2>&1 "
+                    "&& ! apt-get check >/dev/null 2>&1; then "
+                    "export DEBIAN_FRONTEND=noninteractive; "
+                    "dpkg --configure -a || true; "
+                    "apt-get -f install -y; "
+                    "apt-get check; "
+                    "fi"
+                ),
+                timeout_sec=300,
+            )
+        except Exception:
+            # Non-Debian and EOL images still reach verifiers that need no apt.
             return
 
     async def _ensure_python_310(
@@ -620,6 +652,7 @@ class SteerableHarborAgent(BaseInstalledAgent):
             # Harbor pip-installs pytest then runs /usr/local/bin/python -m
             # pytest. Re-point python at python3 after the agent in case a
             # trial retargeted the symlink.
+            await self._repair_verifier_package_state(environment)
             await self._align_verifier_python(environment)
             await self._record_token_usage(environment, context, log)
 

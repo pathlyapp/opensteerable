@@ -112,6 +112,9 @@ def test_system_prompt_keeps_tools_and_grading_facts() -> None:
     assert "Look at the attached PNG" in prompt
     assert "git gc --prune" in prompt
     assert "cannot be found anywhere in the repo" in prompt
+    assert "Better external-label accuracy is not equivalence" in prompt
+    assert "query/document APIs" in prompt
+    assert "exact installed model, not only mocks" in prompt
 
 
 def test_missing_instruction_errors() -> None:

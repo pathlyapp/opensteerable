@@ -430,15 +430,6 @@ old file is restored and the model receives a recoverable failure. This
 prevents a stale `.npy`, image, JSON, or text file from hiding a broken current
 entrypoint.
 
-`STEERABLE_LIVELOCK_REWRITE_STREAK=N` enables an experimental, bounded
-recovery for a different failure mode: after `N` forced-tool rounds produce no
-tool call and no write, the loop retains only the system prompt and original
-instruction, records a `livelock_reset` rewrite, and asks for the required
-write again. The default is off; evaluate it on a fixed failed-task set before
-enabling it generally. It is narrower than stream cuts because it acts only
-after the delivery hook already required a tool and the provider did not
-produce one.
-
 ## Completion semantics
 
 `isTerminalResult(result)` (TS) /

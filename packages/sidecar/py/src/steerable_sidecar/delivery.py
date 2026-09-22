@@ -24,7 +24,6 @@ from steerable_agent_runtime.hooks import (
     CompletionDraft,
     NoopHooks,
     PreStepAction,
-    RewriteRequest,
     TranscriptAppend,
 )
 from steerable_agent_runtime.llm import LLMMessage
@@ -610,19 +609,6 @@ def _livelock_empty_streak() -> int:
     return max(0, int(raw))
 
 
-def _livelock_rewrite_streak() -> int:
-    """Forced-empty rounds before one bounded context reset.
-
-    Unlike the old stream cuts, this only applies after delivery already
-    required a tool, the provider returned no tool call repeatedly, and no
-    write has landed. Unset or ``0`` disables the experiment.
-    """
-    raw = os.environ.get("STEERABLE_LIVELOCK_REWRITE_STREAK")
-    if raw is None or not str(raw).strip():
-        return 0
-    return max(0, int(raw))
-
-
 class DeliveryHooks(NoopHooks):
     """Nudge, then veto completion, when a coding turn never mutates files."""
 
@@ -675,11 +661,10 @@ class DeliveryHooks(NoopHooks):
         self._wrap_up_shown_nudges = 0
         self._wrap_up_prefix_nudges = 0
         self._wrap_up_example_nudges = 0
+        self._wrap_up_clean_nudges = 0
         self._force_tool = False
         self._forced_empty_streak = 0
-        self._forced_empty_rewrite_streak = 0
         self._livelock_nudged = False
-        self._livelock_rewritten = False
         self._listen_retries = 0
         self._socket_retries = 0
         self._sockets = named_socket_paths(instruction)
@@ -837,6 +822,8 @@ class DeliveryHooks(NoopHooks):
         if self._named_prefix_mismatch() is not None:
             return False
         if self._example_is_wrong():
+            return False
+        if self._clean_entry_failure is not None:
             return False
         if self._livelock_nudged and self.writes == 0:
             return False
@@ -1002,6 +989,25 @@ class DeliveryHooks(NoopHooks):
                     tool_choice="required",
                     append_action="delivery_nudge",
                 )
+        if wrapping and self._wrap_up_clean_nudges < 1:
+            clean = self._run_clean_named_entrypoint()
+            if clean is not None:
+                self._wrap_up_clean_nudges += 1
+                return PreStepAction(
+                    kind="proceed",
+                    appends=[
+                        TranscriptAppend(
+                            message=LLMMessage.text_of(
+                                "user",
+                                clean.message or _NO_ARTIFACT_RETRY,
+                            ),
+                            kind="delivery.wrap_up_clean_entrypoint",
+                        )
+                    ],
+                    reason="wrap_up_clean_entrypoint",
+                    tool_choice="required",
+                    append_action="delivery_nudge",
+                )
         # Wrap-up quality gates (prefix / raster / example / missing) must
         # re-assert required every remaining round. ``post_tool_result``
         # clears ``_force_tool`` on every call, including a blocked inspect,
@@ -1051,35 +1057,6 @@ class DeliveryHooks(NoopHooks):
             if self._force_tool or self.writes == 0
             else None
         )
-        rewrite_cap = _livelock_rewrite_streak()
-        if (
-            self.writes == 0
-            and self._force_tool
-            and tool_choice == "required"
-            and rewrite_cap > 0
-            and not self._livelock_rewritten
-        ):
-            self._forced_empty_rewrite_streak += 1
-            if self._forced_empty_rewrite_streak >= rewrite_cap:
-                self._livelock_rewritten = True
-                base = list(transcript[:2])
-                return PreStepAction(
-                    kind="proceed",
-                    rewrite=RewriteRequest(
-                        messages=base,
-                        reason="required tool rounds produced no tool call",
-                        action="livelock_reset",
-                    ),
-                    appends=[
-                        TranscriptAppend(
-                            message=LLMMessage.text_of("user", _LIVELOCK_WRITE_NOW),
-                            kind="delivery.forced_empty_livelock_reset",
-                        )
-                    ],
-                    reason="forced_empty_livelock_reset",
-                    tool_choice="required",
-                    append_action="delivery_nudge",
-                )
         cap = _livelock_empty_streak()
         idle = wrapping or (self.writes == 0 and self._force_tool)
         if (
@@ -1124,7 +1101,6 @@ class DeliveryHooks(NoopHooks):
     ) -> ToolResult:
         self._force_tool = False
         self._forced_empty_streak = 0
-        self._forced_empty_rewrite_streak = 0
         name = call.name
         if call.name in _MUTATING or (name == "bash" and _bash_writes(call)):
             self._example_wrong = None

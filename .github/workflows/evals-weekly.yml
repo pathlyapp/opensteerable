@@ -57,6 +57,10 @@ on:
         description: "Catalog ids to run instead of the whole split, space separated. Use to finish a catalog the credit guard cancelled; shards with nothing to do report skipped."
         type: string
         default: ""
+      replicate:
+        description: "Independent-sample label used only to isolate otherwise identical workflow concurrency groups."
+        type: string
+        default: ""
       arm_b_env:
         description: "STEERABLE_ overrides, `KEY=VALUE` per line. Applied to flaky arm B, spiral-red, and explicit-task catalog experiments."
         type: string
@@ -72,7 +76,7 @@ concurrency:
   # The agent is part of the group so a pi-glm catalog and a steerable catalog
   # are separate queues: the group holds one running plus one pending run, and
   # sharing it would make a second dispatch cancel the pending one.
-  group: evals-${{ github.event.inputs.split || 'cheap-12' }}-${{ github.event.inputs.agent || 'steerable' }}-${{ github.event.inputs.model || 'default' }}-${{ github.event.inputs.probe_agent || 'all' }}-${{ github.event.inputs.coreloop || 'rust' }}
+  group: evals-${{ github.event.inputs.split || 'cheap-12' }}-${{ github.event.inputs.agent || 'steerable' }}-${{ github.event.inputs.model || 'default' }}-${{ github.event.inputs.probe_agent || 'all' }}-${{ github.event.inputs.coreloop || 'rust' }}-${{ github.event.inputs.replicate || 'default' }}
   cancel-in-progress: false
 
 jobs:

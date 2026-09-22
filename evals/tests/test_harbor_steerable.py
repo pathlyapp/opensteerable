@@ -257,7 +257,6 @@ def test_calibration_knobs_can_be_overridden_per_arm() -> None:
     assert "STEERABLE_REMINDERS" in forwarded
     assert "STEERABLE_DELIVERY_VERIFY" in forwarded
     assert "STEERABLE_LIVELOCK_EMPTY_STREAK" in forwarded
-    assert "STEERABLE_LIVELOCK_REWRITE_STREAK" in forwarded
     assert "STEERABLE_PROMPT_CC_ALIGN" in forwarded
     assert "STEERABLE_READ_IMAGES" in forwarded
     assert "STEERABLE_REQUEST_RECORD_PATH" in forwarded
@@ -348,6 +347,7 @@ def test_harbor_run_matches_claude_code_tb_knobs() -> None:
         "await self._record_token_usage"
     )
     assert "finally:" in run_fn
+    assert "apt-get update" in text
     assert "apt-get check" in text
     assert "apt-get -f install -y" in text
     assert text.index("await self._inject_host_uv") < text.index(

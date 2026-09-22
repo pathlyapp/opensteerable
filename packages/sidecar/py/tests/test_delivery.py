@@ -904,59 +904,6 @@ async def test_livelock_write_now_on_pre_wrap_empty_with_no_write(
 
 
 @pytest.mark.asyncio
-async def test_livelock_rewrite_resets_context_after_forced_empty_streak(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("STEERABLE_LIVELOCK_REWRITE_STREAK", "3")
-    hooks = DeliveryHooks()
-    ctx = LoopContext()
-    transcript = [
-        LLMMessage.text_of("system", "system"),
-        LLMMessage.text_of("user", "instruction"),
-        LLMMessage.text_of("assistant", "reasoning " * 10_000),
-    ]
-    await hooks.before_completion(
-        _draft(tools=0, content="", had_tool_calls=False), ctx
-    )
-
-    first = await hooks.pre_step(transcript, ctx)
-    second = await hooks.pre_step(transcript, ctx)
-    third = await hooks.pre_step(transcript, ctx)
-
-    assert first.rewrite is None
-    assert second.rewrite is None
-    assert third.reason == "forced_empty_livelock_reset"
-    assert third.tool_choice == "required"
-    assert third.rewrite is not None
-    assert third.rewrite.action == "livelock_reset"
-    assert [message.content_text for message in third.rewrite.messages] == [
-        "system",
-        "instruction",
-    ]
-    assert third.appends
-    assert "Forced tool rounds" in (third.appends[0].message.content_text or "")
-
-
-@pytest.mark.asyncio
-async def test_livelock_rewrite_does_not_reset_after_a_write(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("STEERABLE_LIVELOCK_REWRITE_STREAK", "2")
-    hooks = DeliveryHooks()
-    ctx = LoopContext()
-    ok = ToolResult(success=True, data={})
-    await hooks.post_tool_result(ok, _call("write_file"), ctx)
-    await hooks.before_completion(
-        _draft(tools=0, content="", had_tool_calls=False), ctx
-    )
-
-    for _ in range(3):
-        action = await hooks.pre_step([], ctx)
-        assert action.rewrite is None
-        assert action.reason != "forced_empty_livelock_reset"
-
-
-@pytest.mark.asyncio
 async def test_livelock_does_not_count_pre_wrap_empty_after_a_write(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2879,6 +2826,36 @@ async def test_named_entrypoint_restores_preexisting_output_on_clean_failure(
     assert action.kind == "retry"
     assert action.reason == "named_entrypoint_clean"
     assert output.read_bytes() == b"stale"
+
+
+@pytest.mark.asyncio
+async def test_wrap_up_runs_clean_entrypoint_before_completion(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "weights.npy"
+    script = tmp_path / "steal.py"
+    output.write_bytes(b"stale")
+    script.write_text("raise RuntimeError('broken')\n", encoding="utf-8")
+    hooks = DeliveryHooks(
+        instruction=(
+            f"Write {script}. When run, save the recovered matrix to {output}."
+        ),
+        named_outputs=(str(script), str(output)),
+    )
+    wrap = [
+        LLMMessage.text_of("user", "The time budget for this task is almost gone.")
+    ]
+
+    action = await hooks.pre_step(wrap, LoopContext())
+
+    assert action.reason == "wrap_up_clean_entrypoint"
+    assert action.tool_choice == "required"
+    assert action.appends
+    assert "old output file does not prove" in (
+        action.appends[0].message.content_text or ""
+    )
+    assert output.read_bytes() == b"stale"
+    assert hooks.wrap_up_may_drop_tools() is False
 
 
 @pytest.mark.asyncio

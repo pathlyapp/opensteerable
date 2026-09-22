@@ -97,7 +97,6 @@ _TUNING_KEYS = (
     "STEERABLE_REMINDERS",
     "STEERABLE_DELIVERY_VERIFY",
     "STEERABLE_LIVELOCK_EMPTY_STREAK",
-    "STEERABLE_LIVELOCK_REWRITE_STREAK",
     "STEERABLE_PROMPT_CC_ALIGN",
     "STEERABLE_READ_IMAGES",
     "STEERABLE_REQUEST_RECORD_PATH",
@@ -364,12 +363,14 @@ class SteerableHarborAgent(BaseInstalledAgent):
             await self.exec_as_root(
                 environment,
                 command=(
-                    "if command -v apt-get >/dev/null 2>&1 "
-                    "&& ! apt-get check >/dev/null 2>&1; then "
+                    "if command -v apt-get >/dev/null 2>&1; then "
                     "export DEBIAN_FRONTEND=noninteractive; "
+                    "apt-get update; "
+                    "if ! apt-get check >/dev/null 2>&1; then "
                     "dpkg --configure -a || true; "
                     "apt-get -f install -y; "
                     "apt-get check; "
+                    "fi; "
                     "fi"
                 ),
                 timeout_sec=300,

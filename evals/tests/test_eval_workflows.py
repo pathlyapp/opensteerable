@@ -285,6 +285,13 @@ def test_explicit_catalog_tasks_accept_steerable_overrides() -> None:
     assert "refusing override outside the STEERABLE_ namespace" in catalog
 
 
+def test_replicate_label_is_only_a_concurrency_dimension() -> None:
+    """Three identical samples must run concurrently without changing Harbor argv."""
+    assert "github.event.inputs.replicate || 'default'" in WEEKLY
+    workflow_body = WEEKLY.split("jobs:", 1)[1]
+    assert "github.event.inputs.replicate" not in workflow_body
+
+
 def test_arms_matrix_references_registered_harnesses() -> None:
     suite = load_suite()
     for harness in ("default", "subagent", "minimal", "self_critique"):

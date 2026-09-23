@@ -25,6 +25,13 @@ import log from 'electron-log';
 import { getBrand } from './brand.js';
 import { getPreloadPath } from './runtime.js';
 import { getProductConfig } from './product-config.js';
+import {
+  AppUpdateController,
+  appUpdateMenuAction,
+  shouldNotifyUpdateReady,
+  type AppUpdatePhase,
+} from './app-update.js';
+import { createElectronAppUpdater } from './app-update-electron.js';
 import { assertHostIpcAllowed, getResolvedHostTools } from './host-tools-runtime.js';
 import { createJsonStore } from './json-store.js';
 import { bindWorkspaceSkillRoots } from './local-backend/skill-loader.js';
@@ -523,11 +530,22 @@ function createMenu(): void {
           },
         ] as Electron.MenuItemConstructorOptions[])
       : []),
-    // 帮助菜单链接是产品注入配置（3.1，product.json links）；中性 shell
-    // 未注入时不渲染对应菜单项；两项都缺则整个「帮助」菜单不渲染。
+    // 帮助菜单：更新动作来自自动更新状态；链接是产品注入配置
+    // （3.1，product.json links）。都没有则不渲染「帮助」。
     ...((): Electron.MenuItemConstructorOptions[] => {
       const links = getProductConfig().links ?? {};
       const submenu: Electron.MenuItemConstructorOptions[] = [];
+      const updateAction = appUpdates ? appUpdateMenuAction(appUpdates.state) : 'none';
+      if (updateAction !== 'none') {
+        submenu.push({
+          label: updateAction === 'install' ? '重启并安装更新' : '检查更新',
+          click: () => {
+            if (!appUpdates) return;
+            if (appUpdateMenuAction(appUpdates.state) === 'install') appUpdates.installNow();
+            else void appUpdates.checkNow();
+          },
+        });
+      }
       if (links.releasePage) {
         submenu.push({
           label: '打开发布页',
@@ -903,7 +921,38 @@ function setupIpcHandlers(): void {
   );
 }
 
+let appUpdates: AppUpdateController | null = null;
+
+function startDesktopUpdates(): void {
+  let previous: AppUpdatePhase = 'disabled';
+  appUpdates = new AppUpdateController({
+    feedUrl: getProductConfig().updates?.feedUrl,
+    packaged: app.isPackaged,
+    currentVersion: app.getVersion(),
+    env: process.env,
+    updater: createElectronAppUpdater(),
+    onState: state => {
+      log.info('[app-update]', state.phase, state.version ?? '', state.message ?? '');
+      if (shouldNotifyUpdateReady(previous, state) && state.version) {
+        const notification = new ElectronNotification({
+          title: getBrand().displayName,
+          body: `新版本 ${state.version} 已下载，点击重启并安装`,
+        });
+        notification.on('click', () => {
+          appUpdates?.installNow();
+        });
+        notification.show();
+      }
+      const actionChanged = appUpdateMenuAction({ phase: previous }) !== appUpdateMenuAction(state);
+      previous = state.phase;
+      if (actionChanged) createMenu();
+    },
+  });
+  void appUpdates.start();
+}
+
 app.whenReady().then(async () => {
+  startDesktopUpdates();
   applyStrictCsp();
   runtime = await createHostRuntime({
     broadcast: (channel, payload) => broadcastTerminalEvent(channel, payload),

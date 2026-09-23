@@ -17,6 +17,14 @@ export interface ProductLinks {
   website?: string;
 }
 
+export interface ProductUpdates {
+  /**
+   * electron-updater generic 通道根地址（目录，不含 latest*.yml）。
+   * 打包配置里的 publishUrl 由产品组装根注入到这里。空则不检查更新。
+   */
+  feedUrl?: string;
+}
+
 export interface ProductConfig {
   /**
    * 云端遥测端点（insights flush 的 API base）。空 = 不上报（中性默认）；
@@ -25,6 +33,11 @@ export interface ProductConfig {
   insightsApiBase?: string;
   /** 帮助菜单链接；缺省的项不渲染。 */
   links?: ProductLinks;
+  /**
+   * 桌面自动更新。缺省不检查。只在已打包的应用里生效，除非
+   * `DEEPPATH_APP_UPDATE=1`。`DEEPPATH_UPDATE_FEED_URL` 可覆盖 feedUrl。
+   */
+  updates?: ProductUpdates;
   /**
    * BS 模式的 userData 目录名（~/ 下）。CS 模式由 Electron 按
    * productName 分目录，不经此字段。

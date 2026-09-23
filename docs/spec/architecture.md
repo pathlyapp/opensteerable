@@ -192,6 +192,6 @@ session create/resume/list/fork/branches, tool list/invoke, skills,
 workspace edits, trace, config — over the same JSON-RPC method surface
 documented in [sidecar.md](./sidecar.md). Callers get the framework;
 they never write subprocess management. Because the TS runtime drives
-the same Python CoreLoop, cross-language conformance holds by
-construction; a test gates that the TS API surface covers every method
-the sidecar registers.
+the same Rust CoreLoop through the Python sidecar facade, cross-language
+conformance holds by construction; a test gates that the TS API surface
+covers every method the sidecar registers.

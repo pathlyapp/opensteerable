@@ -475,11 +475,11 @@ def test_gha_forwards_steerable_gateway_not_official_openai() -> None:
     assert "OPENAI_API_KEY" not in steerable_job.split("upload-artifact", 1)[0]
     assert "set STEERABLE_API_KEY + STEERABLE_BASE_URL for the product agent" in weekly
     assert "FEISHU_BOT_WEBHOOK" in weekly
-    assert "coreloop:" in weekly
-    assert "github.event.inputs.coreloop != 'python'" in weekly
-    assert "CORELOOP: ${{ github.event.inputs.coreloop || 'rust' }}" in weekly
-    assert "rust-coreloop: ${{ matrix.arm == 'b' }}" in weekly
-    assert "Arm A=Python、Arm B=Rust" in weekly
+    assert "github.event.inputs.coreloop" not in weekly
+    assert "CORELOOP:" not in weekly
+    assert "rust-coreloop:" not in weekly
+    assert "Arm A=Python、Arm B=Rust" not in weekly
+    assert "GHA flaky Rust 多次采样" in weekly
     assert "python3 -m evals.feishu" in weekly
     assert "python3 -m evals.feishu" in oracle
     assert "if: ${{ !cancelled() }}" in oracle

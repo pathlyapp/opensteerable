@@ -33,6 +33,7 @@ dev = [
   "steerable-agent-protocol",
   "steerable-agent-harness",
   "steerable-agent-runtime",
+  "steerable-agent-runtime-native==0.6.36",
   "steerable-plugin-sdk",
   "steerable-sidecar",
   "steerable-egress-proxy",
@@ -45,6 +46,10 @@ steerable-agent-runtime = { workspace = true }
 steerable-plugin-sdk = { workspace = true }
 steerable-sidecar = { workspace = true }
 steerable-egress-proxy = { workspace = true }
+
+[tool.uv]
+# The CoreLoop wheel is published as a binary. Never build it from an sdist.
+no-build-package = ["steerable-agent-runtime-native"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

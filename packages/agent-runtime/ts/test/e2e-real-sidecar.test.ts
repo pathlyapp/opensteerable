@@ -159,7 +159,7 @@ describeE2E('E2E: TS runtime ↔ real Python sidecar', () => {
       if (ev.type === 'content') text += ev.content ?? '';
     }
 
-    // The Python CoreLoop called our host tool over the reverse channel…
+    // The sidecar CoreLoop called our host tool over the reverse channel…
     expect(toolCallsSeen).toEqual([{ text: 'from-python-coreloop' }]);
     // …received its result, made a second LLM round, and streamed the answer.
     expect(text).toContain('E2E_OK');

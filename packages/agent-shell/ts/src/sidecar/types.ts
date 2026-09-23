@@ -298,7 +298,7 @@ export interface SidecarChatStreamRequest {
   providerOptions?: Record<string, unknown>;
   /** Per-start RPC timeout (NOT per-chunk). Default 30_000ms. */
   startTimeoutMs?: number;
-  /** Route the stream through the sidecar-hosted Python CoreLoop (A4). */
+  /** Route the stream through the sidecar-hosted Rust CoreLoop (A4). */
   useCoreLoop?: boolean;
   /**
    * W7-1: continue the durable record's interrupted turn instead of opening

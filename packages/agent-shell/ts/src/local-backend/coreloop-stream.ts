@@ -1,5 +1,5 @@
 /**
- * A4: drive one chat turn through the sidecar-hosted Python CoreLoop.
+ * A4: drive one chat turn through the sidecar-hosted Rust CoreLoop.
  *
  * This is the default chat path (since 2026-08-26): the sidecar owns
  * think→act→observe, and tool calls come back over the reverse channel

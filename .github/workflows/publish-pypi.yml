@@ -3,8 +3,8 @@ name: Publish to PyPI
 # Chained from release.yml after the lockstep gate passes. Mirror image
 # of publish-npm.yml: walks the pure-Python publishable packages and
 # uploads whichever ones declare a version that isn't already on PyPI.
-# The PyO3 wheel (`steerable-agent-runtime-native`) is built by
-# publish-native.yml — `uv build` cannot emit portable manylinux tags.
+# The PyO3 wheel (`steerable-agent-runtime-native`) is a PyPI binary
+# dependency built in the private repository. This job does not build it.
 # Idempotent — safe to re-dispatch after a partial failure.
 #
 # Auth modes (auto-detected by presence of `PYPI_API_TOKEN` secret):
@@ -51,13 +51,11 @@ jobs:
 
       - name: Install + build wheels for the pure-Python packages
         run: |
-          # Native abi3 wheels are published by publish-native.yml. Skip
-          # installing/building the maturin member here: `uv build` cannot
-          # emit portable manylinux tags, and this job has no Rust toolchain.
-          uv sync --no-install-package steerable-agent-runtime-native
+          uv sync
           # `--all-packages` builds every workspace member into dist/py/.
           uv build --all-packages --out-dir dist/py
-          # Examples and the PyO3 wheel must never reach this upload set.
+          # Examples must never reach this upload set. The native wheel is
+          # not a workspace member.
           rm -f dist/py/steerable_example_*.{whl,tar.gz} 2>/dev/null || true
           rm -f dist/py/steerable_agent_runtime_native* 2>/dev/null || true
           ls dist/py/

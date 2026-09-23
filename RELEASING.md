@@ -18,7 +18,7 @@ This document covers two release modes:
 | 2 | `@steerable/agent-harness` | `dist/npm/steerable-agent-harness-X.Y.Z.tgz` |
 | 2 | `steerable-agent-harness` (Py) | `dist/py/steerable_agent_harness-X.Y.Z-*.whl` + sdist |
 | 3 | `steerable-agent-runtime` (Py) | `dist/py/steerable_agent_runtime-X.Y.Z-*.whl` + sdist |
-| 3 | `steerable-agent-runtime-native` (PyO3) | manylinux / musllinux / macOS / Windows abi3 wheels + sdist |
+| 3 | `steerable-agent-runtime-native` (PyO3) | PyPI binary wheels only; this repo verifies them and does not build them |
 | 3 | `steerable-plugin-sdk` (Py) | `dist/py/steerable_plugin_sdk-X.Y.Z-*.whl` + sdist |
 | 3 | `steerable-sidecar` (Py) | `dist/py/steerable_sidecar-X.Y.Z-*.whl` + sdist |
 | 4 | `@steerable/agent-ui` | `dist/npm/steerable-agent-ui-X.Y.Z.tgz` |
@@ -247,13 +247,12 @@ without a registry.
         ├─► publish-pypi.yml   (pure-Python wheels)
         │       └─ same idempotent skip logic against PyPI's JSON API
         │
-        └─► publish-native.yml (maturin abi3 wheels + sdist)
-                └─ manylinux 2_17, musllinux 1_2, macOS, Windows;
-                   skip-existing so a re-run fills missing files
+        └─► publish-native.yml (verify published abi3 wheels)
+                └─ manylinux, musllinux, macOS, and Windows wheels
+                   must already be on PyPI; this repo does not upload them
 
-   First publish of `steerable-agent-runtime-native`: either
-   `PYPI_API_TOKEN` can create the project, or add a Trusted Publisher
-   on that project bound to `publish-native.yml` + environment `pypi`.
+   The private steerable repository publishes those wheels and attaches
+   the Rust sidecar binaries to this repository's `vX.Y.Z` Release.
    ```
 
    `publish-{npm,pypi}.yml` are idempotent: a half-published tag can be

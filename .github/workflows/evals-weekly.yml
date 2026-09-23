@@ -89,7 +89,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v6
-      - run: uv sync --no-install-package steerable-agent-runtime-native
+      - run: uv sync
       - uses: ./.github/actions/setup-harbor
       - run: docker info
       - name: Harbor cheap-12
@@ -178,7 +178,7 @@ jobs:
         if: steps.gate.outputs.skip != '1'
       - uses: astral-sh/setup-uv@v6
         if: steps.gate.outputs.skip != '1'
-      - run: uv sync --no-install-package steerable-agent-runtime-native
+      - run: uv sync
         if: steps.gate.outputs.skip != '1'
       - uses: ./.github/actions/setup-harbor
         if: steps.gate.outputs.skip != '1'
@@ -288,7 +288,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v6
-      - run: uv sync --no-install-package steerable-agent-runtime-native
+      - run: uv sync
       - uses: ./.github/actions/setup-harbor
       - run: docker info
       - name: Harbor failed-prev shard
@@ -356,7 +356,7 @@ jobs:
         if: steps.gate.outputs.skip != '1'
       - uses: astral-sh/setup-uv@v6
         if: steps.gate.outputs.skip != '1'
-      - run: uv sync --no-install-package steerable-agent-runtime-native
+      - run: uv sync
         if: steps.gate.outputs.skip != '1'
       - uses: ./.github/actions/setup-harbor
         if: steps.gate.outputs.skip != '1'
@@ -506,7 +506,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v6
-      - run: uv sync --no-install-package steerable-agent-runtime-native
+      - run: uv sync
       - uses: ./.github/actions/setup-harbor
       - run: docker info
       - name: Arm B overrides
@@ -587,7 +587,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v6
-      - run: uv sync --no-install-package steerable-agent-runtime-native
+      - run: uv sync
       - uses: ./.github/actions/setup-harbor
       - run: docker info
       - name: Tunable overrides
@@ -845,7 +845,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v6
-      - run: uv sync --no-install-package steerable-agent-runtime-native
+      - run: uv sync
       - uses: actions/download-artifact@v4
         with:
           pattern: eval-*

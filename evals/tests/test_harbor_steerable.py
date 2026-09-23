@@ -340,6 +340,9 @@ def test_harbor_run_matches_claude_code_tb_knobs() -> None:
     assert "apt-get update" in text
     assert "apt-get check" in text
     assert "apt-get -f install -y" in text
+    assert "archive.debian.org/debian" in text
+    assert "disabled after bullseye EOL" in text
+    assert 'Acquire::Check-Valid-Until \\"false\\";' in text
     assert text.index("await self._inject_host_uv") < text.index(
         "await self._inject_host_python"
     )

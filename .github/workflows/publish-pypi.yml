@@ -42,6 +42,7 @@ permissions:
 
 jobs:
   publish:
+    if: github.repository == 'pathlyapp/opensteerable'
     runs-on: ubuntu-latest
     environment: pypi
     steps:

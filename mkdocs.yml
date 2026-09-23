@@ -1,4 +1,4 @@
-site_name: Steerable Framework
+site_name: OpenSteerable
 site_description: The model-quality layer that makes local, quantized, and cheap models behave — spec-first agent framework for TypeScript + Python.
 site_url: https://steerableframework.com/
 repo_url: https://github.com/pathlyapp/opensteerable

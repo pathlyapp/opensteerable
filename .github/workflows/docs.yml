@@ -137,12 +137,12 @@ jobs:
           fi
 
       - uses: actions/upload-pages-artifact@v5
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && github.repository == 'pathlyapp/opensteerable'
         with:
           path: _site
 
   deploy:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && github.repository == 'pathlyapp/opensteerable'
     needs: build
     runs-on: ubuntu-latest
     environment:

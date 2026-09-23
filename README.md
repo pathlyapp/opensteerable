@@ -1,6 +1,6 @@
 <div align="center">
 
-# Steerable
+# OpenSteerable
 
 **The model-quality layer that makes local, quantized, and cheap models behave.**
 
@@ -36,7 +36,7 @@ Plus the plumbing you'd otherwise rewrite: typed wire protocol · pluggable LLM 
 
 ## Table of contents
 
-- [Why Steerable](#why-steerable)
+- [Why OpenSteerable](#why-opensteerable)
 - [Terminal-Bench 2.1](#terminal-bench-21)
 - [Quickstart — pick your path (5 minutes)](#quickstart--pick-your-path-5-minutes)
 - [Architecture](#architecture)
@@ -52,11 +52,11 @@ Plus the plumbing you'd otherwise rewrite: typed wire protocol · pluggable LLM 
 
 ---
 
-## Why Steerable
+## Why OpenSteerable
 
-Every agent SDK assumes the model emits clean, structured `tool_calls`. Local, quantized, and cheap models don't. Steerable is the model-quality layer that closes that gap — plus the plumbing layers you'd otherwise rewrite, each shippable on its own.
+Every agent SDK assumes the model emits clean, structured `tool_calls`. Local, quantized, and cheap models don't. OpenSteerable is the model-quality layer that closes that gap — plus the plumbing layers you'd otherwise rewrite, each shippable on its own.
 
-| The problem you've already solved twice | Steerable's answer |
+| The problem you've already solved twice | OpenSteerable's answer |
 |---|---|
 | **"The model emitted a tool call as prose. Again."** Local, quantized, and cheap models break the assumptions every SDK makes about structured `tool_calls`. | The **model-quality layer** — the part no vendor SDK will build for you. `pseudo.py` recovers *and executes* malformed calls in three formats (MiniMax XML, DeepSeek `<function=>`, markdown); a `before_completion` veto answers `accept`/`retry`/`narrate` on a completion draft; grounding judges catch fabricated data; token estimates self-calibrate against observed usage. See the [roadmap](https://steerableframework.com/roadmap/#the-differentiator-the-model-quality-layer). |
 | **"What shape is this SSE stream?"** Every team invents their own envelope; FE and BE drift. | One JSON Schema → generated **TypeScript types + Pydantic models**, in lockstep release. `content`, `tool_call`, `tool_result`, `error`, `done`, `budget_exhausted` all standardised; conformance test suite verifies the two language SDKs stay byte-compatible. |
@@ -71,13 +71,13 @@ Every layer is independently published. Use just the protocol types, just the UI
 
 ## Terminal-Bench 2.1
 
-A Flash-cost model on Steerable. Harbor hidden tests, 89-task catalog, six independent full runs: mean **80.7%** (SD 2.9 points). We report the mean, not the 86.5 high-water mark. Cost per solved task **~$0.146** (~$10.50 per catalog run). Protocol and run list: [`docs/evals.md`](./docs/evals.md).
+A Flash-cost model on OpenSteerable. Harbor hidden tests, 89-task catalog, six independent full runs: mean **80.7%** (SD 2.9 points). We report the mean, not the 86.5 high-water mark. Cost per solved task **~$0.146** (~$10.50 per catalog run). Protocol and run list: [`docs/evals.md`](./docs/evals.md).
 
 **Same model · GLM-5.3-Flash** — identical cheap model, same Harbor catalog-89 protocol:
 
 | Agent | TB 2.1 | Cost / solved | Notes |
 | ----- | ------ | ------------- | ----- |
-| **Steerable** | **80.7%** | **$0.146** | this repo, 6× catalog-89 · **+7.3 vs Pi** |
+| **OpenSteerable** | **80.7%** | **$0.146** | this repo, 6× catalog-89 · **+7.3 vs Pi** |
 | Claude Code | 83.1% | $0.162 | this repo, 1 catalog run |
 | Pi | 73.4% | $0.061 | this repo, 3 catalog runs |
 
@@ -157,7 +157,7 @@ The Tier 5 host shell runs standalone with neutral branding (no product, no pack
 ```bash
 pnpm install
 pnpm agent-shell:web       # BS mode: builds shell + neutral web app, boots the headless server
-# → http://127.0.0.1:4787  (Steerable Shell)
+# → http://127.0.0.1:4787  (OpenSteerable Shell)
 
 pnpm agent-shell:client    # desktop client mode: same build, launched as an Electron window
 ```
@@ -303,7 +303,7 @@ flowchart TB
 
 There is no "best agent framework" — there's the right one for your shape of problem.
 
-|  | Steerable | LangChain (Py + JS) | Vercel AI SDK (TS) | OpenAI Assistants API |
+|  | OpenSteerable | LangChain (Py + JS) | Vercel AI SDK (TS) | OpenAI Assistants API |
 |---|---|---|---|---|
 | **One wire protocol shared by TS + Py (codegen-aligned)** | ✅ | ⚠️ (separate Py / JS impls) | ❌ (TS only) | ⚠️ (proprietary REST, not OSS) |
 | **Pure-function harness (drop into any framework)** | ✅ | ⚠️ (LCEL/Runnable coupling) | ⚠️ (React/Next coupling) | n/a (SaaS) |
@@ -312,9 +312,9 @@ There is no "best agent framework" — there's the right one for your shape of p
 | **Lockstep release across all layers** | ✅ | n/a | n/a | n/a |
 | **Self-hosted, no vendor lock-in** | ✅ | ✅ | ✅ | ❌ |
 
-**Reach for Steerable when** you need typed cross-language contracts, plan to ship to desktop / on-prem / air-gapped, or want a UI library you can theme without `!important` wars.
+**Reach for OpenSteerable when** you need typed cross-language contracts, plan to ship to desktop / on-prem / air-gapped, or want a UI library you can theme without `!important` wars.
 
-**Don't reach for Steerable when** your agent lives entirely inside one Python process with no FE, you're happy with cloud-hosted Assistants, or you want a high-level `prompt -> answer` SDK with batteries included for every model — Steerable is closer to "Express for agents" than "Rails for agents".
+**Don't reach for OpenSteerable when** your agent lives entirely inside one Python process with no FE, you're happy with cloud-hosted Assistants, or you want a high-level `prompt -> answer` SDK with batteries included for every model — OpenSteerable is closer to "Express for agents" than "Rails for agents".
 
 For a comparison with agent-specific frameworks and products (Codex, DeepSeek Harness, LangGraph, OpenAI Agents SDK, Claude Agent SDK), see [the docs comparison page](https://steerableframework.com/comparison/).
 
@@ -324,7 +324,7 @@ For a comparison with agent-specific frameworks and products (Codex, DeepSeek Ha
 
 - **[DeepPath](https://deeppath.cc)** — web (`@steerable/agent-protocol` + `@steerable/agent-ui`), API (all 3 Py packages), Electron desktop (sidecar + UI). The framework was extracted from this codebase and is dogfooded back into it on every release.
 
-If you're using Steerable in production, send a PR adding your project here.
+If you're using OpenSteerable in production, send a PR adding your project here.
 
 ---
 
@@ -349,7 +349,7 @@ Full open-follow-up list: [`TODO.md`](./TODO.md). Pre-1.0 contract: minor (`0.X`
 ## Documentation
 
 - **[Getting Started](./docs/getting-started.md)** — full walkthrough, ~5 minutes
-- **[Evals](./docs/evals.md)** — Terminal-Bench 2.1 catalog-89 score of record (Steerable + GLM-5.3-Flash **80.7%**) plus Harbor cheap-12 (`claude-code` / `codex` / `pi`)
+- **[Evals](./docs/evals.md)** — Terminal-Bench 2.1 catalog-89 score of record (OpenSteerable + GLM-5.3-Flash **80.7%**) plus Harbor cheap-12 (`claude-code` / `codex` / `pi`)
 - **[Specs](./docs/spec/)** — wire-level reference for every event/envelope shape
 - **[Examples](./examples)** — 3 runnable end-to-end smoke tests:
   - [`py-minimal`](./examples/py-minimal) — protocol + harness + tool dispatch
@@ -388,7 +388,7 @@ uv run pytest     # ~1,950 tests
 
 If your change touches `spec/`, the codegen drift checker will fire in CI — re-run `pnpm gen && uv run python scripts/generate_py.py` and commit the regenerated files.
 
-Working on Steerable alongside one of the consumer repos? See [`INTEGRATION-TESTING.md`](./INTEGRATION-TESTING.md) — covers the local toggle scripts (`use_framework_local.sh` / `use_framework_npm.sh` / `use_framework_source.sh`) that flip each consumer between published-registry mode and sibling-source mode.
+Working on OpenSteerable alongside one of the consumer repos? See [`INTEGRATION-TESTING.md`](./INTEGRATION-TESTING.md) — covers the local toggle scripts (`use_framework_local.sh` / `use_framework_npm.sh` / `use_framework_source.sh`) that flip each consumer between published-registry mode and sibling-source mode.
 
 Cutting a release? See [`RELEASING.md`](./RELEASING.md). Short version:
 
@@ -405,7 +405,7 @@ All commits must be DCO-signed (`git commit -s`); the [DCO check](.github/workfl
 
 ## Acknowledgements
 
-Steerable stands on the work of:
+OpenSteerable stands on the work of:
 
 - **[python-build-standalone](https://github.com/astral-sh/python-build-standalone)** — the portable CPython distribution that makes the sidecar possible (and the reason you can ship a single signed binary instead of asking users to install Python).
 - **[Sigstore](https://sigstore.dev/)** — npm tarball provenance attestations.

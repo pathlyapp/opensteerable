@@ -19,6 +19,8 @@ These runs use the Rust CoreLoop through matching manylinux or musllinux
 
 **Cost is a co-equal metric, not a footnote.** The new runs average **229.9M input tokens/run**, down **15.4%** from the superseded 271.7M, while mean score fell 1.7 points. Provider list prices changed between the two measurement windows, so token volume—not a cross-date dollar conversion—is the comparable cost metric. Every future catalog run updates score and tokens together.
 
+Main-run wall time averaged **4.17 hours**, versus **3.29 hours** across the superseded six runs. The three new runs overlapped and competed for GitHub runners, and two repair runs took 2.97 and 2.89 hours, so this is operational evidence rather than an isolated runtime benchmark.
+
 Superseded: six Python CoreLoop runs at `8e260de` posted 70/71/77/71/71/71, mean 0.8071 and SD 0.0288. The new Rust baseline is 1.5 tasks lower on average, its floor is three tasks lower, and its variance is higher; continue publishing the reliability fixes, but stop tuning the default harness as a score-improvement strategy. Earlier four runs at `27d521a` posted mean 0.8006 (73/70/73/69).
 
 **Pi + GLM-5.3-Flash = 73%** across three catalog runs, mean **0.7336**, SD **0.0222**:
@@ -112,7 +114,7 @@ Claude Code on the same model and protocol: **83.1% (74/89), 1 run**. Catalog sh
 
 ## Pending measurement
 
-None. The six-run picture on `8e260de` is settled (70/71/77/71/71/71 — two of six rounds ≥72/89), and the score of record is the six-run mean: every harness arm queued against the gap was falsified (history below), so the floor is documented as flaky-layer variance rather than chased with stacked losers. Future catalog runs track the mean; a run is an alarm only below the `27d521a` low-water mark of 69/89.
+None. The three-run Rust picture on `e25a8d4` is settled (71/67/73, with cancelled or abnormal trials replaced by clean repair runs), and the score of record is its 79.0% mean. The superseded six-run Python picture on `8e260de` remains useful historical evidence for task variance, but its 80.7% mean is not the current score. The new mean and floor both regressed while token use fell, so publish the correctness fixes and stop tuning the default harness as a score-improvement strategy.
 
 **Withdrawn cross-vendor points.** The homepage previously plotted Steerable on DeepSeek-V4-Flash (**84.3%**) and Qwen3.8-27B (**75.3%**) against each model's own published number. Neither is recorded here because neither meets the evidence bar the GLM rows above meet. The DeepSeek point has no Harbor run in `evals/jobs/`, no run id, and no per-trial telemetry anywhere in this repo — the "observed spend" claim on the homepage was not backed by an artifact. The Qwen point does have run ids ([34181536737](https://github.com/pathlyapp/opensteerable/actions/runs/34181536737), [34168003658](https://github.com/pathlyapp/opensteerable/actions/runs/34168003658)), but one concluded `failure` and the other `cancelled`, and `EVALS_TODO.md` 2.5.22 records that the run sent no reasoning field at all — it ran at an unrecorded server-side default tier, so it was never effort-matched to the xhigh Terminus 2 number it was drawn against. Both points are withdrawn from the homepage until each has a multi-run catalog with run ids, per-trial `result.json` telemetry, and a recorded reasoning effort — the same bar as the GLM score of record.
 

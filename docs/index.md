@@ -36,19 +36,19 @@ Pick any subset, skip the rest — every layer ships on its own.
 
 <div class="sf-score-strip" markdown>
 <div class="sf-score sf-score--ours" markdown>
-<span class="sf-score-value">80.7%</span>
+<span class="sf-score-value">79.0%</span>
 <span class="sf-score-label">OpenSteerable + GLM-5.3-Flash</span>
-<span class="sf-score-meta">TB 2.1 · 6-run mean @max · this repo</span>
+<span class="sf-score-meta">TB 2.1 · 3-run mean @max · this repo</span>
 </div>
 <div class="sf-score" markdown>
-<span class="sf-score-value">+7.3</span>
+<span class="sf-score-value">+5.6</span>
 <span class="sf-score-label">vs Pi on the same Flash model</span>
 <span class="sf-score-meta">Pi + GLM-5.3-Flash · 73.4%</span>
 </div>
 <div class="sf-score" markdown>
-<span class="sf-score-value">$0.146</span>
-<span class="sf-score-label">per solved task</span>
-<span class="sf-score-meta">six-run mean · ~$10.50 / catalog-89</span>
+<span class="sf-score-value">229.9M</span>
+<span class="sf-score-label">input tokens per catalog run</span>
+<span class="sf-score-meta">three-run mean · 15.4% below prior baseline</span>
 </div>
 </div>
 
@@ -89,7 +89,7 @@ A portable, signed CPython binary speaking JSON-RPC over stdio (34 methods). Shi
 <h2 class="sf-section">Terminal-Bench 2.1</h2>
 
 <p class="sf-lede" markdown>
-The score of record is still OpenSteerable + GLM-5.3-Flash **80.7%** at `reasoning_effort=max` (six-run mean, SD 2.9). The figures below are a **separate n=1** protocol: GLM-5.3-Flash and DeepSeek-V4-Flash 0731 at `high`, Qwen3.8-27B at `medium`, five harnesses, one OpenRouter account, Harbor catalog-89. Timeout, error, and missing trials count as fail. Terminus is omitted. DSH is on both figures (SHA `c576a88`); its dollars are OpenRouter analytics tokens for the catalog window, scored with the same pinned-host list formula as the twelve Harbor cells. Protocol and run list: [Evals](evals.md).
+The score of record is OpenSteerable + GLM-5.3-Flash **79.0%** at `reasoning_effort=max` (three-run mean, SD 3.4). The figures below are a **separate n=1** protocol: GLM-5.3-Flash and DeepSeek-V4-Flash 0731 at `high`, Qwen3.8-27B at `medium`, five harnesses, one OpenRouter account, Harbor catalog-89. Timeout, error, and missing trials count as fail. Terminus is omitted. DSH is on both figures (SHA `c576a88`); its dollars are OpenRouter analytics tokens for the catalog window, scored with the same pinned-host list formula as the twelve Harbor cells. Protocol and run list: [Evals](evals.md).
 </p>
 
 <div class="sf-bench sf-bench--wide">
@@ -98,7 +98,7 @@ The score of record is still OpenSteerable + GLM-5.3-Flash **80.7%** at `reasoni
 
 <div class="sf-bench-group sf-bench-group--focus">
 <div class="sf-bench-kicker">Same protocol · three Flash models · five harnesses</div>
-<p class="sf-bench-blurb">Grouped bars are pass/89. Color is the harness. This is n=1 at high/medium, not the 80.7% @max six-run.</p>
+<p class="sf-bench-blurb">Grouped bars are pass/89. Color is the harness. This is n=1 at high/medium, not the 79.0% @max three-run baseline.</p>
 <svg class="sf-bars" viewBox="0 0 760 336" role="img" aria-label="Terminal-Bench 2.1 n=1 pass over 89 for three models and five harnesses: OpenSteerable, Pi, Claude Code, Codex, DSH.">
 <line class="axis" x1="56" y1="48" x2="56" y2="280"/>
 <line class="axis" x1="56" y1="280" x2="730" y2="280"/>
@@ -160,7 +160,7 @@ The score of record is still OpenSteerable + GLM-5.3-Flash **80.7%** at `reasoni
 
 <div class="sf-bench-group sf-bench-group--focus">
 <div class="sf-bench-kicker">Cost × score · fifteen cells · same list-price formula</div>
-<p class="sf-bench-blurb">Color is the harness. Shape is the model: circle GLM, square DeepSeek, diamond Qwen. Larger marker is OpenSteerable. Dollars are OpenRouter list on the pinned host, not the published GLM @max $0.146 axis. Green DSH markers use OpenRouter analytics tokens for the catalog window (Harbor DSH trials still write no tokens).</p>
+<p class="sf-bench-blurb">Color is the harness. Shape is the model: circle GLM, square DeepSeek, diamond Qwen. Larger marker is OpenSteerable. Dollars are OpenRouter list on the pinned host for this n=1 matrix, not a cross-date cost estimate for the current GLM @max baseline. Green DSH markers use OpenRouter analytics tokens for the catalog window (Harbor DSH trials still write no tokens).</p>
 <svg class="sf-scatter" viewBox="0 0 800 428" role="img" aria-label="Terminal-Bench 2.1 n=1 score against OpenRouter list dollars per solved task for fifteen catalog-89 cells. Color is harness, shape is model. DSH dollars inferred from OpenRouter analytics.">
 <line class="grid" x1="48.0" y1="32" x2="48.0" y2="332"/>
 <line class="grid" x1="216.6" y1="32" x2="216.6" y2="332"/>
@@ -245,7 +245,7 @@ The score of record is still OpenSteerable + GLM-5.3-Flash **80.7%** at `reasoni
 <text class="legend" x="438" y="399">DSH</text>
 <text class="legend" x="490" y="399">circle GLM · square DeepSeek · diamond Qwen</text>
 </svg>
-<p class="sf-bench-foot">List dollars from per-trial Harbor <code>result.json</code> tokens on the pinned host (GLM Z.AI $0.15/$0.50/cache $0.03 per 1M; DeepSeek Alibaba $0.352/$1.056; Qwen Alibaba $0.425/$2.55). Cache billed at cache-read when <code>n_cache_tokens ≤ n_input_tokens</code> (DeepSeek/Qwen cache-read uses the input rate, matching the other twelve cells). Codex GLM/Qwen and Pi Qwen include GitHub 360-minute unfinished snapshots scored as fail. DSH tokens are OpenRouter analytics for 2026-09-14 13:14–20:00 UTC (catalog window; cheap-12 that morning excluded); Harbor DSH trials still write no tokens. Not mixed with the published GLM @max $0.146.</p>
+<p class="sf-bench-foot">List dollars from per-trial Harbor <code>result.json</code> tokens on the pinned host (GLM Z.AI $0.15/$0.50/cache $0.03 per 1M; DeepSeek Alibaba $0.352/$1.056; Qwen Alibaba $0.425/$2.55). Cache billed at cache-read when <code>n_cache_tokens ≤ n_input_tokens</code> (DeepSeek/Qwen cache-read uses the input rate, matching the other twelve cells). Codex GLM/Qwen and Pi Qwen include GitHub 360-minute unfinished snapshots scored as fail. DSH tokens are OpenRouter analytics for 2026-09-14 13:14–20:00 UTC (catalog window; cheap-12 that morning excluded); Harbor DSH trials still write no tokens. Do not mix these dollars with the current GLM @max baseline, measured in a later pricing window.</p>
 </div>
 
 </div>
@@ -253,7 +253,7 @@ The score of record is still OpenSteerable + GLM-5.3-Flash **80.7%** at `reasoni
 </div>
 
 <p class="sf-lede" markdown>
-Same GLM-5.3-Flash, same Harbor catalog-89 protocol: Claude Code 83.1% at $0.162 per solved task, OpenSteerable **80.7%** at **$0.146**, Pi 73.4% at $0.061. About **$10.50 per full 89-task run** — usable as a coding agent, not a demo loop.
+Same GLM-5.3-Flash and Harbor catalog-89 protocol: Claude Code 83.1%, OpenSteerable **79.0% ±3.4**, Pi 73.4% ±2.2. The current OpenSteerable baseline averages **229.9M input tokens per run**; provider prices changed between measurement windows, so cross-date dollar costs are not compared.
 </p>
 
 <h2 class="sf-section">Quickstart — pick your path</h2>

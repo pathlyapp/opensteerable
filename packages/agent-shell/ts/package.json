@@ -1,7 +1,7 @@
 {
   "name": "@steerable/agent-shell",
   "version": "0.6.35",
-  "description": "Steerable framework \u2014 product-neutral desktop/headless agent host (Tier 5). Electron main + preload + headless HTTP server (BS) sharing one storage/sidecar/tooling core; scenario packs extend it through the @steerable/pack-sdk contract and are composed at build time by the consuming product.",
+  "description": "Steerable framework — product-neutral desktop/headless agent host (Tier 5). Electron main + preload + headless HTTP server (BS) sharing one storage/sidecar/tooling core; scenario packs extend it through the @steerable/pack-sdk contract and are composed at build time by the consuming product.",
   "license": "Apache-2.0",
   "homepage": "https://steerableframework.com/",
   "repository": {
@@ -65,16 +65,19 @@
     "dotenv": "^17.4.2",
     "electron-log": "^5.4.3",
     "electron-store": "^8.1.0",
+    "electron-updater": "^6.8.9",
     "he": "^1.2.0",
-    "node-pty": "^1.1.0"
+    "node-pty": "^1.1.0",
+    "semver": "^7.8.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/he": "^1.2.3",
     "@types/node": "^22.10.5",
+    "@types/semver": "^7.8.0",
     "electron": "^28.3.3",
+    "esbuild": "^0.25.0",
     "typescript": "^5.8.3",
-    "vitest": "^3.2.4",
-    "esbuild": "^0.25.0"
+    "vitest": "^3.2.4"
   }
 }

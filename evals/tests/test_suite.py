@@ -483,7 +483,10 @@ def test_gha_forwards_steerable_gateway_not_official_openai() -> None:
     assert "python3 -m evals.feishu" in weekly
     assert "python3 -m evals.feishu" in oracle
     assert "if: ${{ !cancelled() }}" in oracle
-    assert "if: ${{ !cancelled() }}" in weekly
+    assert (
+        "if: ${{ github.repository == 'pathlyapp/opensteerable' && !cancelled() }}"
+        in weekly
+    )
     assert "merge-multiple: true" not in oracle
     assert "merge-multiple: true" not in weekly
     assert "--n-concurrent 2" in weekly

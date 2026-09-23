@@ -24,7 +24,6 @@ from harbor.environments.base import BaseEnvironment
 from harbor.models.agent.context import AgentContext
 
 from evals.harbor_helpers import (
-    _APT_PYTHON_INSTALL,
     _ENSURE_PYTHON_310,
     _NO_PROXY_ENV,
     _REMOTE_SRC,
@@ -147,18 +146,12 @@ class SteerableHarborAgent(BaseInstalledAgent):
 
     @override
     async def install(self, environment: BaseEnvironment) -> None:
-        pip_check = await environment.exec(
-            command="python3 -m pip --version", user="root"
-        )
         proxy_env = self._forwarded_env(_PROXY_KEYS)
         # Harbor scopes extra_env to agent setup/run only. TB hidden tests
         # download uv from GitHub inside the same container; without a
         # rewritten host proxy that step hangs (VerifierTimeoutError).
         if proxy_env:
             environment._persistent_env.update(proxy_env)
-        if pip_check.return_code != 0:
-            apt_env = {"DEBIAN_FRONTEND": "noninteractive", **proxy_env}
-            await self._ensure_python_apt(environment, apt_env)
         await self._inject_host_uv(environment)
         await self._inject_host_python(environment)
         await self._ensure_python_310(environment, proxy_env)
@@ -210,44 +203,6 @@ class SteerableHarborAgent(BaseInstalledAgent):
         if result.return_code != 0:
             return ""
         return (result.stdout or "").strip()
-
-    async def _ensure_python_apt(
-        self, environment: BaseEnvironment, apt_env: dict[str, str]
-    ) -> None:
-        """Install pip/venv after Ubuntu's boot apt releases the dpkg lock.
-
-        Slim images have no ``fuser``. A Harbor timeout also leaves apt-get
-        running, so a second install must wait on ``/proc/*/fd`` and only then
-        kill a stuck lock holder.
-        """
-        try:
-            await self.exec_as_root(
-                environment,
-                command=_APT_PYTHON_INSTALL,
-                env=apt_env or None,
-                timeout_sec=900,
-            )
-        except Exception:
-            try:
-                await self.exec_as_root(
-                    environment,
-                    command=_APT_PYTHON_INSTALL,
-                    env=apt_env or None,
-                    timeout_sec=900,
-                )
-            except Exception:
-                # apt is best-effort: EOL images (Debian 11 qemu tasks) 404
-                # on the security pool. The host-uv injection next in
-                # install() brings up Python 3.12 without apt, and
-                # _ensure_python_310 raises if no >=3.10 interpreter lands.
-                return
-        pip_check = await environment.exec(
-            command="python3 -m pip --version", user="root"
-        )
-        if pip_check.return_code != 0:
-            await self.ensure_system_dependencies(
-                environment, ("python3", "python_pip")
-            )
 
     async def _inject_host_uv(self, environment: BaseEnvironment) -> None:
         """Put a Linux musl ``uv`` in the trial before Python upgrade.

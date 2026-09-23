@@ -7,11 +7,11 @@
   "homepage": "https://steerableframework.com/",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/pathlyapp/steerable-framework.git",
+    "url": "git+https://github.com/pathlyapp/opensteerable.git",
     "directory": "packages/agent-shell/web"
   },
   "bugs": {
-    "url": "https://github.com/pathlyapp/steerable-framework/issues"
+    "url": "https://github.com/pathlyapp/opensteerable/issues"
   },
   "exports": {
     "./auth/gate": "./src/auth/gate.ts",

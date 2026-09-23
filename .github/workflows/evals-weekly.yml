@@ -82,7 +82,7 @@ concurrency:
 jobs:
   eval:
     name: TB 2.1 cheap-12 × ${{ matrix.agent }}
-    if: ${{ github.event_name == 'schedule' || (github.event.inputs.split == 'cheap-12' && github.event.inputs.model == '') }}
+    if: ${{ github.repository == 'pathlyapp/opensteerable' && (github.event_name == 'schedule' || (github.event.inputs.split == 'cheap-12' && github.event.inputs.model == '')) }}
     runs-on: ubuntu-latest
     # Twelve trials at n-concurrent=2 can legitimately exceed four hours:
     # one 120-minute compile plus one 90-minute task can occupy a lane. Keep
@@ -155,7 +155,7 @@ jobs:
 
   probe:
     name: TB 2.1 cheap-12 probe × ${{ matrix.agent }} × ${{ github.event.inputs.model }}
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.split == 'cheap-12' && github.event.inputs.model != '' }}
+    if: ${{ github.repository == 'pathlyapp/opensteerable' && github.event_name == 'workflow_dispatch' && github.event.inputs.split == 'cheap-12' && github.event.inputs.model != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 360
     strategy:
@@ -289,7 +289,7 @@ jobs:
 
   failed-prev:
     name: TB 2.1 failed-prev × steerable shard ${{ matrix.shard }}/24
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.split == 'failed-prev' }}
+    if: ${{ github.repository == 'pathlyapp/opensteerable' && github.event_name == 'workflow_dispatch' && github.event.inputs.split == 'failed-prev' }}
     runs-on: ubuntu-latest
     timeout-minutes: 360
     strategy:
@@ -340,7 +340,7 @@ jobs:
 
   catalog:
     name: TB 2.1 catalog × ${{ github.event.inputs.agent }} × ${{ github.event.inputs.model || 'default' }} shard ${{ matrix.shard }}/49
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.split == 'catalog' }}
+    if: ${{ github.repository == 'pathlyapp/opensteerable' && github.event_name == 'workflow_dispatch' && github.event.inputs.split == 'catalog' }}
     runs-on: ubuntu-latest
     timeout-minutes: 360
     # `fail-fast: false` lets one unsolved task run its course, but all 49
@@ -511,7 +511,7 @@ jobs:
   # B is the Rust candidate; `arm_b_env` must stay empty for this engine A/B.
   flaky:
     name: TB 2.1 flaky arm ${{ matrix.arm }} shard ${{ matrix.shard }}/27
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.split == 'flaky' }}
+    if: ${{ github.repository == 'pathlyapp/opensteerable' && github.event_name == 'workflow_dispatch' && github.event.inputs.split == 'flaky' }}
     runs-on: ubuntu-latest
     timeout-minutes: 180
     strategy:
@@ -595,7 +595,7 @@ jobs:
   # applies unconditionally here: there is no arm A to keep on the defaults.
   spiral:
     name: TB 2.1 spiral-red shard ${{ matrix.shard }}/2
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.split == 'spiral-red' }}
+    if: ${{ github.repository == 'pathlyapp/opensteerable' && github.event_name == 'workflow_dispatch' && github.event.inputs.split == 'spiral-red' }}
     runs-on: ubuntu-latest
     timeout-minutes: 180
     strategy:
@@ -663,6 +663,7 @@ jobs:
 
   notify-start:
     name: Feishu started
+    if: github.repository == 'pathlyapp/opensteerable'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -788,7 +789,7 @@ jobs:
   gather:
     name: At least one live agent ran
     needs: [eval, flaky, spiral, catalog, failed-prev, probe]
-    if: ${{ !cancelled() }}
+    if: ${{ github.repository == 'pathlyapp/opensteerable' && !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -862,7 +863,7 @@ jobs:
   attribution:
     name: Harness × model attribution report
     needs: [eval, flaky, spiral, catalog, failed-prev, probe]
-    if: always()
+    if: always() && github.repository == 'pathlyapp/opensteerable'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

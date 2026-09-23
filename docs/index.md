@@ -6,9 +6,9 @@ hide:
 
 <div class="sf-hero" markdown>
 
-<img class="sf-hero-logo" src="assets/logo.svg" alt="Steerable logo" />
+<img class="sf-hero-logo" src="assets/logo.svg" alt="OpenSteerable logo" />
 
-# Steerable
+# OpenSteerable
 
 <p class="sf-tagline">The model-quality layer that makes local, quantized, and cheap models behave.</p>
 
@@ -22,12 +22,12 @@ Pick any subset, skip the rest — every layer ships on its own.
 [Get started](getting-started.md){ .md-button .md-button--primary }
 <a href="demo/" class="md-button">Live demo</a>
 <a href="storybook/" class="md-button">Storybook</a>
-[GitHub](https://github.com/pathlyapp/steerable-framework){ .md-button }
+[GitHub](https://github.com/pathlyapp/opensteerable){ .md-button }
 </div>
 
 <p class="sf-badges">
-  <a href="https://github.com/pathlyapp/steerable-framework/blob/main/LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" /></a>
-  <a href="https://github.com/pathlyapp/steerable-framework/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/pathlyapp/steerable-framework/actions/workflows/ci.yml/badge.svg" /></a>
+  <a href="https://github.com/pathlyapp/opensteerable/blob/main/LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" /></a>
+  <a href="https://github.com/pathlyapp/opensteerable/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/pathlyapp/opensteerable/actions/workflows/ci.yml/badge.svg" /></a>
   <a href="https://www.npmjs.com/package/@steerable/agent-ui"><img alt="npm: @steerable/agent-ui" src="https://img.shields.io/npm/v/@steerable/agent-ui?label=%40steerable%2Fagent-ui&color=cb3837" /></a>
   <a href="https://pypi.org/project/steerable-agent-runtime/"><img alt="PyPI: steerable-agent-runtime" src="https://img.shields.io/pypi/v/steerable-agent-runtime?label=steerable-agent-runtime&color=3776ab" /></a>
 </p>
@@ -37,7 +37,7 @@ Pick any subset, skip the rest — every layer ships on its own.
 <div class="sf-score-strip" markdown>
 <div class="sf-score sf-score--ours" markdown>
 <span class="sf-score-value">80.7%</span>
-<span class="sf-score-label">Steerable + GLM-5.3-Flash</span>
+<span class="sf-score-label">OpenSteerable + GLM-5.3-Flash</span>
 <span class="sf-score-meta">TB 2.1 · 6-run mean @max · this repo</span>
 </div>
 <div class="sf-score" markdown>
@@ -52,17 +52,17 @@ Pick any subset, skip the rest — every layer ships on its own.
 </div>
 </div>
 
-<h2 class="sf-section">Why Steerable</h2>
+<h2 class="sf-section">Why OpenSteerable</h2>
 
 <p class="sf-lede" markdown>
 Every agent SDK assumes the model emits clean, structured `tool_calls`. Local, quantized, and cheap models don't.
-Steerable is the model-quality layer that closes that gap — plus the plumbing layers you'd otherwise rewrite, each shippable on its own.
+OpenSteerable is the model-quality layer that closes that gap — plus the plumbing layers you'd otherwise rewrite, each shippable on its own.
 </p>
 
 <div class="sf-grid" markdown>
 <div class="sf-card" markdown>
 ### The model-quality layer
-Local, quantized, and cheap models break the structured-`tool_calls` assumptions every SDK makes. Steerable recovers *and executes* malformed calls (MiniMax XML, DeepSeek `<function=>`, markdown), vetoes completion drafts (`accept` / `retry` / `narrate`), judges grounding, and self-calibrates token estimates. [Why this is the differentiator](roadmap.md#the-differentiator-the-model-quality-layer).
+Local, quantized, and cheap models break the structured-`tool_calls` assumptions every SDK makes. OpenSteerable recovers *and executes* malformed calls (MiniMax XML, DeepSeek `<function=>`, markdown), vetoes completion drafts (`accept` / `retry` / `narrate`), judges grounding, and self-calibrates token estimates. [Why this is the differentiator](roadmap.md#the-differentiator-the-model-quality-layer).
 </div>
 <div class="sf-card" markdown>
 ### One wire protocol
@@ -89,7 +89,7 @@ A portable, signed CPython binary speaking JSON-RPC over stdio (34 methods). Shi
 <h2 class="sf-section">Terminal-Bench 2.1</h2>
 
 <p class="sf-lede" markdown>
-The score of record is still Steerable + GLM-5.3-Flash **80.7%** at `reasoning_effort=max` (six-run mean, SD 2.9). The figures below are a **separate n=1** protocol: GLM-5.3-Flash and DeepSeek-V4-Flash 0731 at `high`, Qwen3.8-27B at `medium`, five harnesses, one OpenRouter account, Harbor catalog-89. Timeout, error, and missing trials count as fail. Terminus is omitted. DSH is on both figures (SHA `c576a88`); its dollars are OpenRouter analytics tokens for the catalog window, scored with the same pinned-host list formula as the twelve Harbor cells. Protocol and run list: [Evals](evals.md).
+The score of record is still OpenSteerable + GLM-5.3-Flash **80.7%** at `reasoning_effort=max` (six-run mean, SD 2.9). The figures below are a **separate n=1** protocol: GLM-5.3-Flash and DeepSeek-V4-Flash 0731 at `high`, Qwen3.8-27B at `medium`, five harnesses, one OpenRouter account, Harbor catalog-89. Timeout, error, and missing trials count as fail. Terminus is omitted. DSH is on both figures (SHA `c576a88`); its dollars are OpenRouter analytics tokens for the catalog window, scored with the same pinned-host list formula as the twelve Harbor cells. Protocol and run list: [Evals](evals.md).
 </p>
 
 <div class="sf-bench sf-bench--wide">
@@ -99,7 +99,7 @@ The score of record is still Steerable + GLM-5.3-Flash **80.7%** at `reasoning_e
 <div class="sf-bench-group sf-bench-group--focus">
 <div class="sf-bench-kicker">Same protocol · three Flash models · five harnesses</div>
 <p class="sf-bench-blurb">Grouped bars are pass/89. Color is the harness. This is n=1 at high/medium, not the 80.7% @max six-run.</p>
-<svg class="sf-bars" viewBox="0 0 760 336" role="img" aria-label="Terminal-Bench 2.1 n=1 pass over 89 for three models and five harnesses: Steerable, Pi, Claude Code, Codex, DSH.">
+<svg class="sf-bars" viewBox="0 0 760 336" role="img" aria-label="Terminal-Bench 2.1 n=1 pass over 89 for three models and five harnesses: OpenSteerable, Pi, Claude Code, Codex, DSH.">
 <line class="axis" x1="56" y1="48" x2="56" y2="280"/>
 <line class="axis" x1="56" y1="280" x2="730" y2="280"/>
 <text class="tick" x="50" y="284" text-anchor="end">0</text>
@@ -145,7 +145,7 @@ The score of record is still Steerable + GLM-5.3-Flash **80.7%** at `reasoning_e
 <text class="barVal" x="650" y="138" text-anchor="middle">60.7</text>
 <text class="axisTitle" x="594" y="298" text-anchor="middle">Qwen @medium</text>
 <rect class="bar--steer" fill="#5c6bc0" x="56" y="314" width="10" height="10"/>
-<text class="tick" x="70" y="323">Steerable</text>
+<text class="tick" x="70" y="323">OpenSteerable</text>
 <rect class="bar--pi" fill="#0e7490" x="148" y="314" width="10" height="10"/>
 <text class="tick" x="162" y="323">Pi</text>
 <rect class="bar--cc" fill="#c2410c" x="198" y="314" width="10" height="10"/>
@@ -155,12 +155,12 @@ The score of record is still Steerable + GLM-5.3-Flash **80.7%** at `reasoning_e
 <rect class="bar--dsh" fill="#15803d" x="396" y="314" width="10" height="10"/>
 <text class="tick" x="410" y="323">DSH</text>
 </svg>
-<p class="sf-bench-foot">Mean = pass/89. GLM/DS @high pin z-ai / alibaba; Qwen @medium pin alibaba (Pi maps medium to <code>--thinking high</code>). DeepSeek is 0731 GA, not the 0423 preview. Steerable/Pi/CC/Codex SHA <code>6f70bf5</code> + fill <code>19213d7</code>. DSH SHA <code>c576a88</code> (Qwen missing <code>winning-avg-corewars</code> counts as fail).</p>
+<p class="sf-bench-foot">Mean = pass/89. GLM/DS @high pin z-ai / alibaba; Qwen @medium pin alibaba (Pi maps medium to <code>--thinking high</code>). DeepSeek is 0731 GA, not the 0423 preview. OpenSteerable/Pi/CC/Codex SHA <code>6f70bf5</code> + fill <code>19213d7</code>. DSH SHA <code>c576a88</code> (Qwen missing <code>winning-avg-corewars</code> counts as fail).</p>
 </div>
 
 <div class="sf-bench-group sf-bench-group--focus">
 <div class="sf-bench-kicker">Cost × score · fifteen cells · same list-price formula</div>
-<p class="sf-bench-blurb">Color is the harness. Shape is the model: circle GLM, square DeepSeek, diamond Qwen. Larger marker is Steerable. Dollars are OpenRouter list on the pinned host, not the published GLM @max $0.146 axis. Green DSH markers use OpenRouter analytics tokens for the catalog window (Harbor DSH trials still write no tokens).</p>
+<p class="sf-bench-blurb">Color is the harness. Shape is the model: circle GLM, square DeepSeek, diamond Qwen. Larger marker is OpenSteerable. Dollars are OpenRouter list on the pinned host, not the published GLM @max $0.146 axis. Green DSH markers use OpenRouter analytics tokens for the catalog window (Harbor DSH trials still write no tokens).</p>
 <svg class="sf-scatter" viewBox="0 0 800 428" role="img" aria-label="Terminal-Bench 2.1 n=1 score against OpenRouter list dollars per solved task for fifteen catalog-89 cells. Color is harness, shape is model. DSH dollars inferred from OpenRouter analytics.">
 <line class="grid" x1="48.0" y1="32" x2="48.0" y2="332"/>
 <line class="grid" x1="216.6" y1="32" x2="216.6" y2="332"/>
@@ -198,7 +198,7 @@ The score of record is still Steerable + GLM-5.3-Flash **80.7%** at `reasoning_e
 <text class="lbl" x="250" y="130">Pi · DS</text>
 <text class="sub" x="250" y="140">69.7% · $0.28</text>
 <circle class="pt pt--ours" fill="#5c6bc0" stroke="#5c6bc0" cx="381.4" cy="66.7" r="14"/>
-<text class="lbl lbl--ours" x="398" y="81">Steerable · GLM</text>
+<text class="lbl lbl--ours" x="398" y="81">OpenSteerable · GLM</text>
 <text class="sub" x="398" y="91">79.8% · $0.61</text>
 <rect class="pt pt--cc" fill="#c2410c" stroke="#c2410c" x="430.0" y="288.3" width="22" height="22"/>
 <text class="lbl" x="456" y="286">Claude Code · DS</text>
@@ -210,7 +210,7 @@ The score of record is still Steerable + GLM-5.3-Flash **80.7%** at `reasoning_e
 <text class="lbl" x="548" y="116" text-anchor="end">Claude Code · Qwen</text>
 <text class="sub" x="548" y="126" text-anchor="end">70.8% · $1.68</text>
 <rect class="pt pt--ours" fill="#5c6bc0" stroke="#5c6bc0" x="602.3" y="61.0" width="26" height="26"/>
-<text class="lbl lbl--ours" x="598" y="58" text-anchor="end">Steerable · DS</text>
+<text class="lbl lbl--ours" x="598" y="58" text-anchor="end">OpenSteerable · DS</text>
 <text class="sub" x="598" y="72" text-anchor="end">78.7% · $2.18</text>
 <polygon class="pt pt--codex" fill="#71717a" stroke="#71717a" points="647.6,156.0 663.6,172.0 647.6,188.0 631.6,172.0"/>
 <text class="lbl" x="628" y="198" text-anchor="end">Codex · Qwen</text>
@@ -219,7 +219,7 @@ The score of record is still Steerable + GLM-5.3-Flash **80.7%** at `reasoning_e
 <text class="lbl" x="686" y="176">Pi · Qwen</text>
 <text class="sub" x="678" y="186">62.9% · $2.87</text>
 <polygon class="pt pt--ours" fill="#5c6bc0" stroke="#5c6bc0" points="732.1,124.0 750.1,142.0 732.1,160.0 714.1,142.0"/>
-<text class="lbl lbl--ours" x="710" y="128" text-anchor="end">Steerable · Qwen</text>
+<text class="lbl lbl--ours" x="710" y="128" text-anchor="end">OpenSteerable · Qwen</text>
 <text class="sub" x="710" y="138" text-anchor="end">68.5% · $4.12</text>
 <rect class="pt pt--codex" fill="#71717a" stroke="#71717a" x="732.3" y="173.7" width="26" height="26"/>
 <text class="lbl" x="728" y="218" text-anchor="end">Codex · DS</text>
@@ -234,7 +234,7 @@ The score of record is still Steerable + GLM-5.3-Flash **80.7%** at `reasoning_e
 <text class="lbl" x="694" y="248" text-anchor="middle">DSH · Qwen</text>
 <text class="sub" x="694" y="258" text-anchor="middle">60.7% · $3.36</text>
 <rect class="pt pt--steer" fill="#5c6bc0" stroke="#5c6bc0" x="48" y="388" width="14" height="14"/>
-<text class="legend" x="66" y="399">Steerable</text>
+<text class="legend" x="66" y="399">OpenSteerable</text>
 <rect class="pt pt--pi" fill="#0e7490" stroke="#0e7490" x="150" y="388" width="14" height="14"/>
 <text class="legend" x="168" y="399">Pi</text>
 <rect class="pt pt--cc" fill="#c2410c" stroke="#c2410c" x="200" y="388" width="14" height="14"/>
@@ -253,7 +253,7 @@ The score of record is still Steerable + GLM-5.3-Flash **80.7%** at `reasoning_e
 </div>
 
 <p class="sf-lede" markdown>
-Same GLM-5.3-Flash, same Harbor catalog-89 protocol: Claude Code 83.1% at $0.162 per solved task, Steerable **80.7%** at **$0.146**, Pi 73.4% at $0.061. About **$10.50 per full 89-task run** — usable as a coding agent, not a demo loop.
+Same GLM-5.3-Flash, same Harbor catalog-89 protocol: Claude Code 83.1% at $0.162 per solved task, OpenSteerable **80.7%** at **$0.146**, Pi 73.4% at $0.061. About **$10.50 per full 89-task run** — usable as a coding agent, not a demo loop.
 </p>
 
 <h2 class="sf-section">Quickstart — pick your path</h2>
@@ -372,10 +372,10 @@ graph BT
 <h2 class="sf-section">How it compares</h2>
 
 <p class="sf-lede" markdown>
-Steerable isn't the only way to ship an agent. The short, honest version against the frameworks you're probably also evaluating:
+OpenSteerable isn't the only way to ship an agent. The short, honest version against the frameworks you're probably also evaluating:
 </p>
 
-| Dimension | Steerable | OpenAI Codex | DeepSeek Harness | LangGraph | OpenAI Agents SDK | Claude Code / Agent SDK |
+| Dimension | OpenSteerable | OpenAI Codex | DeepSeek Harness | LangGraph | OpenAI Agents SDK | Claude Code / Agent SDK |
 | --------- | --------- | ------------ | ---------------- | --------- | ----------------- | ----------------------- |
 | **Form factor** | Layered library — the same loop in a desktop sidecar and a server | Product family: CLI, IDE, desktop, cloud — Rust core | Plugin-based harness (TS) on Cordis | Orchestration library — you write the graph | Lightweight framework over the Responses API | One closed-source bundle behind both the CLI and the Agent SDK |
 | **Loop / events** | `CoreLoop` + structured `LoopEvent` taxonomy; mid-turn `agent.chat.steer` | Session-owned turn loop; interrupt/abort; 12-event hooks | Inbox-driven ReactLoop; steer / inject / followup | Interrupts at node boundaries | Handoffs + guardrails; no mid-run steer | Mid-turn fold queue; hooks can veto continuation |
@@ -384,7 +384,7 @@ Steerable isn't the only way to ship an agent. The short, honest version against
 | **Maturity** | `0.6.x`; one production consumer | Massive real-world usage | Pre-release (`0.1.x`); internal use | Widely adopted in production | Production, OpenAI-tied | Production; Anthropic models via first-party, Bedrock, Vertex, Foundry, Gateway |
 
 <p class="sf-lede" markdown>
-Where Steerable genuinely differs, where it lags, and how to choose: [Full comparison](comparison.md).
+Where OpenSteerable genuinely differs, where it lags, and how to choose: [Full comparison](comparison.md).
 </p>
 
 <h2 class="sf-section">Who's using it</h2>

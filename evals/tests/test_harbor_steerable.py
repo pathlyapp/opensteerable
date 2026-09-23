@@ -5,7 +5,6 @@ from pathlib import Path
 from evals.suite import load_suite
 
 from evals.harbor_helpers import (
-    _APT_PYTHON_INSTALL,
     _ENSURE_PYTHON_310,
     _PY310_BIN,
     _UV_MIN_BYTES,
@@ -78,15 +77,6 @@ def test_no_proxy_localhost_is_not_rewritten_to_host_docker() -> None:
         rewrite_forwarded_env_value("HTTP_PROXY", "http://127.0.0.1:7890")
         == "http://host.docker.internal:7890"
     )
-
-
-def test_apt_python_install_waits_without_fuser() -> None:
-    assert "fuser" not in _APT_PYTHON_INSTALL
-    assert "readlink" in _APT_PYTHON_INSTALL
-    assert "python3-venv" in _APT_PYTHON_INSTALL
-    assert "/usr/bin/apt-get" in _APT_PYTHON_INSTALL
-    assert "mirrors.tuna.tsinghua.edu.cn/ubuntu" in _APT_PYTHON_INSTALL
-    assert "archive.ubuntu.com" in _APT_PYTHON_INSTALL
 
 
 def test_ensure_python_310_upgrades_before_venv() -> None:
@@ -356,6 +346,7 @@ def test_harbor_run_matches_claude_code_tb_knobs() -> None:
     assert text.index("await self._inject_host_python") < text.index(
         "await self._ensure_python_310"
     )
+    assert "_ensure_python_apt" not in text
     assert text.index("await self._ensure_python_310") < text.index(
         "await self._align_verifier_python"
     )

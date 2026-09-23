@@ -818,7 +818,7 @@ jobs:
               if [ -n "$EVAL_EFFORT" ]; then
                 label="$label @$EVAL_EFFORT"
               fi
-              label="$label · 新基线不上首页"
+              label="$label · 探索性单跑不上首页"
             fi
           elif [ "$EVAL_SPLIT" = "failed-prev" ]; then
             label="GHA failed-prev"
@@ -829,7 +829,7 @@ jobs:
             if [ -n "$EVAL_EFFORT" ]; then
               label="$label @$EVAL_EFFORT"
             fi
-            label="$label · 新基线不上首页"
+            label="$label · 探索性单跑不上首页"
           fi
           python3 -m evals.feishu \
             --root statuses \

@@ -269,12 +269,12 @@ def test_cheap12_probe_deepseek_pins_alibaba() -> None:
     assert "DeepSeek 0423 官方 deepseek 不提供" not in WEEKLY
 
 
-def test_cheap12_probe_cards_are_a_new_baseline() -> None:
+def test_cheap12_probe_cards_are_marked_exploratory() -> None:
     """A probe Mean posted as GHA cheap-12 is read as the old easy-12
-    smoke, then mixed with catalog-89 80.7%."""
+    smoke, then mixed with the current catalog-89 score."""
     assert "不上首页" in WEEKLY
-    assert "不和 catalog-89 80.7%" in WEEKLY
-    assert 'label="$label · 新基线不上首页"' in WEEKLY
+    assert "不和 catalog-89 当前 79.0%" in WEEKLY
+    assert 'label="$label · 探索性单跑不上首页"' in WEEKLY
 
 
 def test_explicit_catalog_tasks_accept_steerable_overrides() -> None:

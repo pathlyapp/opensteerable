@@ -37,7 +37,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v6
-      - run: uv sync --no-install-package steerable-agent-runtime-native
+      - run: uv sync
       - uses: ./.github/actions/setup-harbor
       - run: docker info
       - name: Harbor oracle canary
@@ -56,7 +56,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v6
-      - run: uv sync --no-install-package steerable-agent-runtime-native
+      - run: uv sync
       - uses: ./.github/actions/setup-harbor
       - run: docker info
       - name: Harbor product canary

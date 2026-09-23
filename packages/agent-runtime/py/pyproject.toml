@@ -15,7 +15,7 @@ dependencies = [
   "pydantic>=2.10.0",
   "steerable-agent-protocol>=0.1.0,<1.0.0",
   "steerable-agent-harness>=0.1.0,<1.0.0",
-  "steerable-agent-runtime-native>=0.1.0,<1.0.0",
+  "steerable-agent-runtime-native==0.6.36",
 ]
 
 [project.optional-dependencies]
@@ -54,7 +54,6 @@ steerable_agent_runtime = ["*.yaml", "*.json"]
 [tool.uv.sources]
 steerable-agent-protocol = { workspace = true }
 steerable-agent-harness = { workspace = true }
-steerable-agent-runtime-native = { workspace = true }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

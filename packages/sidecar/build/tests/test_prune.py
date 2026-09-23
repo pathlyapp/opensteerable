@@ -282,6 +282,7 @@ def test_install_sidecar_from_wheels_picks_latest(
 
     target = build_sidecar.TARGETS["darwin-arm64"]
     monkeypatch.setattr(build_sidecar.subprocess, "run", fake_run)
+    monkeypatch.setattr(build_sidecar, "verify_native_wheel", lambda _wheel: None)
 
     build_sidecar.install_sidecar(fake_runtime, target, wheels_dir=wheels)
 
@@ -323,6 +324,7 @@ def test_install_sidecar_from_wheels_installs_native_coreloop(
 
     target = build_sidecar.TARGETS["linux-x64"]
     monkeypatch.setattr(build_sidecar.subprocess, "run", fake_run)
+    monkeypatch.setattr(build_sidecar, "verify_native_wheel", lambda _wheel: None)
     build_sidecar.install_sidecar(fake_runtime, target, wheels_dir=wheels)
     native = [
         cmd[-1]
@@ -355,28 +357,33 @@ def test_install_sidecar_from_wheels_requires_native(
     assert "steerable_agent_runtime_native" in str(excinfo.value)
 
 
-def test_install_native_coreloop_fails_without_cargo(
-    fake_runtime: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_install_native_coreloop_requires_a_wheel(fake_runtime: Path) -> None:
     target = build_sidecar.host_target()
-    monkeypatch.setattr(build_sidecar.shutil, "which", lambda _name: None)
-    with pytest.raises(SystemExit) as excinfo:
-        build_sidecar.install_native_coreloop(
-            fake_runtime / "bin" / "python3", target, wheels_dir=None
-        )
-    assert "cargo" in str(excinfo.value)
-
-
-def test_install_native_coreloop_fails_on_cross_compile_without_wheel(
-    fake_runtime: Path,
-) -> None:
-    host = build_sidecar.host_target().name
-    target_name = next(name for name in build_sidecar.TARGETS if name != host)
-    target = build_sidecar.TARGETS[target_name]
     with pytest.raises(SystemExit) as excinfo:
         build_sidecar.install_native_coreloop(
             fake_runtime / "bin" / "python3", target, wheels_dir=None
         )
     assert "steerable_agent_runtime_native" in str(excinfo.value)
-    assert "cross-compile" in str(excinfo.value)
+
+
+def test_install_native_coreloop_rejects_a_bad_checksum(
+    fake_runtime: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    wheels = tmp_path / "wheels"
+    wheels.mkdir()
+    wheel = wheels / "steerable_agent_runtime_native-0.6.36-py3-none-any.whl"
+    wheel.write_bytes(b"tampered")
+
+    def reject(_wheel: Path) -> None:
+        raise SystemExit("checksum mismatch for steerable_agent_runtime_native")
+
+    monkeypatch.setattr(build_sidecar, "verify_native_wheel", reject)
+    with pytest.raises(SystemExit) as excinfo:
+        build_sidecar.install_native_coreloop(
+            fake_runtime / "bin" / "python3",
+            build_sidecar.TARGETS["linux-x64"],
+            wheels_dir=wheels,
+        )
+    assert "checksum mismatch" in str(excinfo.value)

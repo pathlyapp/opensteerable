@@ -11,15 +11,15 @@ name: Release
 # This workflow then:
 #   1. Resolves the version from the pushed tag (or `inputs.version` for
 #      `workflow_dispatch` re-runs).
-#   2. Validates that every lockstep package (TS, Py, Rust crate,
-#      native wheel) reports exactly that version —
+#   2. Validates that every lockstep package reports exactly that
+#      version, including the PyPI pin for the native wheel —
 #      `scripts/check_lockstep_versions.py --expected X.Y.Z`.
 #      Refuses to proceed if even one is out of sync.
 #   3. Creates a GitHub Release for the tag (auto-generated notes).
-#   4. Chains publish-npm.yml + publish-pypi.yml + publish-native.yml.
-#      Those workflows are idempotent — they skip any package whose
-#      version is already on the registry — so re-tagging after a
-#      partial failure is safe.
+#   4. Chains publish-npm.yml + publish-native.yml + publish-pypi.yml.
+#      publish-native.yml only verifies that the private build already
+#      published binary wheels. It does not build or upload an sdist.
+#      Registry uploads are idempotent.
 #   5. Posts a Feishu card (success or failure) via FEISHU_BOT_WEBHOOK.
 #
 # Why tag-driven instead of release-please?
@@ -79,7 +79,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Lockstep gate (TS + Py + Rust crates must equal the tag version)
+      - name: Lockstep gate (TS + Py + egress crate + native pin)
         env:
           EXPECTED: ${{ steps.version.outputs.value }}
         run: |
@@ -114,9 +114,9 @@ jobs:
       contents: read
       id-token: write
 
-  # Native abi3 wheels must land on PyPI before the pure-Python runtime
-  # package: `steerable-agent-runtime` now depends on
-  # `steerable-agent-runtime-native` at the same lockstep version.
+  # The native wheel is built in the private repository. This public
+  # release refuses to publish the pure-Python runtime until that same
+  # version's binary wheels are already on PyPI.
   publish-native:
     needs: validate
     uses: ./.github/workflows/publish-native.yml

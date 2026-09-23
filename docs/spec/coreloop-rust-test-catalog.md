@@ -19,11 +19,11 @@ Rust CoreLoop must keep three consumers working without a product rewrite:
 | --- | --- | --- |
 | API surface | `test_pyo3_api_surface.py` | A larger `__all__` dump |
 | Loop / RPC / events | same + `test_rpc_method_contract.py` | Spec prose without a test |
-| Rust loop MVP | `rs/tests/test_loop.rs` plus `test_loop.py` / `test_golden.py` / `test_harness.py` / cancel / steer | Cross-language replay reducer |
-| LLM providers | `rs/tests/test_llm_wire.rs` plus `test_llm_*_wire.py`, presets, model_resolve | Golden chat text |
-| Sidecar binary | `sidecar/rs/tests/stdio_ping.rs` + `test_file_edit.rs` + `test_skills.rs` + `test_write_lease.rs` plus `test_sidecar_coreloop.py`, `test_sidecar_methods.py`, write-lease | Health ping only |
-| Egress + sandbox | `sidecar/rs/tests/test_sandbox.rs` + `test_landlock.rs` + `egress-proxy/rs/tests/test_proxy.rs` + `test_forward.rs` + `test_control.rs` + `supervisor-sandbox.test.ts` + agent `sandbox-posture` / `egress-widening` e2e | Packing without a Python runtime |
-| Built-in tools | `rs/tests/test_todo.rs` + `test_web.rs` + `test_run_code.rs` + `sidecar/rs/tests/test_run_code.rs` + `test_ptc_js.rs` + `sidecar/rs/tests/test_ptc_js.rs` + `test_tool_contract.py` + web/run_code/ptc e2e | Dual-impl without expanding `tool_contract.json` |
+| Rust loop MVP | `test_loop.py` / `test_golden.py` / `test_harness.py` / cancel / steer, against the published native wheel | Cross-language replay reducer |
+| LLM providers | `test_llm_*_wire.py`, presets, model_resolve | Golden chat text |
+| Sidecar binary | published sidecar `system.ping` smoke plus `test_sidecar_coreloop.py`, `test_sidecar_methods.py`, write-lease | Health ping only |
+| Egress + sandbox | `egress-proxy/rs` tests + `supervisor-sandbox.test.ts` + agent `sandbox-posture` / `egress-widening` e2e | Packing without a Python runtime |
+| Built-in tools | `test_tool_contract.py` + web/run_code/ptc e2e | A contract file that does not match the wheel |
 | Per-product CPython | `tests/python-runtime.test.ts` | Skipping sidecar for aroli before Rust egress/sandbox |
 | PyO3 wheel | `test_pyo3_api_surface.py` (`run_turn` on `steerable_agent_runtime_native`) | A missing native wheel or a silent fallback |
 | Harbor | [evals.md](../evals.md) 79.0% catalog | A single cheap-12 smoke |
@@ -46,4 +46,4 @@ pnpm test:products
 
 ## Dual-track rule
 
-Rust is the only CoreLoop engine. New loop behavior lands in the P0 scripted-provider tests first. `web_search` / `web_fetch` stay single-implementation until the Rust copy exists; then they must enter `tool_contract.json`. Historical Python Harbor numbers stay in [evals.md](../evals.md) as a superseded baseline only.
+Rust is the only CoreLoop engine. This public repository checks that engine through the published wheel, the public facade, and the black-box tests below. New loop behavior lands in the P0 scripted-provider tests first. Historical Python Harbor numbers stay in [evals.md](../evals.md) as a superseded baseline only.

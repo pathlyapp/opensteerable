@@ -9,7 +9,7 @@ The gate is [Terminal-Bench 2.1](https://github.com/harbor-framework/terminal-be
 **OpenSteerable + GLM-5.3-Flash = 79.0%** on the 89-task catalog. Three independent full runs at commit `e25a8d4` posted **71, 67, and 73**, mean **0.7903**, SD **0.0343**. All 267 task results have verifier rewards: round 1's cancelled two-task shard was filled by [35845167352](https://github.com/pathlyapp/opensteerable/actions/runs/35845167352), and round 2's scored FastText exit-137 was replaced by a clean trial from [35851663526](https://github.com/pathlyapp/opensteerable/actions/runs/35851663526). The EOL Debian verifier fix held in every round (`qemu-alpine-ssh` 3/3), and clean-process entrypoint validation did not turn its triggered stable tasks red. The every-round ≥72 gate still misses: the floor is 67, so this is a correctness/reliability release rather than a performance uplift.
 
 These runs use the Rust CoreLoop through matching manylinux or musllinux
-`cp310-abi3` wheels (`STEERABLE_RUST_CORELOOP=1`).
+`cp310-abi3` wheels. Rust is the only CoreLoop engine.
 
 | Sample | GitHub Actions | Mean |
 | ------ | -------------- | ---- |

@@ -51,11 +51,15 @@ jobs:
 
       - name: Install + build wheels for the pure-Python packages
         run: |
-          uv sync
+          # Native abi3 wheels are published by publish-native.yml. Skip
+          # installing/building the maturin member here: `uv build` cannot
+          # emit portable manylinux tags, and this job has no Rust toolchain.
+          uv sync --no-install-package steerable-agent-runtime-native
           # `--all-packages` builds every workspace member into dist/py/.
           uv build --all-packages --out-dir dist/py
-          # Examples are workspace members but must never reach PyPI.
+          # Examples and the PyO3 wheel must never reach this upload set.
           rm -f dist/py/steerable_example_*.{whl,tar.gz} 2>/dev/null || true
+          rm -f dist/py/steerable_agent_runtime_native* 2>/dev/null || true
           ls dist/py/
 
       - name: Filter to versions not yet on PyPI

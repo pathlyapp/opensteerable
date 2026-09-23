@@ -263,8 +263,8 @@ def test_rust_coreloop_requires_and_installs_a_native_wheel() -> None:
     src = Path(__file__).resolve().parents[1] / "harbor_steerable.py"
     text = src.read_text()
     tuning = text[text.index("_TUNING_KEYS = (") : text.index("_PROXY_KEYS = (")]
-    assert '"STEERABLE_RUST_CORELOOP"' in tuning
-    assert 'os.environ.get("STEERABLE_RUST_CORELOOP") != "1"' in text
+    assert '"STEERABLE_RUST_CORELOOP"' not in tuning
+    assert "STEERABLE_RUST_CORELOOP" not in text
     assert "STEERABLE_NATIVE_WHEEL" in text
     assert "STEERABLE_NATIVE_WHEEL_MUSL" in text
     assert "pip install --no-deps" in text

@@ -114,17 +114,20 @@ jobs:
       contents: read
       id-token: write
 
-  publish-pypi:
+  # Native abi3 wheels must land on PyPI before the pure-Python runtime
+  # package: `steerable-agent-runtime` now depends on
+  # `steerable-agent-runtime-native` at the same lockstep version.
+  publish-native:
     needs: validate
-    uses: ./.github/workflows/publish-pypi.yml
+    uses: ./.github/workflows/publish-native.yml
     secrets: inherit
     permissions:
       contents: read
       id-token: write
 
-  publish-native:
-    needs: validate
-    uses: ./.github/workflows/publish-native.yml
+  publish-pypi:
+    needs: [validate, publish-native]
+    uses: ./.github/workflows/publish-pypi.yml
     secrets: inherit
     permissions:
       contents: read

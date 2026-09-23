@@ -1,8 +1,9 @@
 /**
  * `AgentRuntime` — the CoreLoop-level API of the framework for TypeScript
  * products. Every method maps 1:1 onto the sidecar JSON-RPC surface
- * (`docs/spec/sidecar.md`); the runtime drives the same Python CoreLoop the
- * server uses, so there is no second implementation to drift.
+ * (`docs/spec/sidecar.md`); the runtime drives the same Rust CoreLoop the
+ * server uses (via the Python sidecar facade), so there is no second
+ * implementation to drift.
  *
  * Streaming is exposed as an async-iterable of `SSEEvent`-shaped frames so
  * callers can `for await` a turn, and as a `done` promise carrying the

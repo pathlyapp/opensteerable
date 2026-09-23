@@ -40,12 +40,27 @@ jobs:
             exit 1
           fi
 
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/egress-proxy/rs
+      - name: Rust egress-proxy crate tests
+        run: cargo test --manifest-path packages/egress-proxy/rs/Cargo.toml --locked
+      - name: Public source gate
+        run: python scripts/check_no_public_coreloop_source.py
+
   py:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v6
       - run: uv sync
+      - name: Native CoreLoop import smoke
+        run: uv run python -c "import steerable_agent_runtime_native as n; assert n.run_turn"
       - run: uv run python scripts/generate_py.py
       # STEERABLE_E2E_REQUIRED=1: the real-process e2e tier (run_code, web
       # tools, tool exposure, …) must hard-fail when its environment is broken
@@ -144,6 +159,20 @@ jobs:
             echo "::error::web-shell build did not produce dist/index.html"; exit 1;
           }
 
+  sidecar-bin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Download and smoke the published Rust sidecar
+        run: |
+          python scripts/fetch_verified_artifacts.py sidecar \
+            --lockstep --target linux-x64 --out dist/sidecar-bin
+          binary=$(find dist/sidecar-bin -type f -name 'steerable-sidecar-bin-*-linux-x64' | head -1)
+          python scripts/fetch_verified_artifacts.py smoke-sidecar --binary "$binary"
+
   sidecar-budget:
     # D3 (sidecar bundle size budget): enforces a hard upper bound on the
     # sidecar bundle size on every PR so a future dependency bump can't
@@ -164,14 +193,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: Install native wheel builder
-        run: python -m pip install maturin==1.15.0
+      - name: Build pure-Python wheels and download the verified native wheel
+        run: |
+          uv build --all-packages --out-dir dist/py
+          rm -f dist/py/steerable_example_*.whl dist/py/steerable_example_*.tar.gz
+          python scripts/fetch_verified_artifacts.py wheel \
+            --lockstep --platform manylinux-x64 --out dist/py
       - name: Build sidecar (host) under PR budget
         run: |
           python packages/sidecar/build/build_sidecar.py \
+            --from-wheels dist/py \
             --target host \
             --strip-stdlib \
             --aggressive \

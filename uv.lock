@@ -1051,6 +1051,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "steerable-agent-harness" },
     { name = "steerable-agent-protocol" },
+    { name = "steerable-agent-runtime-native" },
 ]
 
 [package.optional-dependencies]
@@ -1090,8 +1091,23 @@ requires-dist = [
     { name = "starlette", marker = "extra == 'fastapi'", specifier = ">=0.37" },
     { name = "steerable-agent-harness", editable = "packages/agent-harness/py" },
     { name = "steerable-agent-protocol", editable = "packages/agent-protocol/py" },
+    { name = "steerable-agent-runtime-native", specifier = "==0.6.36" },
 ]
 provides-extras = ["sqlalchemy", "fastapi", "openai", "anthropic", "all"]
+
+[[package]]
+name = "steerable-agent-runtime-native"
+version = "0.6.36"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d8/e9/8957a4b2ea7df09f56d64401bac9462dd15359b428bb34fca45c54da0d5d/steerable_agent_runtime_native-0.6.36-cp310-abi3-macosx_10_12_x86_64.whl", hash = "sha256:b9461bf875cdec82b5148ad9053d6ae67780ee6fe29159cf5621a00790eec7ea", size = 597683, upload-time = "2026-09-23T10:17:36.895Z" },
+    { url = "https://files.pythonhosted.org/packages/fc/95/c7f4b3efc8d9ee24565628c175f2cddcd37151c509e3208730cf8bf8b06a/steerable_agent_runtime_native-0.6.36-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:d2757a83d66a731a388130137b3ea308149483f0a52ef9aee22d1700b327c06a", size = 576651, upload-time = "2026-09-23T10:17:38.119Z" },
+    { url = "https://files.pythonhosted.org/packages/03/f3/11ef8a4f1bf4ec9840b41c82f09547ee14a4fbef4403265ccbea45d03a90/steerable_agent_runtime_native-0.6.36-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:76b6721f65d65300cb259799eb5397dd807bd4c05bf5d267b7b868aa5b1b2363", size = 639017, upload-time = "2026-09-23T10:17:39.119Z" },
+    { url = "https://files.pythonhosted.org/packages/ba/b8/04815c237e595bfeb78ce56ac7844dda302cd755081d0b50b1b09c637577/steerable_agent_runtime_native-0.6.36-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:2a5c03ba92601d05ccb0613cf9d83ea05ad6c89e1e8222fdc61253d94cce8650", size = 672810, upload-time = "2026-09-23T10:17:40.095Z" },
+    { url = "https://files.pythonhosted.org/packages/21/d0/a044510c2c75661ede3207885cb66fb96a7c847a171e075e158483d06d35/steerable_agent_runtime_native-0.6.36-cp310-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:8a3f9f145ebed76b495dfec7687da482980e2a54c8dfecfa7affd8878f060611", size = 815376, upload-time = "2026-09-23T10:17:41.2Z" },
+    { url = "https://files.pythonhosted.org/packages/24/33/f8c0c338b90e4f28fa5cf504d140d579fa6d2fe9e9e9c0e478dcf8e004fc/steerable_agent_runtime_native-0.6.36-cp310-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:c3fd8df5b3512437b0b259655f1b16d37c235b070b3fc3a05ee4c79078137149", size = 870025, upload-time = "2026-09-23T10:17:42.33Z" },
+    { url = "https://files.pythonhosted.org/packages/ce/8d/2e8fc33d428df6b21beebaf23b59181b832e3257fb25e40646c92dbada11/steerable_agent_runtime_native-0.6.36-cp310-abi3-win_amd64.whl", hash = "sha256:3093de37a8ceb8bf104529c377365b2fea9ec71f6e0f85e98bfb5e5528c8b567", size = 508387, upload-time = "2026-09-23T10:17:43.395Z" },
+]
 
 [[package]]
 name = "steerable-egress-proxy"
@@ -1141,6 +1157,7 @@ dev = [
     { name = "steerable-agent-harness" },
     { name = "steerable-agent-protocol" },
     { name = "steerable-agent-runtime" },
+    { name = "steerable-agent-runtime-native" },
     { name = "steerable-egress-proxy" },
     { name = "steerable-plugin-sdk" },
     { name = "steerable-sidecar" },
@@ -1158,6 +1175,7 @@ dev = [
     { name = "steerable-agent-harness", editable = "packages/agent-harness/py" },
     { name = "steerable-agent-protocol", editable = "packages/agent-protocol/py" },
     { name = "steerable-agent-runtime", editable = "packages/agent-runtime/py" },
+    { name = "steerable-agent-runtime-native", specifier = "==0.6.36" },
     { name = "steerable-egress-proxy", editable = "packages/egress-proxy/py" },
     { name = "steerable-plugin-sdk", editable = "packages/plugin-sdk/py" },
     { name = "steerable-sidecar", editable = "packages/sidecar/py" },

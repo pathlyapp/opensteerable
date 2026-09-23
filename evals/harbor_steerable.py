@@ -75,7 +75,6 @@ _CREDENTIAL_KEYS = (
 #: belong here: a catalog run costs hours, so arms have to differ by env
 #: rather than by commit to share one task set.
 _TUNING_KEYS = (
-    "STEERABLE_RUST_CORELOOP",
     "STEERABLE_IDLE_STREAM_TIMEOUT_MS",
     "STEERABLE_IDLE_STREAM_MAX_CHARS",
     "STEERABLE_REASONING_WITHOUT_PROGRESS_CHARS",
@@ -479,15 +478,13 @@ class SteerableHarborAgent(BaseInstalledAgent):
         Catalog images include glibc and musl systems. CI builds both wheels;
         the trial selects musllinux for Alpine and manylinux otherwise.
         """
-        if os.environ.get("STEERABLE_RUST_CORELOOP") != "1":
-            return
         raw_manylinux = (os.environ.get(_NATIVE_WHEEL_ENV) or "").strip()
         raw_musllinux = (os.environ.get(_NATIVE_WHEEL_MUSL_ENV) or "").strip()
         if not raw_manylinux or not raw_musllinux:
             raise RuntimeError(
-                "STEERABLE_RUST_CORELOOP=1 requires STEERABLE_NATIVE_WHEEL "
-                "and STEERABLE_NATIVE_WHEEL_MUSL pointing to manylinux and "
-                "musllinux steerable-agent-runtime-native wheels"
+                "STEERABLE_NATIVE_WHEEL and STEERABLE_NATIVE_WHEEL_MUSL must "
+                "point to manylinux and musllinux "
+                "steerable-agent-runtime-native wheels"
             )
         wheels = (
             (_NATIVE_WHEEL_ENV, Path(raw_manylinux).expanduser().resolve()),

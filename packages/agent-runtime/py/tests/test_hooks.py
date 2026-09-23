@@ -490,11 +490,7 @@ async def test_on_request_error_retry_recovers() -> None:
 
 
 @pytest.mark.asyncio
-async def test_on_request_error_retry_recovers_mid_stream(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("STEERABLE_RUST_CORELOOP", "0")
-
+async def test_on_request_error_retry_recovers_mid_stream() -> None:
     class _Provider:
         name = "mid-stream-retry"
         model = "mid-stream-retry"

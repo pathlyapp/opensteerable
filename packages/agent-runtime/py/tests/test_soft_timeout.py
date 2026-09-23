@@ -1175,12 +1175,7 @@ async def test_idle_stream_ignores_long_sse_gaps(
 
 
 @pytest.mark.asyncio
-async def test_native_wrap_stream_timeout_keeps_delivery_rounds(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    pytest.importorskip("steerable_agent_runtime_native")
-    monkeypatch.setenv("STEERABLE_RUST_CORELOOP", "1")
-
+async def test_native_wrap_stream_timeout_keeps_delivery_rounds() -> None:
     class _WrapProvider:
         name = "fake"
         model = "fake-model"

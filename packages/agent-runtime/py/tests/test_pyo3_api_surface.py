@@ -91,8 +91,8 @@ def test_coreloop_constructor_and_run_kwargs() -> None:
 
 
 def test_native_coreloop_module_exports_run_turn() -> None:
-    """PyO3 wheel must be importable so deeppath-api can opt into Rust CoreLoop."""
-    native = pytest.importorskip("steerable_agent_runtime_native")
+    """PyO3 wheel must be importable; Rust is the only CoreLoop engine."""
+    import steerable_agent_runtime_native as native
     assert hasattr(native, "run_turn")
     assert native.run_turn is not None
     version = getattr(native, "__version__", "")

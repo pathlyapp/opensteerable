@@ -82,8 +82,8 @@ def test_catalog_dispatch_offers_both_harnesses() -> None:
 
 
 def test_catalog_feishu_label_names_the_agent() -> None:
-    """A catalog Mean posted without its agent and CoreLoop is ambiguous."""
-    assert 'label="GHA catalog 89 × $EVAL_AGENT · $CORELOOP"' in WEEKLY
+    """A catalog Mean posted without its agent is ambiguous."""
+    assert 'label="GHA catalog 89 × $EVAL_AGENT"' in WEEKLY
 
 
 def test_catalog_concurrency_separates_the_agents() -> None:

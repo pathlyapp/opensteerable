@@ -260,7 +260,7 @@ jobs:
           status = open(status_path).read().strip() if os.path.exists(status_path) else "unknown"
           title = f"{status} · cheap-12 probe × {agent}"
           body = (
-              f"{model} @{effort} · provider `{provider}` · 新基线，不上首页，不和 80.7% 混用。"
+              f"{model} @{effort} · provider `{provider}` · 探索性单跑，不上首页，不和当前 79.0% 基线混用。"
               " steerable/pi-glm/dsh 钉官方路由；claude-code-glm、terminus-2 与 codex-glm 走网关默认。"
               + (f"\n[GHA run]({run})" if run else "")
           )
@@ -702,8 +702,8 @@ jobs:
                   used = effort or default_effort
                   title = f"开始 · catalog-89 × {agent} × {model} @{used} · {coreloop}"
                   body = (
-                      "新基线 n=1，不上首页。"
-                      "不要和 6 跑 80.7%（8e260de @max）或 cheap-12 混用。"
+                      "探索性 n=1，不上首页。"
+                      "不要和当前 79.0%（e25a8d4 @max）或 cheap-12 混用。"
                       f"\n{agent} × 全量 89 题，49 分片。"
                       f"\nOpenRouter 官方 pin `{provider}` allow_fallbacks=0（steerable/pi-glm/dsh）。"
                       " claude-code-glm、terminus-2 与 codex-glm 走网关默认路由。"
@@ -751,7 +751,7 @@ jobs:
                   )
                   title = f"开始 · cheap-12 probe × {model} @{used} · {coreloop}"
                   body = (
-                      "新基线，不上首页，不和 catalog-89 80.7% / 旧 easy-12 混用。"
+                      "探索性单跑，不上首页，不和 catalog-89 当前 79.0% / 旧 easy-12 混用。"
                       "\n12 题 = 绿7 / 翻面4 / 红1（定比 8e260de catalog-89）。"
                       "\n绿: fix-git, kv-store-grpc, log-summary-date-ranges, openssl-selfsigned-cert, pypi-server, build-pmars, compile-compcert"
                       "\n翻面: raman-fitting (1/6), dna-insert (2/6), bn-fit-modify (4/6), extract-elf (5/6)"

@@ -26,7 +26,7 @@ Rust CoreLoop must keep three consumers working without a product rewrite:
 | Built-in tools | `rs/tests/test_todo.rs` + `test_web.rs` + `test_run_code.rs` + `sidecar/rs/tests/test_run_code.rs` + `test_ptc_js.rs` + `sidecar/rs/tests/test_ptc_js.rs` + `test_tool_contract.py` + web/run_code/ptc e2e | Dual-impl without expanding `tool_contract.json` |
 | Per-product CPython | `tests/python-runtime.test.ts` | Skipping sidecar for aroli before Rust egress/sandbox |
 | PyO3 wheel | `test_pyo3_api_surface.py` (`run_turn` on `steerable_agent_runtime_native`) | Python CoreLoop imports without the native module |
-| Harbor | [evals.md](../evals.md) 80.7% catalog | A single cheap-12 smoke |
+| Harbor | [evals.md](../evals.md) 79.0% catalog | A single cheap-12 smoke |
 
 ## P0 frontend agents
 

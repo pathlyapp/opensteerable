@@ -455,7 +455,7 @@ def test_setup_harbor_action_matches_pin() -> None:
     assert f'default: "{PINNED_HARBOR_VERSION}"' in text
     assert "uv-x86_64-unknown-linux-musl" in text
     assert "uv-x86_64-unknown-linux-musl.tar.gz" in text
-    assert "musllinux_1_2" in text
+    assert "--platform musllinux-x64" in text
     assert "STEERABLE_NATIVE_WHEEL_MUSL" in text
     assert "find /tmp -name uv" not in text
     assert 'find "$extract" -name uv' in text

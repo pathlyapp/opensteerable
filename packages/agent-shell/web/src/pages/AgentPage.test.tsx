@@ -607,9 +607,11 @@ describe('AgentPage 发送流程', () => {
   });
 
   it('流式传输出错时错误落进助手消息', async () => {
-    streamMock.mockImplementation(async () => {
-      throw new Error('网关超时');
-    });
+    streamMock.mockImplementation(
+      async (_input: unknown, onEvent: (event: SSEEvent) => void) => {
+        onEvent({ type: 'error', message: '网关超时' });
+      },
+    );
     renderPage('/agent/chat-1', makeCtx());
     await screen.findByRole('textbox');
     await typeComposer('你好');

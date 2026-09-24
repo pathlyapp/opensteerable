@@ -61,6 +61,8 @@ export interface AskUserPromptRequest {
   requestId: string;
   intro: string;
   questions: Array<Record<string, unknown>>;
+  /** 发起提问的对话。缺省时卡片不绑定会话（旧请求）。 */
+  chatId?: string;
 }
 
 /**

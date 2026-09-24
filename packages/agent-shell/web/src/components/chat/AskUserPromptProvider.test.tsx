@@ -92,6 +92,50 @@ describe('AskUserPromptProvider', () => {
     expect(screen.queryByTestId('ask-user-composer')).toBeNull();
   });
 
+  it('binds an unscoped prompt to the open chat and hides it elsewhere', () => {
+    window.location.hash = '#/agent/chat-a';
+    const bridge = installBridge();
+    const { rerender } = render(
+      <AskUserPromptProvider>
+        <ChatInput chatId="chat-b" value="" onChange={vi.fn()} onSubmit={vi.fn()} />
+      </AskUserPromptProvider>,
+    );
+    act(() => bridge.emit(REQUEST));
+
+    expect(screen.queryByTestId('ask-user-composer')).toBeNull();
+    expect(screen.getByTestId('chat-composer')).toBeTruthy();
+
+    rerender(
+      <AskUserPromptProvider>
+        <ChatInput chatId="chat-a" value="" onChange={vi.fn()} onSubmit={vi.fn()} />
+      </AskUserPromptProvider>,
+    );
+    expect(screen.getByTestId('ask-user-composer')).toBeTruthy();
+    window.location.hash = '';
+  });
+
+  it('hides a prompt that belongs to another chat', () => {
+    const bridge = installBridge();
+    const { rerender } = render(
+      <AskUserPromptProvider>
+        <ChatInput chatId="chat-b" value="" onChange={vi.fn()} onSubmit={vi.fn()} />
+      </AskUserPromptProvider>,
+    );
+    act(() => bridge.emit({ ...REQUEST, chatId: 'chat-a' }));
+
+    expect(screen.queryByTestId('ask-user-composer')).toBeNull();
+    expect(screen.getByTestId('chat-composer')).toBeTruthy();
+
+    rerender(
+      <AskUserPromptProvider>
+        <ChatInput chatId="chat-a" value="" onChange={vi.fn()} onSubmit={vi.fn()} />
+      </AskUserPromptProvider>,
+    );
+
+    expect(screen.getByTestId('ask-user-composer')).toBeTruthy();
+    expect(screen.getByText('部署前确认')).toBeTruthy();
+  });
+
   it('keeps queued prompts in FIFO order inside the composer', () => {
     const bridge = installBridge();
     renderComposer();

@@ -162,6 +162,8 @@ export interface ChatInputProps {
   skills?: SkillItem[];
   /** MCP tools for slash command autocomplete and chip rendering. */
   mcpTools?: McpToolItem[];
+  /** Chat this composer belongs to. Ask-user cards for other chats stay hidden. */
+  chatId?: string | null;
 }
 
 export type MentionReference = {
@@ -709,10 +711,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       onMentionReferencesChange,
       skills: propSkills,
       mcpTools: propMcpTools,
+      chatId,
     },
     ref,
   ) {
-    const askUserPrompt = useAskUserPrompt();
+    const askUserPrompt = useAskUserPrompt(chatId);
     const approvalPrompt = useApprovalPrompt();
     const editorRef = useRef<HTMLDivElement>(null);
     const agentMenuRef = useRef<HTMLDivElement>(null);

@@ -27,4 +27,21 @@ describe('createAskUserBridge', () => {
     expect(bridge.pending()).toEqual([]);
     await expect(result).resolves.toEqual({ answers: { env: 'prod' } });
   });
+
+  it('keeps the owning chat id on the broadcast prompt', () => {
+    const sent: AskUserPromptRequest[] = [];
+    const bridge = createAskUserBridge({
+      hasWindow: () => true,
+      broadcast: (_channel, prompt) => sent.push(prompt),
+    });
+
+    void bridge.handler({
+      intro: '确认信息',
+      chatId: 'chat-a',
+      questions: [{ id: 'env', text: '目标环境？', options: ['prod'] }],
+    });
+
+    expect(sent[0]?.chatId).toBe('chat-a');
+    expect(bridge.pending()[0]?.chatId).toBe('chat-a');
+  });
 });

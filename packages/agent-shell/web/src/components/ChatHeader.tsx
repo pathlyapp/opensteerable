@@ -10,6 +10,7 @@ import {
 import { SessionTreeModal } from './chat/SessionTreeModal';
 import { TaskPanelModal } from './chat/TaskPanelModal';
 import { actionableTasks, summarizeTasks, type ChatTaskSummary } from './chat/useChatTasks';
+import type { PackChatSlotContribution } from '@/packs/registry';
 
 interface ChatHeaderProps {
   chat: LocalChat | null;
@@ -23,6 +24,12 @@ interface ChatHeaderProps {
   onInspectTask?: (task: { id: string; chatId: string; title: string }) => void;
   /** 本对话的后台任务（AgentPage 的 `useChatTasks` 单一订阅源）。 */
   tasks?: LocalTask[];
+  /** 包注册的聊天页槽位（如「文档预览」）：入口放在本标题栏，按会话独立开关。 */
+  chatSlots?: readonly PackChatSlotContribution[];
+  /** 当前会话打开的右侧栏位（null = 都关着）。 */
+  rightPanel?: string | null;
+  /** 点击槽位入口：点已打开的关闭，点另一个直接切换。 */
+  onToggleChatSlot?: (slotId: string) => void;
 }
 
 /**
@@ -40,6 +47,9 @@ export function ChatHeader({
   onBranchSwitched,
   onInspectTask,
   tasks = [],
+  chatSlots = [],
+  rightPanel = null,
+  onToggleChatSlot,
 }: ChatHeaderProps) {
   const [branchMenuOpen, setBranchMenuOpen] = useState(false);
   const [treeModalOpen, setTreeModalOpen] = useState(false);
@@ -233,6 +243,30 @@ export function ChatHeader({
           {taskBadge && <span className="text-xs">{taskBadge.count}</span>}
         </button>
       )}
+      {chat &&
+        chatSlots.map((slot) => {
+          const open = rightPanel === slot.slotId;
+          return (
+            <button
+              key={slot.slotId}
+              type="button"
+              onClick={() => onToggleChatSlot?.(slot.slotId)}
+              className={`flex h-7 shrink-0 items-center gap-1 rounded-full px-2 text-xs font-medium transition-colors ${
+                open
+                  ? 'bg-agent-foreground/10 text-agent-foreground'
+                  : 'text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-agent-foreground'
+              }`}
+              title={`${open ? '关闭' : '打开'}${slot.title}`}
+              aria-label={slot.title}
+              aria-pressed={open}
+              data-action={`chat-slot-${slot.slotId}`}
+              data-testid={`header-slot-${slot.slotId}`}
+            >
+              <slot.Icon className="h-3.5 w-3.5" />
+              {slot.title}
+            </button>
+          );
+        })}
       {chat && taskPanelOpen && (
         <TaskPanelModal
           chatId={chat.id}

@@ -13,6 +13,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LocalChat, LocalTask } from '@/lib/local-api';
 import { ChatHeader } from './ChatHeader';
+import type { PackChatSlotContribution } from '@/packs/registry';
 
 afterEach(() => {
   cleanup();
@@ -220,5 +221,52 @@ describe('ChatHeader 角标直达', () => {
 
     expect(onInspectTask).not.toHaveBeenCalled();
     expect(document.querySelector('[data-task-panel-modal]')).not.toBeNull();
+  });
+});
+
+describe('ChatHeader 包槽位入口', () => {
+  const slot: PackChatSlotContribution = {
+    slotId: 'ppt',
+    title: '文档预览',
+    Icon: ({ className }: { className?: string }) => <svg className={className} />,
+    Component: () => null,
+  };
+
+  it('入口渲染在后台任务按钮右侧，点击切换并高亮', () => {
+    const onToggleChatSlot = vi.fn();
+    render(
+      <ChatHeader
+        chat={CHAT}
+        tasks={[]}
+        chatSlots={[slot]}
+        rightPanel="ppt"
+        onToggleChatSlot={onToggleChatSlot}
+      />,
+    );
+
+    const slotButton = screen.getByTestId('header-slot-ppt');
+    expect(slotButton.textContent).toContain('文档预览');
+    expect(slotButton.getAttribute('aria-pressed')).toBe('true');
+    expect(slotButton.className).toContain('bg-agent-foreground/10');
+    // 紧跟「后台任务」按钮（右侧）
+    expect(slotButton.previousElementSibling).toBe(
+      screen.getByRole('button', { name: /后台任务/ }),
+    );
+
+    fireEvent.click(slotButton);
+    expect(onToggleChatSlot).toHaveBeenCalledWith('ppt');
+  });
+
+  it('栏位关闭时不显示高亮', () => {
+    render(
+      <ChatHeader
+        chat={CHAT}
+        tasks={[]}
+        chatSlots={[slot]}
+        rightPanel={null}
+        onToggleChatSlot={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId('header-slot-ppt').getAttribute('aria-pressed')).toBe('false');
   });
 });

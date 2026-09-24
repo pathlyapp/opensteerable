@@ -793,6 +793,52 @@ describe('流式回合的提示词与工具面', () => {
     expect(seen[0].systemPrompt).not.toContain('【当前角色】');
   });
 
+  /**
+   * 智能体管理页保存角色提示词后**不需要重启宿主**：systemPrompt 每轮从存储
+   * 重新拼装（`resolveTurnAgents` → `getChatAgent`），sidecar 也会用宿主新下发
+   * 的那条顶掉 durable record 里的旧 system 消息（sidecar.py:1061）。
+   */
+  it('在智能体管理保存角色提示词后，同一进程的下一轮立即生效（无需重启）', async () => {
+    const agent = await h.store.createChatAgent({
+      name: '三会智能体',
+      rolePrompt: '旧版角色提示词：先出议案初稿。',
+    });
+    const chat = await h.store.createChat('对话', agent.id, null);
+    const { seen } = installStream(() => {});
+    // 同一个 router 实例贯穿两轮 —— 模拟宿主进程不重启。
+    const router = makeRouter();
+
+    await router.handleStream(
+      {
+        method: 'POST',
+        path: `/api/v2/chats/${chat.id}/send`,
+        body: { message: '开始' },
+      },
+      makeEmitCapture().emit,
+    );
+    expect(seen[0].systemPrompt).toContain('旧版角色提示词');
+
+    // 智能体管理页的保存动作：PATCH /api/v2/chat-agents/:id。
+    const patched = await router.handle({
+      method: 'PATCH',
+      path: `/api/v2/chat-agents/${agent.id}`,
+      body: { rolePrompt: '新版角色提示词：先出初稿，确认后再出件。' },
+    });
+    expect(patched.status).toBe(200);
+    expect((await h.store.getChatAgent(agent.id))?.rolePrompt).toContain('新版角色提示词');
+
+    await router.handleStream(
+      {
+        method: 'POST',
+        path: `/api/v2/chats/${chat.id}/send`,
+        body: { message: '继续' },
+      },
+      makeEmitCapture().emit,
+    );
+    expect(seen[1].systemPrompt).toContain('新版角色提示词');
+    expect(seen[1].systemPrompt).not.toContain('旧版角色提示词');
+  });
+
   it('绑定项目的会话：系统提示词追加项目围栏；信任项目时注入规则文件', async () => {
     const registry = makeProjectRegistry([
       { id: 'proj-1', name: '演示项目', folderPath: '/tmp/proj-1', trusted: true },

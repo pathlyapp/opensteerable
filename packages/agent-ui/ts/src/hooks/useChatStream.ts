@@ -77,6 +77,13 @@ export interface UseChatStreamOptions {
    * Receivers can stash these into their own state.
    */
   onUnknownEvent?: (event: SSEEvent) => void;
+  /**
+   * Transport stream rejected (network drop / fetch abort before protocol
+   * `error` event). The hook still paints the inline error overlay; callers
+   * can use this callback to re-hydrate from the backend instead of leaving
+   * the user stuck on "请求失败：network error" until a manual refresh.
+   */
+  onStreamError?: (error: Error) => void;
 }
 
 export interface UseChatStreamReturn {
@@ -359,12 +366,12 @@ export function useChatStream(
         const cancel = await options.transport.stream(input, handleEvent);
         cancelRef.current = typeof cancel === 'function' ? cancel : null;
       } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        options.onStreamError?.(error);
         dispatch({
           type: 'patch-last-assistant',
           patch: {
-            content:
-              '[stream error] ' +
-              (err instanceof Error ? err.message : String(err)),
+            content: `[stream error] ${error.message}`,
           },
         });
       } finally {
@@ -380,7 +387,7 @@ export function useChatStream(
         }
       }
     },
-    [handleEvent, options.transport, setStreaming],
+    [handleEvent, options.onStreamError, options.transport, setStreaming],
   );
 
   const sendUserMessage = useCallback(

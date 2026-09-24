@@ -146,7 +146,6 @@ export async function diagnoseLlmConnection(options: {
             method: 'HEAD',
             path: '/',
             timeout: timeoutMs,
-            rejectUnauthorized: false, // diagnosis only — we want to see the cert, not enforce it
           },
           (res) => {
             res.resume();
@@ -196,7 +195,6 @@ export async function diagnoseLlmConnection(options: {
           method: 'GET',
           path: modelsPath,
           timeout: timeoutMs,
-          rejectUnauthorized: false,
           headers: {
             ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
             Accept: 'application/json',
@@ -259,7 +257,6 @@ export async function diagnoseLlmConnection(options: {
             method: 'POST',
             path: chatPath,
             timeout: timeoutMs,
-            rejectUnauthorized: false,
             headers: {
               'Content-Type': 'application/json',
               ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),

@@ -36,6 +36,20 @@ export function mapSessionShell(shell: string): LocalExecResult['shell'] {
   return process.platform === 'win32' ? 'powershell' : 'zsh';
 }
 
+function commandInCwd(
+  command: string,
+  cwd: string,
+  shell: LocalExecResult['shell'],
+): string | null {
+  if (/[\0\r\n]/.test(cwd)) return null;
+  if (shell === 'cmd') return null;
+  if (shell === 'powershell') {
+    return `Set-Location -LiteralPath '${cwd.replace(/'/g, "''")}'; ${command}`;
+  }
+  const quoted = `'${cwd.replace(/'/g, `'\"'\"'`)}'`;
+  return `cd -- ${quoted} && ${command}`;
+}
+
 /**
  * Decide whether to route a shell command through the visible PTY instead of
  * the headless local-executor. Returns null to fall back headless. No renderer
@@ -93,8 +107,9 @@ export function createVisibleTerminalExec(deps: VisibleTerminalExecDeps) {
     // 项目模式（ToolRouter 会把项目根塞进 req.cwd）：可见 PTY 是共享交互
     // 会话，已有 session 不会随 ensurePrimary 改目录——显式 cd 过去。
     const commandForPty = req.cwd
-      ? `cd "${req.cwd.replace(/"/g, '\\"')}" && ${req.command}`
+      ? commandInCwd(req.command, req.cwd, resolvedShell)
       : req.command;
+    if (commandForPty === null) return null;
     log.info('[terminal-exec] start', {
       sessionId: session.id,
       cwd: req.cwd || session.cwd,

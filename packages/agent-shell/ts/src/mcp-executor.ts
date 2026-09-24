@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { createRequire } from 'module';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -42,7 +42,7 @@ const COMMAND_HINTS: Record<string, string> = {
 function commandExists(cmd: string): boolean {
   try {
     const which = process.platform === 'win32' ? 'where' : 'which';
-    execSync(`${which} ${cmd}`, { stdio: 'ignore' });
+    execFileSync(which, [cmd], { stdio: 'ignore' });
     return true;
   } catch {
     return false;

@@ -204,10 +204,9 @@ export function createBsServer(deps: BsServerDeps): Server {
         );
         log.info(`[bs] stream ${request.method} ${pathname} -> ${result.status}`);
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
         log.error(`[bs] stream ${request.method} ${pathname} threw`, err);
         try {
-          res.write(`event: error\ndata: ${JSON.stringify({ message })}\n\n`);
+          res.write(`event: error\ndata: ${JSON.stringify({ message: 'internal error' })}\n\n`);
         } catch { /* client gone */ }
       } finally {
         res.end();
@@ -221,7 +220,7 @@ export function createBsServer(deps: BsServerDeps): Server {
       sendJson(res, response.status, response.data);
     } catch (err) {
       log.error(`[bs] ${request.method} ${pathname} threw`, err);
-      sendJson(res, 500, { detail: err instanceof Error ? err.message : String(err) });
+      sendJson(res, 500, { detail: 'internal error' });
     }
   }
 

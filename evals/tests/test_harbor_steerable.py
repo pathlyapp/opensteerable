@@ -60,11 +60,10 @@ def test_loopback_proxy_rewrites_to_host_docker() -> None:
 def test_github_hosts_join_no_proxy() -> None:
     env = {"HTTP_PROXY": "http://host.docker.internal:7890"}
     ensure_github_no_proxy(env)
-    assert "github.com" in env["NO_PROXY"]
-    assert "astral.sh" in env["NO_PROXY"]
-    assert "releases.astral.sh" in env["NO_PROXY"]
+    entries = set(env["NO_PROXY"].split(","))
+    assert {"github.com", "astral.sh", "releases.astral.sh"} <= entries
     for host in ("localhost", "127.0.0.1", "::1"):
-        assert host in env["NO_PROXY"].split(",")
+        assert host in entries
     assert env["NO_PROXY"] == env["no_proxy"]
 
 

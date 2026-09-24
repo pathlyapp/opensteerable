@@ -279,11 +279,12 @@ export function createBsServer(deps: BsServerDeps): Server {
         const result = await terminalManager.exec(id, String(body.command ?? ''), body.timeoutMs as number | undefined);
         sendJson(res, 200, result);
       } catch (err) {
+        log.error('[bs] terminal execution failed', err);
         sendJson(res, 200, {
           success: false,
           exitCode: -1,
           stdout: '',
-          stderr: err instanceof Error ? err.message : String(err),
+          stderr: 'terminal execution failed',
           truncated: false,
           durationMs: 0,
         });

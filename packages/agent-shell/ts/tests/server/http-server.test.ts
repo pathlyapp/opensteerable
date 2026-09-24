@@ -280,7 +280,11 @@ describe('BS HTTP server', () => {
 
       mocks.terminalExec.mockRejectedValue(new Error('dead pty'));
       const fail = await (await post('/host/terminal/exec', { id: 't9', command: 'ls' })).json();
-      expect(fail).toMatchObject({ success: false, exitCode: -1, stderr: 'dead pty' });
+      expect(fail).toMatchObject({
+        success: false,
+        exitCode: -1,
+        stderr: 'terminal execution failed',
+      });
     });
 
     it('/host/steer：缺 chatId/content → invalid_params', async () => {

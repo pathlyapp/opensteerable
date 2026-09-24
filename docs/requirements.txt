@@ -1,5 +1,5 @@
 mkdocs==1.6.1
-mkdocs-material==9.5.49
+mkdocs-material==9.7.7
 # pymdown-extensions <10.13 has a regression where ALL fenced code blocks
 # (```bash, ```json, ``` …) get parsed as paragraphs under MkDocs ≥ 1.6 +
 # mkdocs-material 9.5, leading to ``` text leaking into <p> and the next

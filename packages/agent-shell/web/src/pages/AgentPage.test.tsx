@@ -616,10 +616,8 @@ describe('AgentPage 发送流程', () => {
     pressEnter();
     // useChatStream 把错误打成 "[stream error] ..." 内容，AssistantMessage 的
     // readTurnFailure 剥掉前缀后渲染成错误气泡「请求失败：…」。
-    expect(
-      (await screen.findByText(/请求失败/, {}, { timeout: 10_000 })).textContent,
-    ).toContain('网关超时');
-  }, 15_000);
+    expect((await screen.findByText(/请求失败/)).textContent).toContain('网关超时');
+  });
 
   it('挂载时向布局注册发送器，卸载时注销', async () => {
     const ctx = makeCtx();

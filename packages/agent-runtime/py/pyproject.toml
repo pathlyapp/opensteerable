@@ -1,6 +1,6 @@
 [project]
 name = "steerable-agent-runtime"
-version = "0.6.36"
+version = "0.6.37"
 description = "Steerable agent runtime: LLM, tool, storage, and transport adapters."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -15,7 +15,7 @@ dependencies = [
   "pydantic>=2.10.0",
   "steerable-agent-protocol>=0.1.0,<1.0.0",
   "steerable-agent-harness>=0.1.0,<1.0.0",
-  "steerable-agent-runtime-native==0.6.36",
+  "steerable-agent-runtime-native==0.6.37",
 ]
 
 [project.optional-dependencies]

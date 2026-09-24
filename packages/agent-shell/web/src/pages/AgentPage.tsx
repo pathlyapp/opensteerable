@@ -61,11 +61,14 @@ import {
   setPendingFirstMessage,
   takePendingFirstMessage,
 } from "@/lib/pending-first-message";
-import {
-  composeAttachmentUserContent,
-  saveChatAttachments,
-} from "@/lib/attachments";
 import { BRAND_NAME, pickDefaultAgentId } from "@/brand";
+import {
+  appendAttachmentRefs,
+  collectImageAttachments,
+  formatAttachmentFailures,
+  saveChatAttachments,
+  type AttachmentFile,
+} from "@/lib/attachments";
 
 /**
  * `GET /api/v2/chats/:id/messages` returns rows in `createdAt DESC` (latest
@@ -672,6 +675,15 @@ function AgentChatView({
     // 是 fire-and-forget 的，所以这边不需要也不应该处理 chat_title_updated。
   }, []);
 
+  // 前端流式连接断开（浏览器/网络层）时，后端回合可能仍在运行。不要停在
+  // 「请求失败：network error」；立即 remount 做一次对账：
+  //   - 后端仍 active → 新 mount 从 /live-stream 快照继续展示；
+  //   - 后端已结束 → 新 mount 从 /messages 拉最终落库消息。
+  // 这样就不需要用户手动刷新页面。
+  const handleStreamError = useCallback(() => {
+    onBranchTick();
+  }, [onBranchTick]);
+
   const {
     messages,
     isStreaming,
@@ -687,6 +699,7 @@ function AgentChatView({
     transport,
     initialMessages,
     onUnknownEvent: handleUnknownEvent,
+    onStreamError: handleStreamError,
   });
 
   // ── 切回恢复：远端回合仍在跑，但本 mount 不是发起者 ──────────────────
@@ -1065,6 +1078,7 @@ function AgentChatView({
         </div>
       )}
       <LocalChatPanel
+        chatId={chatId}
         messages={effectiveMessages}
         isStreaming={effectiveIsStreaming}
         onSubmit={handleSubmit}
@@ -1074,7 +1088,6 @@ function AgentChatView({
         pendingFollowUps={pendingFollowUps.map((m) => m.content)}
         onRemoveFollowUp={removeFollowUp}
         className="flex-1"
-        chatId={chatId}
         emptyHero={{
           title: BRAND_NAME,
           subtitle: '输入消息，直接开始一段新对话。',
@@ -1085,6 +1098,9 @@ function AgentChatView({
             onBranchSwitched={isElectron() ? onBranchTick : undefined}
             onInspectTask={ctx.inspectTask}
             tasks={tasks}
+            chatSlots={ctx.chatSlots}
+            rightPanel={ctx.rightPanel}
+            onToggleChatSlot={ctx.onToggleChatSlot}
           />
         }
         onRegenerate={
@@ -1225,7 +1241,7 @@ function EmptyChatGate() {
   const [searchParams] = useSearchParams();
   const projectIdFromUrl = searchParams.get("projectId");
   const [inputValue, setInputValue] = useState("");
-  const [files, setFiles] = useState<{ name: string; path: string }[]>([]);
+  const [files, setFiles] = useState<AttachmentFile[]>([]);
   const [mentionReferences, setMentionReferences] = useState<
     MentionReference[]
   >([]);
@@ -1293,14 +1309,14 @@ function EmptyChatGate() {
 
   const handleSubmit = useCallback(async () => {
     if (isCreating) return;
-    let trimmed = inputValue.trim();
-    if (!trimmed && files.length === 0) return;
+    const rawText = inputValue.trim();
+    if (!rawText && files.length === 0) return;
     trackBehavior('composer_send', {
       empty: false,
       home: true,
       mode: mode === 'plan' ? 'plan' : 'agent',
       execPolicy,
-      length: trimmed.length,
+      length: rawText.length,
     });
 
     const mentionedAgentIds = mentionReferences
@@ -1309,6 +1325,18 @@ function EmptyChatGate() {
     const referencedChatIds = mentionReferences
       .filter((ref) => ref.type === "chat")
       .map((ref) => ref.id);
+    // 文件路径引用与图像元数据在会话建好、附件落盘之后再装配（见下）——
+    // 落地页提交时还没有 chatId，不能像旧代码那样直接用 `f.path`（浏览器
+    // 模式下它是空串，会把一条空引用写进正文，模型以为收到了文件却读不到）。
+    const baseMetadata = {
+      ...(mode === "plan" ? { mode: "plan" as const } : {}),
+      ...(execPolicy === "full" ? { execPolicy: "full" as const } : {}),
+      ...(ctx.selectedAgentId ? { agentId: ctx.selectedAgentId } : {}),
+      ...(mentionedAgentIds.length > 0 ? { mentionedAgentIds } : {}),
+      ...(referencedChatIds.length > 0 ? { referencedChatIds } : {}),
+      ...(modelOverride ? { model: modelOverride } : {}),
+      ...(effortOverride ? { reasoningEffort: effortOverride } : {}),
+    };
 
     setIsCreating(true);
     setCreateError(null);
@@ -1318,23 +1346,29 @@ function EmptyChatGate() {
         ...(ctx.selectedAgentId ? { agentId: ctx.selectedAgentId } : {}),
       });
       if (!id) throw new Error("创建对话失败，请重试");
-      // 落地页提交时还没有 chatId；先建会话再落盘，正文用落盘路径。
-      const resolvedFiles =
-        files.length > 0 ? await saveChatAttachments(id, files) : files;
-      const assembled = composeAttachmentUserContent(trimmed, resolvedFiles);
+      // 会话已建，把附件落进会话空间（与 LocalChatPanel 同一套语义）：
+      // 所有文件都写落盘路径引用（agent 用 local_read_file 读回）；仅图片
+      // 额外进 metadata.images 走多模态，非图片文件不会被图片逻辑吞掉。
+      const { files: resolvedFiles, failures } = await saveChatAttachments(id, files);
+      if (failures.length > 0) {
+        // 落地页一旦跳转就没法让用户重试了，所以这里宁可中止本次发送：
+        // 删掉刚建的空会话，保留输入框（含失败文件），把原因显示出来。
+        await ctx.deleteChat(id);
+        setCreateError(formatAttachmentFailures(failures));
+        setIsCreating(false);
+        return;
+      }
+
+      const content = appendAttachmentRefs(rawText, resolvedFiles);
+      const imageAttachments = collectImageAttachments(resolvedFiles);
       const metadata = {
-        ...(mode === "plan" ? { mode: "plan" as const } : {}),
-        ...(execPolicy === "full" ? { execPolicy: "full" as const } : {}),
-        ...(ctx.selectedAgentId ? { agentId: ctx.selectedAgentId } : {}),
-        ...(mentionedAgentIds.length > 0 ? { mentionedAgentIds } : {}),
-        ...(referencedChatIds.length > 0 ? { referencedChatIds } : {}),
-        ...(modelOverride ? { model: modelOverride } : {}),
-        ...(effortOverride ? { reasoningEffort: effortOverride } : {}),
-        ...(assembled.images.length > 0 ? { images: assembled.images } : {}),
+        ...baseMetadata,
+        ...(imageAttachments.length > 0 ? { images: imageAttachments } : {}),
       };
+
       setPendingFirstMessage({
         chatId: id,
-        content: assembled.content,
+        content,
         metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
       });
       navigate(`/agent/${id}`);

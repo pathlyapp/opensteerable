@@ -255,7 +255,7 @@ function applyStrictCsp(): void {
       "img-src 'self' data: blob:",
       "style-src 'self' 'unsafe-inline'",
       "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
-      "font-src 'self' data:",
+      "font-src 'self' data: blob:",
     ].join('; ');
     callback({
       responseHeaders: {

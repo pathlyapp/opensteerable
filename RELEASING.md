@@ -18,14 +18,15 @@ This document covers two release modes:
 | 2 | `@steerable/agent-harness` | `dist/npm/steerable-agent-harness-X.Y.Z.tgz` |
 | 2 | `steerable-agent-harness` (Py) | `dist/py/steerable_agent_harness-X.Y.Z-*.whl` + sdist |
 | 3 | `steerable-agent-runtime` (Py) | `dist/py/steerable_agent_runtime-X.Y.Z-*.whl` + sdist |
-| 3 | `steerable-agent-runtime-native` (PyO3) | PyPI binary wheels only; this repo verifies them and does not build them |
+| 3 | Private Rust bundle | exact native wheel pin plus sidecar/egress assets selected by `rust-artifacts.lock.json` |
 | 3 | `steerable-plugin-sdk` (Py) | `dist/py/steerable_plugin_sdk-X.Y.Z-*.whl` + sdist |
 | 3 | `steerable-sidecar` (Py) | `dist/py/steerable_sidecar-X.Y.Z-*.whl` + sdist |
 | 4 | `@steerable/agent-ui` | `dist/npm/steerable-agent-ui-X.Y.Z.tgz` |
 
 **All listed packages release in lock-step** (every release publishes the same
 `X.Y.Z` for everything, even no-op bumps). Enforced by
-`scripts/check_lockstep_versions.py` in CI as a gate on every tag push.
+`scripts/check_lockstep_versions.py` gates framework versions and validates
+the independent Rust artifact lock without requiring the versions to match.
 See "Mode C" below for the operator workflow.
 
 ---
@@ -218,46 +219,25 @@ without a registry.
    Until either is configured the workflow short-circuits with a clear
    notice — it will not fail the release.
 
-4. **Pipeline (already wired)** — tag-driven, lockstep, single operator
-   command per release:
+4. **Framework release and Rust adoption are separate**
 
    ```text
-   ./scripts/release/bump_to.sh X.Y.Z       (operator runs locally)
-        │  bumps all lockstep packages (TS, Py, Rust crate, native
-        │  wheel) + workspace root to X.Y.Z
-        │  refreshes pnpm-lock.yaml + uv.lock + Cargo.lock versions
-        ▼
-   git add -A && git commit -m "chore(release): vX.Y.Z"
-   git tag vX.Y.Z
-   git push origin develop vX.Y.Z           (this triggers CI)
-        │
-        ▼
-   release.yml on tag push
-        │
-        │  validate job:
-        │    1. resolves version from tag
-        │    2. lockstep gate — refuses release unless every package
-        │       reports exactly X.Y.Z (`check_lockstep_versions.py
-        │       --expected X.Y.Z`)
-        │    3. creates GitHub Release vX.Y.Z (auto-generated notes)
-        │
-        ├─► publish-npm.yml    (workflow_call from validate)
-        │       └─ skips packages whose version is already on registry
-        │
-        ├─► publish-pypi.yml   (pure-Python wheels)
-        │       └─ same idempotent skip logic against PyPI's JSON API
-        │
-        └─► publish-native.yml (verify published abi3 wheels)
-                └─ manylinux, musllinux, macOS, and Windows wheels
-                   must already be on PyPI; this repo does not upload them
+   # Adopt an already-published private Rust bundle when needed:
+   python scripts/use_rust_artifacts.py X.Y.Z
+        └─► verifies PyPI wheels + rust-vX.Y.Z Release
+            and updates rust-artifacts.lock.json + exact native pins
 
-   The private steerable repository publishes those wheels and attaches
-   the Rust sidecar binaries to this repository's `vX.Y.Z` Release.
+   # Release framework packages without changing the Rust bundle:
+   ./scripts/release/bump_to.sh A.B.C
+   git commit -am "chore(release): vA.B.C"
+   git tag vA.B.C
+   git push origin develop vA.B.C
+        └─► release.yml verifies the pinned bundle, then publishes npm/PyPI
    ```
 
-   `publish-{npm,pypi}.yml` are idempotent: a half-published tag can be
-   recovered by `gh workflow run release.yml -f version=X.Y.Z`, which
-   re-runs the chain and only uploads what's missing upstream.
+   `bump_to.sh` never edits the native pin. A framework release may reuse
+   the same Rust artifact version indefinitely. The private repository
+   creates dedicated, immutable `rust-vX.Y.Z` Releases in this repository.
 
    **Why no release-please?** Per-component release PRs (release-please's
    default) repeatedly desynced TS↔Py copies of the same logical

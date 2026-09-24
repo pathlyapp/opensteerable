@@ -27,4 +27,4 @@ jobs:
         with:
           python-version: "3.12"
       - name: Download and verify every platform wheel
-        run: python scripts/fetch_verified_artifacts.py verify-wheels --lockstep --out dist/native
+        run: python scripts/fetch_verified_artifacts.py verify-wheels --artifact-lock --out dist/native

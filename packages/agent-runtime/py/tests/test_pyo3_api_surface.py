@@ -97,3 +97,4 @@ def test_native_coreloop_module_exports_run_turn() -> None:
     assert native.run_turn is not None
     version = getattr(native, "__version__", "")
     assert version, "native module must export __version__"
+    assert native.CORELOOP_API_VERSION == 1

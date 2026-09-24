@@ -41,7 +41,7 @@ jobs:
           uv build --all-packages --out-dir dist/py
           rm -f dist/py/steerable_example_*.whl dist/py/steerable_example_*.tar.gz
           python scripts/fetch_verified_artifacts.py wheel \
-            --lockstep \
+            --artifact-lock \
             --platform ${{ matrix.wheel_platform }} \
             --out dist/py
       - name: Build sidecar bundle

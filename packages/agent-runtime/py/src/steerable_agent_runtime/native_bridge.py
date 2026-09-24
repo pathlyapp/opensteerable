@@ -42,27 +42,34 @@ logger = logging.getLogger(__name__)
 
 _NATIVE_INSTALL_ERROR = (
     "steerable-agent-runtime requires the Rust CoreLoop wheel "
-    "`steerable-agent-runtime-native` (same lockstep version). "
+    "`steerable-agent-runtime-native` selected by rust-artifacts.lock.json. "
     "Install it from this checkout with `uv sync`, or "
     "`pip install steerable-agent-runtime-native`. "
     "There is no Python CoreLoop fallback."
 )
+_CORELOOP_API_VERSION = 1
 
 
 def require_native() -> None:
     """Import the PyO3 module or raise a clear install error."""
     try:
-        import steerable_agent_runtime_native  # noqa: F401
+        import steerable_agent_runtime_native as native
     except ImportError as exc:
         raise RuntimeError(_NATIVE_INSTALL_ERROR) from exc
+    if getattr(native, "CORELOOP_API_VERSION", None) != _CORELOOP_API_VERSION:
+        raise RuntimeError(
+            "incompatible steerable-agent-runtime-native CoreLoop API: "
+            f"expected {_CORELOOP_API_VERSION}, got "
+            f"{getattr(native, 'CORELOOP_API_VERSION', None)!r}"
+        )
 
 
 def native_available() -> bool:
     try:
-        import steerable_agent_runtime_native  # noqa: F401
+        import steerable_agent_runtime_native as native
     except ImportError:
         return False
-    return True
+    return getattr(native, "CORELOOP_API_VERSION", None) == _CORELOOP_API_VERSION
 
 
 def _config_json(loop: CoreLoop) -> str:

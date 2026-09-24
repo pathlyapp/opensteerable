@@ -68,19 +68,19 @@ def _read_versions() -> dict[str, str]:
         versions[name] = tomllib.loads((ROOT / rel).read_text(encoding="utf-8"))["project"]["version"]
     for name, rel in RUST_PACKAGES:
         versions[name] = tomllib.loads((ROOT / rel).read_text(encoding="utf-8"))["package"]["version"]
-    runtime_version = versions["steerable-agent-runtime"]
-    pin = f"{NATIVE_PACKAGE}=={runtime_version}"
+    lock = json.loads((ROOT / "rust-artifacts.lock.json").read_text(encoding="utf-8"))
+    artifact_version = lock["artifactVersion"]
+    pin = f"{NATIVE_PACKAGE}=={artifact_version}"
     for rel in NATIVE_PIN_FILES:
         text = (ROOT / rel).read_text(encoding="utf-8")
         if pin not in text:
             raise SystemExit(
                 f"ERROR: {rel} must pin {pin}; the native wheel is not built here"
             )
-    versions[NATIVE_PACKAGE] = runtime_version
-    if re.search(rf"{NATIVE_PACKAGE}==(?!{re.escape(runtime_version)})", "\n".join(
+    if re.search(rf"{NATIVE_PACKAGE}==(?!{re.escape(artifact_version)})", "\n".join(
         (ROOT / rel).read_text(encoding="utf-8") for rel in NATIVE_PIN_FILES
     )):
-        raise SystemExit("ERROR: native wheel pin does not match the lockstep version")
+        raise SystemExit("ERROR: native wheel pin does not match rust-artifacts.lock.json")
     return versions
 
 

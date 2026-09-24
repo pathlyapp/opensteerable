@@ -219,7 +219,7 @@ flowchart TB
 **The rules:**
 - Tier N never imports Tier N+1. Adopting any layer means inheriting only the layers below it.
 - TS↔Py for `agent-protocol` is **codegen, not parallel implementation** — `spec/*.schema.json` is the single source of truth.
-- All 13 published packages — 6 on npm (protocol, harness, UI, pack-sdk, agent-shell, agent-shell-web) + 7 on PyPI (protocol, harness, runtime, plugin-sdk, sidecar, egress-proxy, **runtime-native**) — release **lockstep** (same `X.Y.Z` everywhere), gated by CI on every tag push. The Rust crates stay unpublished on crates.io (`publish = false`) but their versions are lockstep-gated so the PyO3 wheel filename matches `CARGO_PKG_VERSION`. Tier 5 (`agent-shell` / `agent-shell-web` / `pack-sdk`) is published to npm (compiled `dist`, source, and pure-types respectively); the TS sidecar wrapper `@steerable/agent-runtime` is versioned in lockstep but source-consumed.
+- The public npm and pure-Python packages release in framework lockstep. The private Rust bundle — the native CoreLoop wheel, Rust sidecar, and egress proxy — has its own version and immutable `rust-vX.Y.Z` Release. `rust-artifacts.lock.json` pins the reviewed bundle manifest and exact native dependency; framework releases reuse that pin until an explicit artifact update. Rust crates remain unpublished on crates.io (`publish = false`).
 - Tier 5 is **product-neutral**: brand, telemetry endpoints, help links, and data-directory names are injected by the consuming product's assembly root (`setProductBrand` / `setProductConfig`), enforced by the `shell:neutral` gate in CI.
 
 ---

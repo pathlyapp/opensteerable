@@ -62,7 +62,7 @@ function tryResolveBundled(config: McpServerConfig): McpServerConfig | null {
     return {
       command: process.execPath,
       args: [entryPath, ...extraArgs],
-      env: { ...config.env, ELECTRON_RUN_AS_NODE: '1' },
+      env: { ...config.env },
       cwd: config.cwd,
     };
   } catch {

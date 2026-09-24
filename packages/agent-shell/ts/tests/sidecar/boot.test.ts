@@ -164,9 +164,9 @@ describe('startHostSidecar · 开关与 spawn 计划', () => {
     expect(plan.env).toMatchObject({
       STEERABLE_RUN_CODE: '1',
       STEERABLE_PTC_JS: '1',
-      ELECTRON_RUN_AS_NODE: '1',
     });
     expect(plan.env.STEERABLE_PTC_NODE).toBe(process.execPath);
+    expect(plan.env.ELECTRON_RUN_AS_NODE).toBeUndefined();
     expect(mocks.setSidecarSupervisor).toHaveBeenCalledWith(sup);
     expect(mocks.setSidecarSupervisorPending).toHaveBeenCalledOnce();
   });

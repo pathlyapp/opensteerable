@@ -1,6 +1,5 @@
 /**
- * Typed view of `window.electron`, the bridge that Electron's preload script
- * (src/preload.ts in the main project) exposes via `contextBridge`.
+ * Host-neutral bridge used by the renderer in desktop and browser modes.
  *
  * This file MUST stay a subset / aligned shape with `ElectronAPI` in
  * `../../../src/preload.ts`. We intentionally don't TypeScript-reference that
@@ -8,13 +7,14 @@
  * into the renderer's compile graph. Treat this as a contract surface and
  * extend it lazily as apps/web starts using new bridge methods.
  *
- * Outside Electron (e.g. plain `vite dev` in a browser tab without preload),
- * `window.electron` is undefined. Always read it via `getElectronBridge()`
- * and handle the `null` case so the SPA stays demoable in a normal browser.
+ * `window.electron` and `getElectronBridge()` remain compatibility aliases for
+ * existing products. New integrations should use `window.steerableHost` and
+ * `getHostBridge()`.
  */
 
 import type { SSEEvent } from '@steerable/agent-protocol';
 import { getHttpBridge } from './http-bridge';
+import { getTauriBridge } from './tauri-bridge';
 
 export type LocalBackendRequestInput = {
   method: string;
@@ -88,7 +88,7 @@ export interface TerminalSpawnOptions {
   rows?: number;
 }
 
-export interface ElectronBridge {
+export interface HostBridge {
   runtime: 'local';
   platform: NodeJS.Platform;
   local?: {
@@ -251,9 +251,14 @@ export interface ElectronBridge {
   // shell 桥接口保持产品中立（3.1）。
 }
 
+/** @deprecated Use `HostBridge`. */
+export type ElectronBridge = HostBridge;
+
 declare global {
   interface Window {
+    steerableHost?: HostBridge;
     electron?: ElectronBridge;
+    __TAURI_INTERNALS__?: object;
     /**
      * BS server（src/server/）托管 index.html 时注入的引导信息；存在即代表
      * 当前跑在浏览器-服务器模式，getElectronBridge() 会返回 HTTP 实现。
@@ -266,13 +271,30 @@ declare global {
   }
 }
 
-export function getElectronBridge(): ElectronBridge | null {
+export function getHostBridge(): HostBridge | null {
   if (typeof window === 'undefined') return null;
+  if (window.steerableHost) return window.steerableHost;
   if (window.electron) return window.electron;
+  if (window.__TAURI_INTERNALS__ && window.__DEEPPATH_BS__) {
+    return getTauriBridge();
+  }
   if (window.__DEEPPATH_BS__) return getHttpBridge();
   return null;
 }
 
+/** @deprecated Use `getHostBridge`. */
+export const getElectronBridge = getHostBridge;
+
+export function isDesktopHost(): boolean {
+  if (typeof window === 'undefined') return false;
+  return Boolean(
+    window.steerableHost ||
+      window.electron ||
+      (window.__TAURI_INTERNALS__ && window.__DEEPPATH_BS__),
+  );
+}
+
+/** @deprecated Use `isDesktopHost` when desktop-only behavior is required. */
 export function isElectron(): boolean {
-  return getElectronBridge() !== null;
+  return getHostBridge() !== null;
 }

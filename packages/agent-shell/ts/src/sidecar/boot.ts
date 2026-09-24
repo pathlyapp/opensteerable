@@ -377,14 +377,11 @@ export async function startHostSidecar(deps: HostSidecarDeps): Promise<void> {
           // tool-router forwards the call back over the reverse channel.
           STEERABLE_RUN_CODE: '1',
           // P3: conversational JS PTC (run_js/wait_js). The sidecar spawns a
-          // long-lived Node worker; in the desktop that worker is the bundled
-          // runtime — process.execPath is the Electron binary, which runs as
-          // plain Node under ELECTRON_RUN_AS_NODE (and already *is* plain
-          // Node in headless/BS mode, where the variable is ignored). The
-          // sidecar's env scrub passes both through to the worker child.
+          // long-lived Node worker. Browser and Tauri desktop hosts both run
+          // under the pinned Node runtime, so process.execPath is directly
+          // executable by the sidecar.
           STEERABLE_PTC_JS: '1',
           STEERABLE_PTC_NODE: process.execPath,
-          ELECTRON_RUN_AS_NODE: '1',
         },
         onLogLine: (line) => (deps.onLogLine ?? ((l) => log.info('[sidecar]', l)))(line),
       });

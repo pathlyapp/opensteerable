@@ -17,6 +17,11 @@ bundle; there is no prebuilt `dist/` here. See
 [`docs/spec/architecture.md`](https://github.com/pathlyapp/steerable/blob/develop/docs/spec/architecture.md)
 for the tier model.
 
+Renderer code reads native and backend capabilities through `HostBridge`.
+Browser mode uses the HTTP/SSE adapter; Tauri mode layers native commands and
+menu events over that same adapter. `ElectronBridge` and
+`getElectronBridge()` remain deprecated compatibility aliases.
+
 Products that require authentication can register an `AppShellGate` from
 `@steerable/agent-shell-web/auth/gate` before calling `bootstrap()`. An
 enabled gate renders before the application router and calls

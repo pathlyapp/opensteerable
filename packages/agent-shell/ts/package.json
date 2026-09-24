@@ -1,7 +1,7 @@
 {
   "name": "@steerable/agent-shell",
   "version": "0.6.41",
-  "description": "Steerable framework \u2014 product-neutral desktop/headless agent host (Tier 5). Electron main + preload + headless HTTP server (BS) sharing one storage/sidecar/tooling core; scenario packs extend it through the @steerable/pack-sdk contract and are composed at build time by the consuming product.",
+  "description": "Steerable framework \u2014 product-neutral Node HostRuntime and headless HTTP server shared by Tauri desktop and browser deployments; scenario packs extend it through @steerable/pack-sdk.",
   "license": "Apache-2.0",
   "homepage": "https://steerableframework.com/",
   "repository": {
@@ -52,7 +52,7 @@
     "check:drift": "echo ok",
     "shell:neutral": "node scripts/check-shell-neutral.mjs",
     "storage:boundaries": "node scripts/check-storage-boundaries.mjs",
-    "web": "ELECTRON_RUN_AS_NODE=1 DEEPPATH_WEB_DIST=${DEEPPATH_WEB_DIST:-../web/app/dist} node node_modules/electron/cli.js dist/server/index.js",
+    "web": "DEEPPATH_WEB_DIST=${DEEPPATH_WEB_DIST:-../web/app/dist} node dist/server/index.js",
     "client": "DEEPPATH_FORCE_BUNDLED_WEB=1 DEEPPATH_WEB_DIST=${DEEPPATH_WEB_DIST:-../web/app/dist} node node_modules/electron/cli.js dist/main.js"
   },
   "dependencies": {

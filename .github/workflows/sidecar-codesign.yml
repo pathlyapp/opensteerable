@@ -79,7 +79,7 @@ jobs:
           & "$PWD\packages\sidecar\build\codesign\sign_windows.ps1" -RuntimeRoot "dist/python-runtime/${{ matrix.target }}"
 
       - name: Upload signed artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: steerable-sidecar-${{ matrix.target }}-signed
           path: dist/python-runtime/${{ matrix.target }}

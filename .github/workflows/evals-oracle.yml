@@ -42,7 +42,7 @@ jobs:
       - run: docker info
       - name: Harbor oracle canary
         run: uv run python -m evals.run --agent oracle --split oracle-canary --require-mean 1.0
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: oracle-fix-git
@@ -72,7 +72,7 @@ jobs:
             exit 0
           fi
           exit "$code"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: steerable-fix-git

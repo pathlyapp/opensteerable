@@ -129,7 +129,7 @@ jobs:
           echo failed > "eval-status-${{ matrix.agent }}.txt"
           echo "${{ matrix.agent }}: failed ($code)" >> "$GITHUB_STEP_SUMMARY"
           exit "$code"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: eval-${{ matrix.agent }}
@@ -261,7 +261,7 @@ jobs:
             exit 0
           fi
           exit "$code"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: eval-${{ matrix.agent }}
@@ -312,7 +312,7 @@ jobs:
           echo failed > eval-status-steerable.txt
           echo "shard ${{ matrix.shard }}: failed ($code)" >> "$GITHUB_STEP_SUMMARY"
           exit "$code"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: eval-steerable-${{ matrix.shard }}
@@ -470,7 +470,7 @@ jobs:
           echo failed > "eval-status-$AGENT.txt"
           echo "shard ${{ matrix.shard }}: failed ($code)" >> "$GITHUB_STEP_SUMMARY"
           exit "$code"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: eval-${{ github.event.inputs.agent }}-${{ matrix.shard }}
@@ -558,7 +558,7 @@ jobs:
           echo failed > eval-status-steerable.txt
           echo "arm ${{ matrix.arm }} shard ${{ matrix.shard }}: failed ($code)" >> "$GITHUB_STEP_SUMMARY"
           exit "$code"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: eval-steerable-flaky-${{ matrix.arm }}-${{ matrix.shard }}
@@ -628,7 +628,7 @@ jobs:
           echo failed > eval-status-steerable.txt
           echo "shard ${{ matrix.shard }}: failed ($code)" >> "$GITHUB_STEP_SUMMARY"
           exit "$code"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: eval-steerable-spiral-${{ matrix.shard }}
@@ -870,7 +870,7 @@ jobs:
           fi
           uv run python -m evals.attribution "${args[@]}" --out attribution.md
           cat attribution.md >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: attribution

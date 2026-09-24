@@ -60,7 +60,7 @@ jobs:
       - name: Report bundle size
         run: |
           python -c "import json,pathlib; m=json.loads(pathlib.Path('packages/sidecar/dist/python-runtime/${{ matrix.target }}/manifest.json').read_text()); mb=m['totalBytes']/1024/1024; print(f'::notice title=Sidecar bundle size::${{ matrix.target }}: {mb:.1f} MB')"
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: steerable-sidecar-${{ matrix.target }}
           path: packages/sidecar/dist/python-runtime/${{ matrix.target }}

@@ -107,10 +107,22 @@ describe('maybeExecInTerminal · 路由决策', () => {
     expect(result).toMatchObject({ success: true, stdout: 'out', shell: 'zsh' });
   });
 
-  it('项目模式：命令前显式 cd（引号转义）', async () => {
+  it('项目模式：命令前显式 cd（POSIX 单引号转义）', async () => {
     const exec = makeExec();
-    await exec({ command: 'ls', cwd: '/proj/dir"q' });
-    expect(mocks.terminalExec).toHaveBeenCalledWith('main', 'cd "/proj/dir\\"q" && ls', undefined, true);
+    await exec({ command: 'ls', cwd: "/proj/dir'q" });
+    expect(mocks.terminalExec).toHaveBeenCalledWith(
+      'main',
+      `cd -- '/proj/dir'"'"'q' && ls`,
+      undefined,
+      true,
+    );
+  });
+
+  it('cmd 的 cwd 不拼接进命令，回退 headless', async () => {
+    mocks.ensurePrimary.mockReturnValue({ id: 'main', shell: 'cmd.exe', cwd: 'C:\\' });
+    const exec = makeExec();
+    expect(await exec({ command: 'dir', cwd: 'C:\\work & calc' })).toBeNull();
+    expect(mocks.terminalExec).not.toHaveBeenCalled();
   });
 
   it('超时归一化：小于 1000 的数按秒理解（×1000）', async () => {

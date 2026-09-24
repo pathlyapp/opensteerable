@@ -36,6 +36,7 @@ from steerable_sidecar.web_tools import (
     WebSearchHit,
     WebToolsConfig,
     _assert_public_address,
+    _ddg_unwrap_url,
     _parse_fetch_url,
     default_web_search_provider,
     register_web_tools,
@@ -825,6 +826,11 @@ async def test_ddg_lite_html_mapping_and_uddg_unwrap() -> None:
     assert hits == [
         WebSearchHit(title="Hello", url="https://example.com/a", snippet="A snippet")
     ]
+
+
+def test_ddg_unwrap_requires_the_exact_duckduckgo_domain() -> None:
+    hostile = "https://evilduckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com"
+    assert _ddg_unwrap_url(hostile) == hostile
 
 
 async def test_ddg_bot_check_is_actionable() -> None:

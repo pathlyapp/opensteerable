@@ -178,7 +178,7 @@ describe('BS HTTP server', () => {
       mocks.routerHandle.mockRejectedValue(new Error('boom'));
       const res = await post('/api/v2/chats', {});
       expect(res.status).toBe(500);
-      expect(await res.json()).toEqual({ detail: 'boom' });
+      expect(await res.json()).toEqual({ detail: 'internal error' });
     });
 
     it('非法 JSON body → 500（readJsonBody 抛出，走未捕获兜底）', async () => {
@@ -218,7 +218,8 @@ describe('BS HTTP server', () => {
       const res = await post('/api/v2/chats/c1/run', {});
       const text = await res.text();
       expect(text).toContain('event: error');
-      expect(text).toContain('stream boom');
+      expect(text).toContain('internal error');
+      expect(text).not.toContain('stream boom');
     });
 
     it('非流式 chats 路径（GET）不走 handleStream', async () => {

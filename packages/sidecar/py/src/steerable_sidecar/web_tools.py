@@ -554,7 +554,7 @@ def _ddg_unwrap_url(href: str) -> str:
         raw = "https:" + raw
     parts = urlsplit(raw)
     host = (parts.hostname or "").lower()
-    if host.endswith("duckduckgo.com") and parts.path.startswith("/l/"):
+    if (host == "duckduckgo.com" or host.endswith(".duckduckgo.com")) and parts.path.startswith("/l/"):
         target = (parse_qs(parts.query).get("uddg") or [""])[0]
         if target:
             return unquote(target)

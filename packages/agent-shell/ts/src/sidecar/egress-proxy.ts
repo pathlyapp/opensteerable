@@ -1,5 +1,5 @@
 /**
- * W1.3.3：桌面宿主内嵌 `steerable_egress_proxy` 的启动器。
+ * 桌面宿主启动闭源 `steerable-egress-proxy` 二进制的启动器。
  *
  * 默认态势（3.1a，2026-09-08 起默认开）：sidecar 出网收敛到本机代理，
  * Seatbelt 列表只放行代理端口，真正的主机名单由代理进程持有（代理跑在
@@ -94,8 +94,13 @@ export function egressAllowEntry(
  * null（调用方回退到旧的 Seatbelt 派生路径——空名单的代理没有意义，
  * 框架侧也会 fail loud）。
  */
+export function resolveEgressProxyExecutable(): string | null {
+  const fromEnv = process.env.STEERABLE_EGRESS_PROXY_BIN;
+  return fromEnv && fromEnv.trim() ? fromEnv.trim() : null;
+}
+
 export function buildEgressProxyPlan(options: {
-  pythonExecutable: string;
+  executable: string;
   port: number;
   providerBaseUrl?: string;
   /** 存在且 provider 为 https 时启用凭证代理模式（W2.2.2）。 */
@@ -109,7 +114,7 @@ export function buildEgressProxyPlan(options: {
    */
   webAllowedHosts?: string[];
 }): EgressProxyPlan | null {
-  const { pythonExecutable, port, providerBaseUrl, providerApiKey } = options;
+  const { executable, port, providerBaseUrl, providerApiKey } = options;
   const proxiedHosts: string[] = [];
   const directHosts: string[] = [];
   let brokerHost: string | null = null;
@@ -142,10 +147,8 @@ export function buildEgressProxyPlan(options: {
     tokenValue: randomBytes(24).toString('base64url'),
   };
   return {
-    command: pythonExecutable,
+    command: executable,
     args: [
-      '-m',
-      'steerable_egress_proxy',
       '--bind',
       proxyEndpoint,
       ...proxiedHosts.flatMap((host) => ['--allow', host]),

@@ -11,7 +11,6 @@ members = [
     "steerable-agent-harness",
     "steerable-agent-protocol",
     "steerable-agent-runtime",
-    "steerable-egress-proxy",
     "steerable-example-py-minimal",
     "steerable-example-sidecar-roundtrip",
     "steerable-framework-monorepo",
@@ -1110,11 +1109,6 @@ wheels = [
 ]
 
 [[package]]
-name = "steerable-egress-proxy"
-version = "0.6.36"
-source = { editable = "packages/egress-proxy/py" }
-
-[[package]]
 name = "steerable-example-py-minimal"
 version = "0.0.0"
 source = { editable = "examples/py-minimal" }
@@ -1158,7 +1152,6 @@ dev = [
     { name = "steerable-agent-protocol" },
     { name = "steerable-agent-runtime" },
     { name = "steerable-agent-runtime-native" },
-    { name = "steerable-egress-proxy" },
     { name = "steerable-plugin-sdk" },
     { name = "steerable-sidecar" },
 ]
@@ -1176,7 +1169,6 @@ dev = [
     { name = "steerable-agent-protocol", editable = "packages/agent-protocol/py" },
     { name = "steerable-agent-runtime", editable = "packages/agent-runtime/py" },
     { name = "steerable-agent-runtime-native", specifier = "==0.6.36" },
-    { name = "steerable-egress-proxy", editable = "packages/egress-proxy/py" },
     { name = "steerable-plugin-sdk", editable = "packages/plugin-sdk/py" },
     { name = "steerable-sidecar", editable = "packages/sidecar/py" },
 ]

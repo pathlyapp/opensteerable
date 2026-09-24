@@ -57,14 +57,11 @@ py_pkgs = [
     "packages/agent-runtime/py",
     "packages/plugin-sdk/py",
     "packages/sidecar/py",
-    "packages/egress-proxy/py",
 ]
 rust_tomls = [
-    ("packages/egress-proxy/rs/Cargo.toml", "steerable-egress-proxy"),
 ]
 # Path-dep copies of the crate version live in each crate's lockfile.
 rust_locks = [
-    ("packages/egress-proxy/rs/Cargo.lock", ("steerable-egress-proxy",)),
 ]
 native_pin_files = [
     "packages/agent-runtime/py/pyproject.toml",

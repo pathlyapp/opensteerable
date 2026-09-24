@@ -133,7 +133,7 @@ Semantics (`build_seatbelt_profile(allowed_hosts=...)`):
   DNS tunnelling live on non-443 ports — but it does **not** stop
   exfiltration to an attacker HTTPS endpoint on 443. For true per-host
   enforcement, run the shipped allow-listing egress proxy
-  (`steerable-egress-proxy`, `packages/egress-proxy/py`) and declare only
+  (`steerable-egress-proxy`) and declare only
   `localhost:<proxy port>`; Seatbelt then pins the sidecar to the proxy
   and the proxy owns the host list. The proxy serves `CONNECT` only (no
   TLS interception, no plain-HTTP forwarding in v1), fails closed on an
@@ -366,7 +366,7 @@ codex's windows-sandbox-rs legacy path:
 
 ### Credential broker (egress-proxy inject mode)
 
-`steerable_egress_proxy --inject-host api.deepseek.com --inject-secret-env
+`steerable-egress-proxy --inject-host api.deepseek.com --inject-secret-env
 STEERABLE_EGRESS_SECRET` turns the proxy into the credential holder: the
 sandboxed sidecar points its provider `baseUrl` at the *http* scheme of
 the same host and sends requests through the proxy, which terminates the

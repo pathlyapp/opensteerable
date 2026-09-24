@@ -1,0 +1,33 @@
+name: Deprecate exposed npm versions
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type DEPRECATE-0.6.39."
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deprecate:
+    if: github.repository == 'pathlyapp/opensteerable'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          registry-url: https://registry.npmjs.org
+      - name: Deprecate exposed versions
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          test "$CONFIRM" = "DEPRECATE-0.6.39"
+          reason="Contains publication residue removed in 0.6.40; upgrade to >=0.6.40"
+          npm deprecate '@steerable/agent-shell@0.6.39' "$reason"
+          npm deprecate '@steerable/agent-shell-web@0.6.39' "$reason"
+          npm deprecate '@steerable/agent-ui@0.6.39' "$reason"

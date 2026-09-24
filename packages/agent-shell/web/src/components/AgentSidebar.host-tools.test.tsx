@@ -88,7 +88,6 @@ function renderSidebar() {
               data={makeData()}
               rightPanel={null}
               onToggleRightPanel={vi.fn()}
-              chatSlots={[]}
               onCollapse={vi.fn()}
             />
           }

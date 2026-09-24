@@ -115,7 +115,6 @@ import {
   type LocalProject,
 } from "@/lib/local-api";
 import type { UseChatsAndAgentsResult } from "@/hooks/useChatsAndAgents";
-import type { PackChatSlotContribution } from "@/packs/registry";
 import type { RightPanelState } from "@/layouts/AgentLayout";
 import { BrandLockup } from "@/components/BrandLockup";
 import { CreateProjectModal } from "@/components/CreateProjectModal";
@@ -272,8 +271,6 @@ interface AgentSidebarProps {
   rightPanel: RightPanelState;
   /** 切换右侧栏面板显隐——面板不是路由也不是独立窗口，只是布局里的一栏。 */
   onToggleRightPanel: (kind: string) => void;
-  /** 包注册的聊天页槽位（分段控件里每个槽位一个按钮）；空 = 只有终端。 */
-  chatSlots: readonly PackChatSlotContribution[];
   /** 收起侧边栏（AgentLayout 换成窄 rail，展开按钮在 rail 上）。 */
   onCollapse: () => void;
 }
@@ -282,7 +279,6 @@ export function AgentSidebar({
   data,
   rightPanel,
   onToggleRightPanel,
-  chatSlots,
   onCollapse,
 }: AgentSidebarProps) {
   const navigate = useNavigate();
@@ -1054,70 +1050,26 @@ export function AgentSidebar({
 
       {/* ───── Footer: 右侧面板切换（终端 | 包槽位）+ 设置 ───── */}
       <div className="flex-shrink-0 border-t border-agent-border/40 px-2.5 py-1.5">
-        {chatSlots.length === 0 ? (
-          showTerminalChrome ? (
-          <button
-            type="button"
-            onClick={() => onToggleRightPanel("terminal")}
-            className={[
-              "flex h-7 w-full items-center gap-1.5 rounded-full px-2.5 text-xs transition-colors",
-              rightPanel === "terminal"
-                ? "bg-agent-foreground/10 font-medium text-agent-foreground"
-                : "text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-foreground",
-            ].join(" ")}
-            title={`${rightPanel === "terminal" ? "关闭" : "打开"}终端面板 (${isMac ? "⌘T" : "Ctrl+T"})`}
-            data-testid="sidebar-terminal"
-          >
-            <LuTerminal className="h-3.5 w-3.5" />
-            <span>终端</span>
-            <span className="ml-auto text-[10px] text-agent-muted-foreground/70">
-              {isMac ? "⌘T" : "Ctrl+T"}
-            </span>
-          </button>
-          ) : null
-        ) : (
-          <div
-            role="group"
-            aria-label="右侧面板切换"
-            className="flex h-7 w-full items-center gap-0.5 rounded-full bg-agent-foreground/5 p-0.5"
-          >
-            {showTerminalChrome ? (
-            <button
-              type="button"
-              onClick={() => onToggleRightPanel("terminal")}
-              className={[
-                "flex h-7 flex-1 items-center justify-center gap-1.5 rounded-full text-xs font-medium transition-colors",
-                rightPanel === "terminal"
-                  ? "bg-agent-foreground/10 text-agent-foreground"
-                  : "text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-agent-foreground",
-              ].join(" ")}
-              title={`${rightPanel === "terminal" ? "关闭" : "打开"}终端面板`}
-              data-testid="sidebar-terminal"
-            >
-              <LuTerminal className="h-3.5 w-3.5" />
-              <span>终端</span>
-            </button>
-            ) : null}
-            {chatSlots.map((slot) => (
-              <button
-                key={slot.slotId}
-                type="button"
-                onClick={() => onToggleRightPanel(slot.slotId)}
-                className={[
-                  "flex h-7 flex-1 items-center justify-center gap-1.5 rounded-full text-xs font-medium transition-colors",
-                  rightPanel === slot.slotId
-                    ? "bg-agent-foreground/10 text-agent-foreground"
-                    : "text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-agent-foreground",
-                ].join(" ")}
-                title={`${rightPanel === slot.slotId ? "关闭" : "打开"}${slot.title}`}
-                data-testid={`sidebar-slot-${slot.slotId}`}
-              >
-                <slot.Icon className="h-3.5 w-3.5" />
-                <span>{slot.title}</span>
-              </button>
-            ))}
-          </div>
-        )}
+        {showTerminalChrome ? (
+        <button
+          type="button"
+          onClick={() => onToggleRightPanel("terminal")}
+          className={[
+            "flex h-7 w-full items-center gap-1.5 rounded-full px-2.5 text-xs transition-colors",
+            rightPanel === "terminal"
+              ? "bg-agent-foreground/10 font-medium text-agent-foreground"
+              : "text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-foreground",
+          ].join(" ")}
+          title={`${rightPanel === "terminal" ? "关闭" : "打开"}终端面板 (${isMac ? "⌘T" : "Ctrl+T"})`}
+          data-testid="sidebar-terminal"
+        >
+          <LuTerminal className="h-3.5 w-3.5" />
+          <span>终端</span>
+          <span className="ml-auto text-[10px] text-agent-muted-foreground/70">
+            {isMac ? "⌘T" : "Ctrl+T"}
+          </span>
+        </button>
+        ) : null}
         {hasGeneralSettingsChrome() && (
         <button
           type="button"

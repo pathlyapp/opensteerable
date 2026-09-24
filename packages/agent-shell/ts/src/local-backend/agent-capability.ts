@@ -14,9 +14,8 @@
  *   2. sidecar 技能目录 —— `SkillTurnContext.exclude`
  *   3. 工具面           —— 每轮 `turnTools`、`tool_search` 结果、反向通道分发复检
  *
- * `@提及` 多个智能体的回合按「最宽松」合并：提及额外专家是为了叠加能力，
- * 不应该反而让对话失去工具或技能（与 personaPreamble 的「同时具备以下 N 个
- * 角色的能力」一致）。
+ * 多个智能体配置按「最宽松」合并（父代理自身、或显式传入的列表）。
+ * `@` 提及不再合并进父的能力面——被点名的智能体走子代理画像。
  */
 
 export type AgentToolPolicyMode = 'all' | 'allowlist' | 'denylist';
@@ -34,7 +33,7 @@ export interface AgentCapabilityInput {
   toolPolicy: AgentToolPolicy;
 }
 
-/** 本轮生效的能力面（可能是多个被提及智能体的合并结果）。 */
+/** 本轮生效的能力面（可能是多个智能体配置的合并结果）。 */
 export interface AgentCapability {
   /** 正文无条件注入的技能别名（dirName / name / displayName 皆可）。 */
   pinnedSkills: string[];
@@ -139,7 +138,7 @@ function mergeToolPolicies(a: AgentToolPolicy, b: AgentToolPolicy): AgentToolPol
 /**
  * 合并本轮涉及的全部智能体的能力面，取最宽松。
  *
- * @param agents 按提及顺序排列的智能体配置；空数组表示无绑定。
+ * @param agents 按顺序排列的智能体配置；空数组表示无绑定。
  * @returns 本轮生效的能力面；空数组时为 {@link UNRESTRICTED_CAPABILITY}。
  */
 export function mergeAgentCapabilities(

@@ -48,6 +48,16 @@ describe('project-registry / 信任门控（W6-5）', () => {
     expect(reopened.isTrusted(p.id)).toBe(false);
   });
 
+  it('create 保存源文件夹并去掉家目录重复项', () => {
+    const registry = new ProjectRegistry(makeMemoryStore());
+    const p = registry.create({
+      name: 'demo',
+      folderPath: '/tmp/demo',
+      sourceFolders: [' /tmp/src ', '/tmp/demo', '/tmp/src'],
+    });
+    expect(p.sourceFolders).toEqual(['/tmp/src']);
+  });
+
   it('setTrusted 对不存在的项目抛错', () => {
     const registry = new ProjectRegistry(makeMemoryStore());
     expect(() => registry.setTrusted('nope', true)).toThrow(/不存在/);

@@ -1,10 +1,11 @@
 /**
  * 项目注册表（项目模式）。
  *
- * 项目 = 名字 + 绑定的本地文件夹。chat 通过 `chat_sessions.project_id` 绑定
- * 项目；绑定后该对话的文件读写与命令执行被硬限制在项目文件夹内（见
- * tool-router.ts 的 ToolExecContext.projectRoot 与 local-executor.ts 的
- * 路径围栏）。
+ * 项目 = 名字 + 托管家目录 + 可选源文件夹。家目录默认建在
+ * `Documents/<应用名>/<项目名>/`（见 project-home.ts）。chat 通过
+ * `chat_sessions.project_id` 绑定项目；绑定后文件读写与命令执行被硬限制
+ * 在家目录内（见 tool-router.ts 的 ToolExecContext.projectRoot）；源文件夹
+ * 只放宽 local_read_file。
  *
  * 持久化在 userData/agent-projects.json。存储通过 {@link ProjectKvStore}
  * 接口注入：main.ts 用 electron-store 实现，单测用内存实现——本模块不
@@ -17,8 +18,13 @@ export interface ProjectRecord {
   id: string;
   /** 用户可见名称（侧边栏分组标题）。 */
   name: string;
-  /** 绑定的项目文件夹（绝对路径）。 */
+  /** 托管家目录（绝对路径）。默认 `Documents/<应用名>/<项目名>/`。 */
   folderPath: string;
+  /**
+   * 附加源文件夹（已有代码目录）。只放宽读取，不替代家目录，也不放宽写入。
+   * 旧记录没有此字段，读取时按空列表处理。
+   */
+  sourceFolders?: string[];
   /**
    * W6-5 项目信任门控：项目目录里的 `AGENTS.md` / `CLAUDE.md` 等规则文件
    * 是「项目作者写给 agent 的指令」——打开一个恶意仓库时，一段精心构造的
@@ -34,6 +40,7 @@ export interface ProjectRecord {
 export interface CreateProjectInput {
   name: string;
   folderPath: string;
+  sourceFolders?: string[];
 }
 
 /** 最小 KV 存储接口，避免本模块直接依赖 electron-store。 */
@@ -69,12 +76,14 @@ export class ProjectRegistry {
     if (!name) throw new Error('项目名称不能为空');
     if (!folderPath) throw new Error('项目文件夹不能为空');
     if (this.get(name)) throw new Error(`已存在同名项目「${name}」`);
+    const sourceFolders = normalizeSourceFolders(input.sourceFolders, folderPath);
 
     const now = new Date().toISOString();
     const entry: ProjectRecord = {
       id: randomUUID(),
       name,
       folderPath,
+      ...(sourceFolders.length > 0 ? { sourceFolders } : {}),
       createdAt: now,
       updatedAt: now,
     };
@@ -101,11 +110,16 @@ export class ProjectRegistry {
         ? updates.folderPath.trim()
         : current.folderPath;
     if (!nextFolder) throw new Error('项目文件夹不能为空');
+    const sourceFolders =
+      updates.sourceFolders !== undefined
+        ? normalizeSourceFolders(updates.sourceFolders, nextFolder)
+        : normalizeSourceFolders(current.sourceFolders, nextFolder);
 
     const next: ProjectRecord = {
       ...current,
       name: nextName,
       folderPath: nextFolder,
+      sourceFolders: sourceFolders.length > 0 ? sourceFolders : undefined,
       updatedAt: new Date().toISOString(),
     };
     projects[idx] = next;
@@ -144,4 +158,20 @@ export class ProjectRegistry {
     this.store.set(STORE_KEY, projects);
     return next;
   }
+}
+
+function normalizeSourceFolders(
+  folders: string[] | undefined,
+  homePath: string,
+): string[] {
+  const home = homePath.trim();
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of folders ?? []) {
+    const folder = raw.trim();
+    if (!folder || folder === home || seen.has(folder)) continue;
+    seen.add(folder);
+    out.push(folder);
+  }
+  return out;
 }

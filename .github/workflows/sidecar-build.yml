@@ -14,12 +14,16 @@ jobs:
         include:
           - os: macos-14
             target: darwin-arm64
-          - os: macos-13
+            wheel_platform: darwin-arm64
+          - os: macos-15-intel
             target: darwin-x64
-          - os: ubuntu-22.04
+            wheel_platform: darwin-x64
+          - os: ubuntu-24.04
             target: linux-x64
+            wheel_platform: manylinux-x64
           - os: windows-2022
             target: win32-x64
+            wheel_platform: win32-x64
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -28,9 +32,18 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      - name: Package pure-Python wheels and download the verified native wheel
+        run: |
+          uv build --all-packages --out-dir dist/py
+          rm -f dist/py/steerable_example_*.whl dist/py/steerable_example_*.tar.gz
+          python scripts/fetch_verified_artifacts.py wheel \
+            --lockstep \
+            --platform ${{ matrix.wheel_platform }} \
+            --out dist/py
       - name: Build sidecar bundle
         # 320 MB per-target size budget. The build uses the
         # `install_only_stripped` python-build-standalone variant (~300 MB
@@ -39,6 +52,7 @@ jobs:
         # metadata, pip/setuptools, and third-party tests/examples/docs.
         run: |
           python packages/sidecar/build/build_sidecar.py \
+            --from-wheels dist/py \
             --target ${{ matrix.target }} \
             --strip-stdlib \
             --aggressive \

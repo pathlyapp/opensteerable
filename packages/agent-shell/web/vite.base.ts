@@ -61,8 +61,16 @@ export function createProductViteConfig(options: ProductViteConfigOptions) {
       // logo 不走 define——资产必须静态 import 才进 bundle，由包 web 模块
       // 在注册时经 setBrandLogoUrl 注入（本包 src/brand.ts）。
       'import.meta.env.VITE_BRAND_NAME': JSON.stringify(brand?.displayName ?? 'Steerable Shell'),
+      'import.meta.env.VITE_BRAND_TITLE': JSON.stringify(brand?.title ?? ''),
       'import.meta.env.VITE_BRAND_TAGLINE': JSON.stringify(brand?.tagline ?? '一款本地桌面 AI 伙伴'),
       'import.meta.env.VITE_DEFAULT_AGENT_ID': JSON.stringify(brand?.defaultAgentId ?? 'local-assistant'),
+      // 宿主工具族 / 安全询问：与 node 侧 setProductConfig 读同一份 product.json。
+      'import.meta.env.VITE_HOST_TOOLS': JSON.stringify(JSON.stringify(product.hostTools ?? {})),
+      'import.meta.env.VITE_APPROVAL': JSON.stringify(product.approval ?? 'host'),
+      'import.meta.env.VITE_CHAT_MODES': JSON.stringify(
+        JSON.stringify(product.chatModes ?? ['agent', 'plan']),
+      ),
+      'import.meta.env.VITE_SETTINGS': JSON.stringify(JSON.stringify(product.settings ?? {})),
     },
     resolve: {
       alias: {

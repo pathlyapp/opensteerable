@@ -26,6 +26,7 @@ const captureScreenshot = vi.fn();
 const streamMock = vi.fn();
 const steerMock = vi.fn();
 const cancelActiveMock = vi.fn();
+const attachmentsSave = vi.fn();
 let suggestedRepliesHandler:
   | ((payload: { chatId: string; messageId: string; suggestions: string[] }) => void)
   | null = null;
@@ -51,6 +52,12 @@ vi.mock('@/lib/electron-bridge', () => ({
             startStream: vi.fn(async () => null),
             cancelStream: vi.fn(),
             steerChat: (_chatId: string, content: string) => steerMock(content),
+          },
+          attachments: {
+            save: (input: {
+              chatId: string;
+              files: Array<{ path?: string; name?: string; data?: string }>;
+            }) => attachmentsSave(input),
           },
           onSuggestedReplies: (callback: (payload: {
             chatId: string;
@@ -273,6 +280,7 @@ beforeEach(() => {
     },
   );
   steerMock.mockResolvedValue(true);
+  attachmentsSave.mockResolvedValue({ files: [] });
 });
 
 afterEach(cleanup);
@@ -309,6 +317,42 @@ describe('AgentPage 落地页（EmptyChatGate）', () => {
       ),
     );
     expect(await screen.findByText('默认回复')).toBeTruthy();
+  });
+
+  it('落地页带附件：先建会话再落盘，正文写落盘路径而不是空引用', async () => {
+    attachmentsSave.mockResolvedValue({
+      files: [{ name: '纪要.docx', path: '/data/attachments/chat-new/纪要.docx', size: 12 }],
+    });
+    const ctx = makeCtx();
+    renderPage('/agent', ctx);
+    await screen.findByTestId('empty-chat-home');
+    await typeComposer('这是什么文件');
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(fileInput).toBeTruthy();
+    await act(async () => {
+      fireEvent.change(fileInput, {
+        target: { files: [new File(['hello-docx'], '纪要.docx')] },
+      });
+    });
+    pressEnter();
+
+    await waitFor(() => expect(ctx.createChat).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(attachmentsSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          chatId: 'chat-new',
+          files: [expect.objectContaining({ name: '纪要.docx', data: expect.any(String) })],
+        }),
+      ),
+    );
+    await waitFor(() =>
+      expect(streamMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: '这是什么文件\n\n---\n关联文件:\n- `/data/attachments/chat-new/纪要.docx`',
+        }),
+        expect.any(Function),
+      ),
+    );
   });
 
   it('空输入不创建会话', async () => {
@@ -430,6 +474,76 @@ describe('AgentPage 水合层（AgentChatLoader）', () => {
     expect(await screen.findByRole('textbox')).toBeTruthy();
     expect(screen.queryByText('加载对话历史…')).toBeNull();
     expect(bridgeRequest).not.toHaveBeenCalled();
+  });
+
+  it('刷新后从助手 metadata 水合子代理：顶栏显示名而非 slug，且不再画看板', async () => {
+    const researcher: LocalChatAgent = {
+      ...AGENT,
+      id: 'agent-researcher',
+      slug: 'researcher',
+      name: '调研员',
+      color: '#2563eb',
+    };
+    const engineer: LocalChatAgent = {
+      ...AGENT,
+      id: 'agent-engineer',
+      slug: 'script-engineer',
+      name: '脚本工程师',
+      color: '#16a34a',
+    };
+    bridgeRequest.mockImplementation((input: { method: string; path: string }) => {
+      if (input.path.includes('/messages')) {
+        return Promise.resolve({
+          messages: [
+            {
+              id: 'm2',
+              chatId: 'chat-1',
+              role: 'assistant',
+              content: '两位都做完了。',
+              createdAt: '2026-09-20T08:01:00.000Z',
+              messageMetadata: JSON.stringify({
+                agentId: AGENT.id,
+                orchestrationChildEvents: [
+                  {
+                    kind: 'child_spawned',
+                    childId: '0.1',
+                    task: '调研 PDF 方案',
+                    profile: 'researcher',
+                  },
+                  {
+                    kind: 'child_spawned',
+                    childId: '0.2',
+                    task: '写汇总脚本',
+                    profile: 'script-engineer',
+                  },
+                  { kind: 'child_completed', childId: '0.1', status: 'completed' },
+                  { kind: 'child_completed', childId: '0.2', status: 'completed' },
+                ],
+              }),
+            },
+            {
+              id: 'm1',
+              chatId: 'chat-1',
+              role: 'user',
+              content: '@调研员 @脚本工程师 拆开做',
+              createdAt: '2026-09-20T08:00:00.000Z',
+            },
+          ],
+          interrupted: false,
+        });
+      }
+      return defaultBridgeRequest(input);
+    });
+    renderPage('/agent/chat-1', makeCtx({ agents: [AGENT, researcher, engineer] }));
+    expect((await screen.findAllByText('调研员')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('脚本工程师').length).toBeGreaterThan(0);
+    expect(screen.queryByText('researcher')).toBeNull();
+    expect(screen.queryByText('script-engineer')).toBeNull();
+    // 水合出来的子代理只喂顶栏徽章：看板与 `委派 · X` 工具行重复，已撤掉。
+    const badges = await screen.findByTestId('turn-agent-badges');
+    expect(badges.textContent).toContain('调研员');
+    expect(badges.textContent).toContain('脚本工程师');
+    expect(document.querySelector('.steerable-orchestration-plan')).toBeNull();
   });
 });
 

@@ -3,10 +3,10 @@
  * （VITE_BRAND_* define：product.json brand 优先，其次激活包 pack.json
  * brand，3.1）；logo 资产由激活包的 web 模块在注册时经
  * setBrandLogoUrl() 注入（资产静态 import 在包内，只进本产品 bundle）。
- * 未注入时一律回落到 shell 中性默认（Steerable Shell / generic logo）。
+ * 未注入时一律回落到 shell 默认（Steerable Shell / 舵轮标）。
  * 主进程侧对应物见 src/brand.ts。
  */
-import shellLogoUrl from '@/assets/logo-generic.png';
+import shellLogoUrl from '@/assets/logo-steerable.svg';
 
 /** 当前构建的 flavor（开放字符串，0.3g 起不再是二值联合）。 */
 export const APP_FLAVOR: string = import.meta.env.VITE_APP_FLAVOR ?? 'generic';
@@ -15,7 +15,15 @@ export const LOCAL_ASSISTANT_AGENT_ID = 'local-assistant';
 
 export const BRAND_NAME: string = import.meta.env.VITE_BRAND_NAME ?? 'Steerable Shell';
 
-/** shell 默认 logo（中性通用图标）；包品牌 logo 由包 web 模块注册覆盖。 */
+/**
+ * 品牌锁头标题。产品/包可在 brand.title 注入；空字符串表示不配标题，
+ * 侧栏只按原比例显示 logo。未 define 时回落 displayName，避免旧
+ * vite.base.js 漏注入时露出壳默认名。
+ */
+export const BRAND_TITLE: string =
+  import.meta.env.VITE_BRAND_TITLE ?? import.meta.env.VITE_BRAND_NAME ?? 'Steerable Shell';
+
+/** shell 默认 logo（Steerable 舵轮标）；包品牌 logo 由包 web 模块注册覆盖。 */
 let brandLogoUrl: string = shellLogoUrl;
 
 /**

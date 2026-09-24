@@ -107,6 +107,15 @@ def final_completion(events: list[LoopEvent]) -> dict[str, Any]:
     return completions[-1].data
 
 
+def route_notes(events: list[LoopEvent]) -> list[tuple[str, str]]:
+    """``(action, value)`` of every recorded data-need routing verdict."""
+    return [
+        (e.data["action"], e.data["value"])
+        for e in events
+        if e.kind == "hook_action" and e.data.get("action") == "data_need_route"
+    ]
+
+
 def make_router_with_tool() -> ToolRouter:
     router = ToolRouter()
 
@@ -325,6 +334,13 @@ async def test_routing_require_tool_forces_tool_choice_on_first_call() -> None:
     # 第二轮起不再强制
     assert provider.stream_kwargs[1].get("tool_choice") is None
     assert final_completion(events)["status"] == "completed"
+    assert route_notes(events) == [("data_need_route", "require_tool")]
+    # 这个 fake provider 不声明 honors_forced_tool_choice，按"照实发送"处理。
+    forced = [
+        e for e in events
+        if e.kind == "hook_action" and e.data.get("action") == "tool_choice"
+    ]
+    assert [e.data["honored"] for e in forced] == [True]
 
 
 @pytest.mark.asyncio
@@ -341,6 +357,9 @@ async def test_routing_allow_no_tool_passes_through() -> None:
 
     assert provider.stream_kwargs[0].get("tool_choice") is None
     assert final_completion(events)["status"] == "completed"
+    # allow_no_tool 不改变这一步，但必须留痕：没有它，"路由放行"和"路由没跑"
+    # 在轨迹里长得一样，强制率就没有分母。
+    assert route_notes(events) == [("data_need_route", "allow_no_tool")]
 
 
 @pytest.mark.asyncio
@@ -353,8 +372,13 @@ async def test_routing_classification_error_falls_back_to_require_tool() -> None
         provider, AntiHallucinationConfig(user_question="查一下数值")
     )
     loop = CoreLoop(provider, RouterToolExecutor(make_router_with_tool()), hooks=hooks)
-    await collect(loop.run([LLMMessage.text_of("user", "查一下数值")], tools=TOOLS))
+    events = await collect(
+        loop.run([LLMMessage.text_of("user", "查一下数值")], tools=TOOLS)
+    )
     assert provider.stream_kwargs[0].get("tool_choice") == "required"
+    # 分类失败走保守回退，留痕与真判 require_tool 无法区分——这是有意的：
+    # 记录的是生效的裁决，不是它的来源。
+    assert route_notes(events) == [("data_need_route", "require_tool")]
 
 
 @pytest.mark.asyncio

@@ -1,11 +1,11 @@
 [project]
 name = "steerable-agent-harness"
-version = "0.6.21"
+version = "0.6.36"
 description = "Steerable harness helpers for Python"
 readme = "README.md"
 requires-python = ">=3.10"
 # Pre-1.0 inter-package pin uses a `>=X,<1.0.0` range — flexible enough
-# that any 0.x lockstep version installs cleanly. Lockstep across all 7
+# that any 0.x lockstep version installs cleanly. Lockstep across all 8
 # Steerable packages is enforced separately by
 # scripts/check_lockstep_versions.py + the release.yml gate.
 # Tighten to `~=1.0` post-GA.

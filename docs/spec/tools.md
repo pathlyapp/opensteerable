@@ -98,7 +98,7 @@ my_tools = "my_package.tools:register"
 
 ```python
 # my_package/tools.py
-from steerable_agent_runtime import tool
+from steerable_plugin_sdk import tool
 
 def register(router):
     @tool(router=router, description="Greet by name")
@@ -376,6 +376,59 @@ empty `STEERABLE_WEB_ALLOWED_DOMAINS` (app-layer "any public domain") cannot
 be expressed in a closed proxy list, so arbitrary fetches then fail at the
 proxy. The marker without any proxy env is a misconfiguration and fails loud
 with an actionable error instead of hanging behind an absent proxy.
+
+## Looking at an image (sidecar)
+
+`view_image` attaches a workspace image file as pixels the model can see,
+plus the same ASCII preview `read_file` returns. PNG and JPEG attach as they
+are; uncompressed BMP is re-encoded to PNG because vision endpoints do not
+take BMP. Over the 400 KB attach cap, or not an image, the call fails with a
+followup-able error naming the fix rather than returning a picture nobody
+can read.
+
+Attaching is unconditional here and gated on `read_file`, because the two
+tools carry different intent. A `read_file` that attached every PNG it
+touched spent context on trials that never needed to look, and lost its
+flaky A/B ([33985962466](https://github.com/pathlyapp/opensteerable/actions/runs/33985962466)).
+`view_image` only runs when the model decided the picture matters, so the
+pixels are the whole result. `read_file`'s ASCII preview carries a `pixels`
+field pointing at `view_image`, so the affordance is discoverable without
+the harness guessing which files are worth looking at.
+
+## Display capture (sidecar)
+
+`capture_display` (`steerable_sidecar/display.py`) reads the **client
+framebuffer** of a remote display, not a hypervisor-private screenshot.
+Headless and ACP get it through `workspace_tools_for_cwd`; Harbor keeps it
+when `--no-web-tools` is set, because the capture stays inside the trial
+container.
+
+The first protocol is unauthenticated RFB/VNC. Targets accept the usual
+VNC forms (`vnc://host:1`, `:1`, `host:5901`). Display numbers 0–99 map
+to TCP `5900+N`; values 5900–65535 are raw ports. A hypervisor
+`screendump` can show a live guest while the VNC client frame the grader
+(or a user) sees is stale — this tool captures the latter.
+
+`nudge=true` sends a one-pixel RFB pointer move before the snapshot so a
+stale client framebuffer can refresh. Optional `path` writes the PNG into
+the workspace. The tool result reuses `read_file`'s image path: an ASCII
+preview in `data.content`, and `data._image` on every successful capture
+(same 400 KB cap), for the same reason `view_image` always attaches. File
+reads stay ASCII unless `STEERABLE_READ_IMAGES=1`.
+
+Authenticated VNC, RDP, and other display protocols are out of scope for
+this revision; an unknown URL scheme fails with a followup-able error
+instead of falling back to a local file or QEMU monitor.
+
+## Headless delivery validation
+
+When an instruction names a Python or Node entrypoint and a separate
+side-effect output, headless completion validation moves the existing output
+aside and runs the entrypoint in a clean process. Completion is accepted only
+when the command exits successfully and recreates the output; otherwise the
+old file is restored and the model receives a recoverable failure. This
+prevents a stale `.npy`, image, JSON, or text file from hiding a broken current
+entrypoint.
 
 ## Completion semantics
 

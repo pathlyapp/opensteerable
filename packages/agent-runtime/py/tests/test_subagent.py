@@ -6,6 +6,7 @@ import asyncio
 
 import pytest
 from steerable_agent_runtime import (
+    PARENT_INPUT_TOOL_NAME,
     CoreLoop,
     LoopConfig,
     RouterToolExecutor,
@@ -13,15 +14,17 @@ from steerable_agent_runtime import (
     SubagentExecutor,
     SubagentRegistry,
     ToolRouter,
+    parent_input_tool_descriptor,
     subagent_tool_descriptor,
 )
 from steerable_agent_runtime.llm import LLMMessage, LLMStreamChunk
-
 from test_loop import collect
 from test_trace_recorder import make_provider, tc
 
 
-async def _run_parent(script, router: ToolRouter, *, config: SubagentConfig | None = None):
+async def _run_parent(
+    script, router: ToolRouter, *, config: SubagentConfig | None = None
+):
     provider = make_provider(script)
     executor = SubagentExecutor(RouterToolExecutor(router), provider, config)
     loop = CoreLoop(provider, executor, LoopConfig())
@@ -31,6 +34,174 @@ async def _run_parent(script, router: ToolRouter, *, config: SubagentConfig | No
 
 def _tool_results(events):
     return [e.data for e in events if e.kind == "tool_call_result"]
+
+
+class _MemoryHistory:
+    """Minimal HistoryStore: records per id, enough for the child-record test."""
+
+    def __init__(self) -> None:
+        self.records: dict[str, list[dict]] = {}
+
+    async def append_history(self, record_id, entries) -> None:
+        self.records.setdefault(record_id, []).extend(entries)
+
+    async def list_history(
+        self, record_id, *, after_seq=None, until_seq=None, limit=None, reverse=False
+    ):
+        return list(self.records.get(record_id, []))
+
+
+@pytest.mark.asyncio
+async def test_child_writes_its_own_durable_record_and_publishes_the_id() -> None:
+    """With a store + prefix the child logs under `<prefix>:child:<lineage>`,
+    and `child_spawned` carries that id so a host can read the process back.
+    The parent's own record stays free of the child's internals."""
+    provider = make_provider(
+        [
+            {"tool_calls": [tc("delegate_subagent", {"task": "查一下磁盘"})]},
+            {"content": "child done"},
+            {"content": "parent done"},
+        ]
+    )
+    history = _MemoryHistory()
+    spawned: list[dict] = []
+    executor = SubagentExecutor(
+        RouterToolExecutor(ToolRouter()),
+        provider,
+        history_store=history,
+        record_id_prefix="chat-1",
+        event_sink=lambda kind, data: (
+            spawned.append(data) if kind == "child_spawned" else None
+        ),
+    )
+    loop = CoreLoop(provider, executor, LoopConfig())
+    async for _ in loop.run([LLMMessage.text_of("user", "go")]):
+        pass
+
+    assert spawned and spawned[0]["recordId"] == "chat-1:child:0.1"
+    assert history.records["chat-1:child:0.1"]
+    assert "chat-1" not in history.records
+
+
+@pytest.mark.asyncio
+async def test_children_use_their_record_ids_as_isolated_chat_contexts() -> None:
+    """Session-scoped child tools such as todo_write must not share the empty
+    chat id or overwrite the parent's state."""
+    contexts: list[str] = []
+    router = ToolRouter()
+
+    async def capture_context(
+        label: str, context: dict | None = None
+    ) -> dict[str, str]:
+        chat_id = str((context or {}).get("chat_id") or "")
+        contexts.append(chat_id)
+        return {"label": label, "chatId": chat_id}
+
+    router.register(capture_context)
+    provider = make_provider(
+        [
+            {"tool_calls": [tc("delegate_subagent", {"task": "first"})]},
+            {"tool_calls": [tc("capture_context", {"label": "first"})]},
+            {"content": "first done"},
+            {"tool_calls": [tc("delegate_subagent", {"task": "second"})]},
+            {"tool_calls": [tc("capture_context", {"label": "second"})]},
+            {"content": "second done"},
+            {"content": "parent done"},
+        ]
+    )
+    history = _MemoryHistory()
+    capture_schema = {
+        "type": "function",
+        "function": {
+            "name": "capture_context",
+            "parameters": {
+                "type": "object",
+                "properties": {"label": {"type": "string"}},
+                "required": ["label"],
+            },
+        },
+    }
+    executor = SubagentExecutor(
+        RouterToolExecutor(router),
+        provider,
+        tools=[capture_schema],
+        history_store=history,
+        record_id_prefix="chat-1",
+    )
+    loop = CoreLoop(provider, executor, LoopConfig())
+    [e async for e in loop.run([LLMMessage.text_of("user", "go")])]
+    await executor.shutdown()
+
+    assert contexts == ["chat-1:child:0.1", "chat-1:child:0.2"]
+
+
+@pytest.mark.asyncio
+async def test_children_without_records_use_distinct_pool_local_chat_contexts() -> None:
+    contexts: list[str] = []
+    router = ToolRouter()
+
+    async def capture_context(context: dict | None = None) -> str:
+        chat_id = str((context or {}).get("chat_id") or "")
+        contexts.append(chat_id)
+        return chat_id
+
+    router.register(capture_context)
+    capture_schema = {
+        "type": "function",
+        "function": {"name": "capture_context", "parameters": {"type": "object"}},
+    }
+
+    async def run_one() -> None:
+        provider = make_provider(
+            [
+                {"tool_calls": [tc("delegate_subagent", {"task": "capture"})]},
+                {"tool_calls": [tc("capture_context")]},
+                {"content": "child done"},
+                {"content": "parent done"},
+            ]
+        )
+        executor = SubagentExecutor(
+            RouterToolExecutor(router),
+            provider,
+            tools=[capture_schema],
+        )
+        loop = CoreLoop(provider, executor, LoopConfig())
+        [e async for e in loop.run([LLMMessage.text_of("user", "go")])]
+        await executor.shutdown()
+
+    await run_one()
+    await run_one()
+
+    assert len(contexts) == 2
+    assert contexts[0] != contexts[1]
+    assert all(context.startswith("subagent:") for context in contexts)
+
+
+@pytest.mark.asyncio
+async def test_child_stays_storage_free_without_a_prefix() -> None:
+    provider = make_provider(
+        [
+            {"tool_calls": [tc("delegate_subagent", {"task": "查一下磁盘"})]},
+            {"content": "child done"},
+            {"content": "parent done"},
+        ]
+    )
+    history = _MemoryHistory()
+    spawned: list[dict] = []
+    executor = SubagentExecutor(
+        RouterToolExecutor(ToolRouter()),
+        provider,
+        history_store=history,
+        event_sink=lambda kind, data: (
+            spawned.append(data) if kind == "child_spawned" else None
+        ),
+    )
+    loop = CoreLoop(provider, executor, LoopConfig())
+    async for _ in loop.run([LLMMessage.text_of("user", "go")]):
+        pass
+
+    assert spawned and "recordId" not in spawned[0]
+    assert history.records == {}
 
 
 @pytest.mark.asyncio
@@ -239,7 +410,9 @@ def test_descriptor_is_openai_tool_schema() -> None:
 
 def test_descriptor_with_registry_advertises_subagent_type_enum() -> None:
     registry = SubagentRegistry()
-    registry.register("researcher", SubagentConfig(tool_filter=frozenset({"read_file"})))
+    registry.register(
+        "researcher", SubagentConfig(tool_filter=frozenset({"read_file"}))
+    )
     registry.register("writer", SubagentConfig())
     d = subagent_tool_descriptor(registry=registry)
     prop = d["function"]["parameters"]["properties"]["subagent_type"]
@@ -277,9 +450,7 @@ async def test_registered_profile_governs_the_child() -> None:
             {"content": "parent done"},
         ]
     )
-    executor = SubagentExecutor(
-        RouterToolExecutor(router), provider, registry=registry
-    )
+    executor = SubagentExecutor(RouterToolExecutor(router), provider, registry=registry)
     loop = CoreLoop(provider, executor, LoopConfig())
     events = [e async for e in loop.run([LLMMessage.text_of("user", "go")])]
 
@@ -646,9 +817,7 @@ async def test_attach_pool_shares_the_orchestration_pool() -> None:
         ]
     )
     subagent = SubagentExecutor(RouterToolExecutor(ToolRouter()), provider)
-    orchestration = OrchestrationExecutor(
-        subagent, provider, OrchestrationConfig()
-    )
+    orchestration = OrchestrationExecutor(subagent, provider, OrchestrationConfig())
     subagent.attach_pool(orchestration.pool)
     loop = CoreLoop(provider, orchestration, LoopConfig())
     events = [
@@ -671,9 +840,8 @@ async def test_attach_pool_shares_the_orchestration_pool() -> None:
 
 @pytest.mark.asyncio
 async def test_child_advertises_the_delegated_tool_surface() -> None:
-    """Children see the parent's advertised schemas minus the delegation
-    tool itself, intersected with the profile's tool filter — a child
-    never re-delegates (depth-1 by construction, advertised honestly)."""
+    """Children see the filtered parent tools plus parent-input coordination,
+    but never delegation itself (depth-1 by construction)."""
     seen_tools: list[list[str] | None] = []
     script = iter(
         [
@@ -691,9 +859,7 @@ async def test_child_advertises_the_delegated_tool_surface() -> None:
             raise NotImplementedError
 
         def stream(self, messages, *, tools=None, **kw):
-            seen_tools.append(
-                [t["function"]["name"] for t in tools] if tools else None
-            )
+            seen_tools.append([t["function"]["name"] for t in tools] if tools else None)
             entry = next(script)
 
             async def _gen():
@@ -726,7 +892,131 @@ async def test_child_advertises_the_delegated_tool_surface() -> None:
     # Round 1 is the parent's request (full surface); round 2 is the
     # child's — filtered to the delegated domain.
     assert seen_tools[0] == ["read_file", "write_file", "delegate_subagent"]
-    assert seen_tools[1] == ["read_file"]
+    assert seen_tools[1] == ["read_file", PARENT_INPUT_TOOL_NAME]
+
+
+@pytest.mark.asyncio
+async def test_child_uses_parent_input_protocol_instead_of_ask_user() -> None:
+    """A child never receives the interactive ``ask_user`` tool. It always
+    receives the child-only parent-input tool, even when the profile narrows
+    the delegated host-tool domain."""
+    seen_tools: list[list[str] | None] = []
+    script = iter(
+        [
+            {"tool_calls": [tc("delegate_subagent", {"task": "prepare"})]},
+            {"content": "child done"},
+            {"content": "parent done"},
+        ]
+    )
+
+    class _CapturingProvider:
+        name = "fake"
+        model = "fake-model"
+
+        async def complete(self, messages, *, tools=None, **kw):
+            raise NotImplementedError
+
+        def stream(self, messages, *, tools=None, **kw):
+            seen_tools.append([t["function"]["name"] for t in tools] if tools else None)
+            entry = next(script)
+
+            async def _gen():
+                if entry.get("content"):
+                    yield LLMStreamChunk(content_delta=entry["content"])
+                for call in entry.get("tool_calls", []):
+                    yield LLMStreamChunk(tool_call_delta=call)
+                yield LLMStreamChunk(
+                    finish_reason="tool_calls" if entry.get("tool_calls") else "stop"
+                )
+
+            return _gen()
+
+    parent_tools = [
+        {"type": "function", "function": {"name": "read_file", "parameters": {}}},
+        {"type": "function", "function": {"name": "ask_user", "parameters": {}}},
+        subagent_tool_descriptor(),
+    ]
+    provider = _CapturingProvider()
+    executor = SubagentExecutor(
+        RouterToolExecutor(ToolRouter()),
+        provider,
+        SubagentConfig(allow_tools=False),
+        tools=parent_tools,
+    )
+    loop = CoreLoop(provider, executor, LoopConfig())
+    [e async for e in loop.run([LLMMessage.text_of("user", "go")], tools=parent_tools)]
+    await executor.shutdown()
+
+    assert seen_tools[0] == ["read_file", "ask_user", "delegate_subagent"]
+    assert seen_tools[1] == [PARENT_INPUT_TOOL_NAME]
+
+
+@pytest.mark.asyncio
+async def test_parent_input_request_becomes_structured_delegation_result() -> None:
+    direct_ask_calls = 0
+
+    async def ask_user(**kwargs) -> dict:
+        nonlocal direct_ask_calls
+        direct_ask_calls += 1
+        return kwargs
+
+    router = ToolRouter()
+    router.register(ask_user)
+    questions = [
+        {
+            "id": "template",
+            "text": "选择哪种模板？",
+            "header": "模板",
+            "type": "select",
+            "options": ["标准", "精简"],
+            "multiSelect": False,
+        }
+    ]
+    provider = make_provider(
+        [
+            {"tool_calls": [tc("delegate_subagent", {"task": "prepare"})]},
+            {
+                "tool_calls": [
+                    tc(
+                        "ask_user",
+                        {"intro": "wrong path", "questions": questions},
+                    )
+                ]
+            },
+            {
+                "tool_calls": [
+                    tc(
+                        PARENT_INPUT_TOOL_NAME,
+                        {"intro": "missing questions"},
+                    )
+                ]
+            },
+            {
+                "tool_calls": [
+                    tc(
+                        PARENT_INPUT_TOOL_NAME,
+                        {"intro": "需要补充信息", "questions": questions},
+                    )
+                ]
+            },
+            {"content": "parent will ask"},
+        ]
+    )
+    executor = SubagentExecutor(
+        RouterToolExecutor(router),
+        provider,
+        tools=[parent_input_tool_descriptor()],
+    )
+    loop = CoreLoop(provider, executor, LoopConfig())
+    events = [e async for e in loop.run([LLMMessage.text_of("user", "go")])]
+    await executor.shutdown()
+
+    result = _tool_results(events)[0]
+    assert result["success"] is True
+    assert '"status": "needs_input"' in result["resultPreview"]
+    assert "选择哪种模板？" in result["resultPreview"]
+    assert provider._idx == 5
+    assert direct_ask_calls == 0
 
 
 @pytest.mark.asyncio

@@ -18,11 +18,41 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isShellBuiltinSkillEnabled } from '../product-config.js';
 import { getAppRootDir, getUserDataDir } from '../runtime.js';
 import { getSidecarSupervisor, whenSidecarSupervisor } from '../sidecar/handle.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_SKILLS_DIR = path.resolve(__dirname, 'skills');
+
+/** shell 随包分发的内置技能目录。产品经 product.json `builtinSkills` 按需引入。 */
+export const SHELL_BUILTIN_SKILLS = [
+  { dir: '00-identity', name: 'identity' },
+  { dir: '10-goal', name: 'goal' },
+  { dir: '11-loop', name: 'loop' },
+  { dir: '12-create-skill', name: 'create-skill' },
+  { dir: '70-plan-mode', name: 'plan-mode' },
+  { dir: '80-tool-usage', name: 'tool-usage' },
+  { dir: '81-anti-deferred', name: 'anti-deferred-execution' },
+  { dir: '82-data-grounding', name: 'data-grounding' },
+  { dir: '85-local-exec', name: 'local-exec' },
+  { dir: '86-proactive-coding', name: 'proactive-coding' },
+] as const;
+
+function productWantsShellBuiltinSkills(): boolean {
+  return SHELL_BUILTIN_SKILLS.some((skill) => isShellBuiltinSkillEnabled(skill.dir));
+}
+
+function disabledShellBuiltinSkillNames(): string[] {
+  if (!productWantsShellBuiltinSkills()) return [];
+  const names: string[] = [];
+  for (const skill of SHELL_BUILTIN_SKILLS) {
+    if (!isShellBuiltinSkillEnabled(skill.dir)) {
+      names.push(skill.dir, skill.name);
+    }
+  }
+  return names;
+}
 
 /** builtin = 随应用分发; user = 设置页导入; workspace = 项目/工作区 `skills/`. */
 export type SkillOrigin = 'builtin' | 'user' | 'workspace';
@@ -99,7 +129,9 @@ export function listSkillRoots(skillsDir?: string): string[] {
   const extras = uniqueExisting(workspaceSkillRootsProvider?.() ?? []).filter(
     (dir) => !samePath(dir, builtin) && !samePath(dir, user) && !pack.some((p) => samePath(dir, p)),
   );
-  return [builtin, ...pack, ...extras, user];
+  return productWantsShellBuiltinSkills()
+    ? [builtin, ...pack, ...extras, user]
+    : [...pack, ...extras, user];
 }
 
 export function classifySkillOrigin(skillsDir: string): SkillOrigin {
@@ -167,10 +199,14 @@ export async function loadSkills(options: LoadSkillsOptions = {}): Promise<Skill
     return [];
   }
   try {
+    const exclude = [
+      ...disabledShellBuiltinSkillNames(),
+      ...(options.excludeSkillNames ? Array.from(options.excludeSkillNames) : []),
+    ];
     return await supervisor.listSkills({
       roots: listSkillRoots(options.skillsDir),
       conditions: options.conditions ? Array.from(options.conditions) : undefined,
-      exclude: options.excludeSkillNames ? Array.from(options.excludeSkillNames) : undefined,
+      exclude: exclude.length > 0 ? exclude : undefined,
       ignoreConditions: options.ignoreConditions,
     });
   } catch (err) {

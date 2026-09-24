@@ -4,27 +4,62 @@
  */
 
 export type PersistedTurnBlock =
-  | { type: 'reasoning'; content: string }
-  | { type: 'text'; content: string }
+  | {
+      type: 'reasoning';
+      content: string;
+      sealed?: boolean;
+      startedAtMs?: number;
+      durationMs?: number;
+    }
+  | { type: 'text'; content: string; sealed?: boolean }
   | { type: 'tools'; actions: Array<Record<string, unknown>> };
+
+function freezeOpenReasoning(blocks: PersistedTurnBlock[], now = Date.now()): void {
+  const last = blocks[blocks.length - 1];
+  if (!last || last.type !== 'reasoning' || last.durationMs != null) return;
+  if (last.startedAtMs == null) return;
+  last.durationMs = Math.max(0, now - last.startedAtMs);
+}
 
 export function appendTimelineDelta(
   blocks: PersistedTurnBlock[],
   type: 'text' | 'reasoning',
   delta: string,
+  now = Date.now(),
 ): void {
   if (!delta) return;
   const last = blocks[blocks.length - 1];
-  if (last && last.type === type) {
+  if (last && last.type === type && !last.sealed) {
     last.content += delta;
+    return;
+  }
+  freezeOpenReasoning(blocks, now);
+  if (type === 'reasoning') {
+    blocks.push({ type, content: delta, startedAtMs: now });
     return;
   }
   blocks.push({ type, content: delta });
 }
 
+/**
+ * Close the current reasoning/text segment so the next same-kind delta
+ * starts a new block. Mirrors apps/web `sealLastBlock`.
+ */
+export function sealLastTimelineBlock(blocks: PersistedTurnBlock[], now = Date.now()): void {
+  const last = blocks[blocks.length - 1];
+  if (!last || last.type === 'tools' || last.sealed) return;
+  freezeOpenReasoning(blocks, now);
+  last.sealed = true;
+}
+
+export function freezeTimelineReasoning(blocks: PersistedTurnBlock[], now = Date.now()): void {
+  freezeOpenReasoning(blocks, now);
+}
+
 export function syncTimelineTools(
   blocks: PersistedTurnBlock[],
   actions: Array<Record<string, unknown>>,
+  now = Date.now(),
 ): void {
   let placed = 0;
   for (const block of blocks) {
@@ -48,6 +83,7 @@ export function syncTimelineTools(
   if (last && last.type === 'tools') {
     last.actions.push(...added);
   } else {
+    freezeOpenReasoning(blocks, now);
     blocks.push({ type: 'tools', actions: added });
   }
 }

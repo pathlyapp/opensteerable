@@ -44,6 +44,15 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+function httpErrorMessage(data: unknown, status: number): string {
+  if (data && typeof data === 'object') {
+    const rec = data as { error?: unknown; detail?: unknown };
+    if (typeof rec.error === 'string' && rec.error.trim()) return rec.error;
+    if (typeof rec.detail === 'string' && rec.detail.trim()) return rec.detail;
+  }
+  return `Request failed (${status})`;
+}
+
 async function http<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(path, {
     method,
@@ -53,11 +62,9 @@ async function http<T>(method: string, path: string, body?: unknown): Promise<T>
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
-  const data = (await res.json().catch(() => null)) as T & { detail?: string };
+  const data = (await res.json().catch(() => null)) as T;
   if (!res.ok) {
-    const err = new Error(
-      (data as { detail?: string } | null)?.detail || `Request failed (${res.status})`,
-    ) as Error & { status?: number };
+    const err = new Error(httpErrorMessage(data, res.status)) as Error & { status?: number };
     err.status = res.status;
     throw err;
   }
@@ -197,9 +204,15 @@ export function createHttpBridge(): ElectronBridge {
     platform: boot.platform,
 
     local: {
-      // 浏览器没有系统目录选择器（showDirectoryPicker 不给路径）。返回
-      // canceled 让 UI 走"手动输入路径"的既有分支。
-      selectDirectory: async () => ({ canceled: true, filePaths: [] }),
+      // 浏览器 File System Access API 不给真实路径。改走宿主
+      // `/host/local/select-directory`（本机系统选择器）；取消或无 GUI
+      // 时返回 canceled，UI 再走手动输入路径。
+      selectDirectory: async (options) =>
+        http<{ canceled: boolean; filePaths: string[] }>(
+          'POST',
+          '/host/local/select-directory',
+          options ?? {},
+        ),
       saveTextFile: async (options) => {
         const blob = new Blob([options.content], { type: 'application/json' });
         const url = URL.createObjectURL(blob);

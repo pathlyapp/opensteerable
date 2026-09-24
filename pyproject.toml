@@ -11,6 +11,7 @@ members = [
   "packages/agent-protocol/py",
   "packages/agent-harness/py",
   "packages/agent-runtime/py",
+  "packages/plugin-sdk/py",
   "packages/sidecar/py",
   "packages/egress-proxy/py",
   "examples/py-minimal",
@@ -32,6 +33,8 @@ dev = [
   "steerable-agent-protocol",
   "steerable-agent-harness",
   "steerable-agent-runtime",
+  "steerable-agent-runtime-native==0.6.36",
+  "steerable-plugin-sdk",
   "steerable-sidecar",
   "steerable-egress-proxy",
 ]
@@ -40,8 +43,13 @@ dev = [
 steerable-agent-protocol = { workspace = true }
 steerable-agent-harness = { workspace = true }
 steerable-agent-runtime = { workspace = true }
+steerable-plugin-sdk = { workspace = true }
 steerable-sidecar = { workspace = true }
 steerable-egress-proxy = { workspace = true }
+
+[tool.uv]
+# The CoreLoop wheel is published as a binary. Never build it from an sdist.
+no-build-package = ["steerable-agent-runtime-native"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -51,6 +59,7 @@ testpaths = [
   "packages/agent-protocol/py/tests",
   "packages/agent-harness/py/tests",
   "packages/agent-runtime/py/tests",
+  "packages/plugin-sdk/py/tests",
   "packages/sidecar/py/tests",
   "packages/egress-proxy/py/tests",
   "tests/conformance/py",

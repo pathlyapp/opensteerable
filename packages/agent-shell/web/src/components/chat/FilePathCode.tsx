@@ -1,6 +1,8 @@
 import { useEffect, useState, type ComponentPropsWithoutRef, type ReactNode } from 'react';
 import { openLocalPath, type ResolvedLocalPath } from '@/lib/local-api';
+import { hostToolChrome } from '@/lib/host-tools';
 import { peekResolvedPath, subscribeResolvedPath } from './path-mentions';
+import { splitTurnFilePath } from './turn-files';
 
 /**
  * 行内代码里的文件路径：后端确认存在后变成可点击，点击用系统默认应用打开。
@@ -26,12 +28,15 @@ export function FilePathCode({ candidate, chatId, children, ...rest }: FilePathC
   );
   const [openError, setOpenError] = useState<string | null>(null);
 
+  const allowOpenPath = hostToolChrome('local-fs');
+
   useEffect(() => {
     setOpenError(null);
+    if (!allowOpenPath) return;
     return subscribeResolvedPath(candidate, chatId, (entry) => setResolved(entry));
-  }, [candidate, chatId]);
+  }, [allowOpenPath, candidate, chatId]);
 
-  if (!resolved) {
+  if (!resolved || !allowOpenPath) {
     return (
       <code {...rest} className={INLINE_CODE_CLASS}>
         {children}
@@ -59,7 +64,7 @@ export function FilePathCode({ candidate, chatId, children, ...rest }: FilePathC
         openError ? 'text-red-600 dark:text-red-400' : ''
       }`}
     >
-      {children}
+      {splitTurnFilePath(resolved.path).name || children}
     </button>
   );
 }

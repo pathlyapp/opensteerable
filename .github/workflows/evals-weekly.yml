@@ -50,8 +50,12 @@ on:
         description: "Catalog ids to run instead of the whole split, space separated. Use to finish a catalog the credit guard cancelled; shards with nothing to do report skipped."
         type: string
         default: ""
+      replicate:
+        description: "Independent-sample label used only to isolate otherwise identical workflow concurrency groups."
+        type: string
+        default: ""
       arm_b_env:
-        description: "flaky arm B overrides, `KEY=VALUE` per line. Arm A always runs the committed defaults."
+        description: "STEERABLE_ overrides, `KEY=VALUE` per line. Applied to flaky arm B, spiral-red, and explicit-task catalog experiments."
         type: string
         default: |
           STEERABLE_IDLE_STREAM_TIMEOUT_MS=0
@@ -65,7 +69,7 @@ concurrency:
   # The agent is part of the group so a pi-glm catalog and a steerable catalog
   # are separate queues: the group holds one running plus one pending run, and
   # sharing it would make a second dispatch cancel the pending one.
-  group: evals-${{ github.event.inputs.split || 'cheap-12' }}-${{ github.event.inputs.agent || 'steerable' }}-${{ github.event.inputs.model || 'default' }}-${{ github.event.inputs.probe_agent || 'all' }}
+  group: evals-${{ github.event.inputs.split || 'cheap-12' }}-${{ github.event.inputs.agent || 'steerable' }}-${{ github.event.inputs.model || 'default' }}-${{ github.event.inputs.probe_agent || 'all' }}-${{ github.event.inputs.replicate || 'default' }}
   cancel-in-progress: false
 
 jobs:
@@ -73,7 +77,11 @@ jobs:
     name: TB 2.1 cheap-12 × ${{ matrix.agent }}
     if: ${{ github.repository == 'pathlyapp/opensteerable' && (github.event_name == 'schedule' || (github.event.inputs.split == 'cheap-12' && github.event.inputs.model == '')) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 240
+    # Twelve trials at n-concurrent=2 can legitimately exceed four hours:
+    # one 120-minute compile plus one 90-minute task can occupy a lane. Keep
+    # the workflow wall above Harbor's aggregate task budget so the final
+    # trial and result.json are not discarded.
+    timeout-minutes: 360
     strategy:
       fail-fast: false
       matrix:
@@ -140,7 +148,7 @@ jobs:
     name: TB 2.1 cheap-12 probe × ${{ matrix.agent }} × ${{ github.event.inputs.model }}
     if: ${{ github.repository == 'pathlyapp/opensteerable' && github.event_name == 'workflow_dispatch' && github.event.inputs.split == 'cheap-12' && github.event.inputs.model != '' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 240
+    timeout-minutes: 360
     strategy:
       fail-fast: false
       matrix:
@@ -241,7 +249,7 @@ jobs:
           status = open(status_path).read().strip() if os.path.exists(status_path) else "unknown"
           title = f"{status} · cheap-12 probe × {agent}"
           body = (
-              f"{model} @{effort} · provider `{provider}` · 新基线，不上首页，不和 80.7% 混用。"
+              f"{model} @{effort} · provider `{provider}` · 探索性单跑，不上首页，不和当前 79.0% 基线混用。"
               " steerable/pi-glm/dsh 钉官方路由；claude-code-glm、terminus-2 与 codex-glm 走网关默认。"
               + (f"\n[GHA run]({run})" if run else "")
           )
@@ -354,6 +362,22 @@ jobs:
         if: steps.gate.outputs.skip != '1'
       - run: docker info
         if: steps.gate.outputs.skip != '1'
+      - name: Explicit-task overrides
+        if: steps.gate.outputs.skip != '1' && github.event.inputs.tasks != ''
+        env:
+          EVAL_ENV: ${{ github.event.inputs.arm_b_env }}
+        run: |
+          set -eu
+          printf '%s\n' "$EVAL_ENV" | while IFS= read -r line; do
+            line="${line%$'\r'}"
+            case "$line" in
+              "") ;;
+              STEERABLE_*=*) printf '%s\n' "$line" >> "$GITHUB_ENV" ;;
+              *) echo "refusing override outside the STEERABLE_ namespace: $line" >&2; exit 1 ;;
+            esac
+          done
+          echo "explicit-task overrides:" >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' "$EVAL_ENV" | sed 's/^/    /' >> "$GITHUB_STEP_SUMMARY"
       - name: Harbor catalog shard
         if: steps.gate.outputs.skip != '1'
         env:
@@ -466,9 +490,9 @@ jobs:
   # Pre-catalog gate for harness changes. One task per shard with its three
   # attempts running concurrently inside that shard, so wall clock is one
   # trial: 150 separate single-trial jobs would queue three deep behind the 50
-  # GHA has been seen to run at once. Both arms run the same commit and differ
-  # only in the forwarded tunables, which keeps the task set, the model, and
-  # the sampling identical between them.
+  # GHA has been seen to run at once. Both arms run the same commit on the
+  # Rust CoreLoop and differ only in the forwarded tunables. `arm_b_env`
+  # empty means the arms are two independent Rust samples, not an engine A/B.
   flaky:
     name: TB 2.1 flaky arm ${{ matrix.arm }} shard ${{ matrix.shard }}/27
     if: ${{ github.repository == 'pathlyapp/opensteerable' && github.event_name == 'workflow_dispatch' && github.event.inputs.split == 'flaky' }}
@@ -645,7 +669,7 @@ jobs:
               model = (os.environ.get("EVAL_MODEL") or "").strip()
               effort = (os.environ.get("EVAL_EFFORT") or "").strip()
               title = f"开始 · GHA catalog 89 × {agent}"
-              body = f"{agent} × 全量 89 题，49 分片并行。"
+              body = f"{agent} × Rust CoreLoop × 全量 89 题，49 分片并行。"
               if model:
                   if "qwen" in model:
                       provider, default_effort = "alibaba", "medium"
@@ -656,8 +680,8 @@ jobs:
                   used = effort or default_effort
                   title = f"开始 · catalog-89 × {agent} × {model} @{used}"
                   body = (
-                      "新基线 n=1，不上首页。"
-                      "不要和 6 跑 80.7%（8e260de @max）或 cheap-12 混用。"
+                      "探索性 n=1，不上首页。"
+                      "不要和当前 79.0%（e25a8d4 @max）或 cheap-12 混用。"
                       f"\n{agent} × 全量 89 题，49 分片。"
                       f"\nOpenRouter 官方 pin `{provider}` allow_fallbacks=0（steerable/pi-glm/dsh）。"
                       " claude-code-glm、terminus-2 与 codex-glm 走网关默认路由。"
@@ -672,10 +696,11 @@ jobs:
               title = "开始 · GHA failed-prev"
               body = "产品 steerable × 上次 catalog 失败题（23），24 分片。用来迭代 harness，不是正式分。"
           elif split == "flaky":
-              title = "开始 · GHA flaky A/B"
+              title = "开始 · GHA flaky Rust 多次采样"
               overrides = (os.environ.get("ARM_B_ENV") or "").strip() or "(none)"
               body = (
-                  "15 题 × 2 臂 × 3 次，单题 85 分钟上限。判断 harness 改动，不是正式分。"
+                  "27 题 × 2 臂 × 3 次，两臂都是 Rust CoreLoop。"
+                  "单题 85 分钟上限；判断可调参差异，不是正式分。"
                   f"\nArm B:\n{overrides}"
               )
           else:
@@ -704,7 +729,7 @@ jobs:
                   )
                   title = f"开始 · cheap-12 probe × {model} @{used}"
                   body = (
-                      "新基线，不上首页，不和 catalog-89 80.7% / 旧 easy-12 混用。"
+                      "探索性单跑，不上首页，不和 catalog-89 当前 79.0% / 旧 easy-12 混用。"
                       "\n12 题 = 绿7 / 翻面4 / 红1（定比 8e260de catalog-89）。"
                       "\n绿: fix-git, kv-store-grpc, log-summary-date-ranges, openssl-selfsigned-cert, pypi-server, build-pmars, compile-compcert"
                       "\n翻面: raman-fitting (1/6), dna-insert (2/6), bn-fit-modify (4/6), extract-elf (5/6)"
@@ -721,7 +746,7 @@ jobs:
                   )
               else:
                   title = "开始 · GHA cheap-12"
-                  body = "产品 steerable 用网关 key；对照无官方 key 会跳过。"
+                  body = "产品 steerable 使用 Rust CoreLoop；对照无官方 key 会跳过。"
           run = f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
           payload = {
               "msg_type": "interactive",
@@ -770,18 +795,18 @@ jobs:
               if [ -n "$EVAL_EFFORT" ]; then
                 label="$label @$EVAL_EFFORT"
               fi
-              label="$label · 新基线不上首页"
+              label="$label · 探索性单跑不上首页"
             fi
           elif [ "$EVAL_SPLIT" = "failed-prev" ]; then
             label="GHA failed-prev"
           elif [ "$EVAL_SPLIT" = "flaky" ]; then
-            label="GHA flaky A/B"
+            label="GHA flaky Rust 多次采样"
           elif [ "$EVAL_SPLIT" = "cheap-12" ] && [ -n "$EVAL_MODEL" ]; then
             label="cheap-12 probe × $EVAL_MODEL"
             if [ -n "$EVAL_EFFORT" ]; then
               label="$label @$EVAL_EFFORT"
             fi
-            label="$label · 新基线不上首页"
+            label="$label · 探索性单跑不上首页"
           fi
           python3 -m evals.feishu \
             --root statuses \

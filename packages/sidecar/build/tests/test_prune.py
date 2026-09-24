@@ -267,6 +267,7 @@ def test_install_sidecar_from_wheels_picks_latest(
         "steerable_agent_runtime",
         "steerable_sidecar",
         "steerable_egress_proxy",
+        "steerable_agent_runtime_native",
     ):
         (wheels / f"{stem}-0.1.0-py3-none-any.whl").write_bytes(b"stub")
         (wheels / f"{stem}-0.2.0-py3-none-any.whl").write_bytes(b"stub")
@@ -281,14 +282,108 @@ def test_install_sidecar_from_wheels_picks_latest(
 
     target = build_sidecar.TARGETS["darwin-arm64"]
     monkeypatch.setattr(build_sidecar.subprocess, "run", fake_run)
+    monkeypatch.setattr(build_sidecar, "verify_native_wheel", lambda _wheel: None)
 
     build_sidecar.install_sidecar(fake_runtime, target, wheels_dir=wheels)
 
     pip_install_targets = [
         cmd[-1] for cmd in invocations if "install" in cmd and cmd[-1].endswith(".whl")
     ]
-    # Five wheels, all the 0.2.0 variants.
-    assert len(pip_install_targets) == 5
+    assert len(pip_install_targets) == 6
     for path in pip_install_targets:
         assert "0.2.0" in path
         assert "0.1.0" not in path
+
+
+def test_install_sidecar_from_wheels_installs_native_coreloop(
+    fake_runtime: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    wheels = tmp_path / "dist-py"
+    wheels.mkdir()
+    for stem in (
+        "steerable_agent_protocol",
+        "steerable_agent_harness",
+        "steerable_agent_runtime",
+        "steerable_sidecar",
+        "steerable_egress_proxy",
+        "steerable_agent_runtime_native",
+    ):
+        (wheels / f"{stem}-0.6.26-py3-none-any.whl").write_bytes(b"stub")
+
+    invocations: list[list[str]] = []
+
+    def fake_run(cmd, **_kw):
+        invocations.append(list(cmd))
+
+        class _R:
+            returncode = 0
+
+        return _R()
+
+    target = build_sidecar.TARGETS["linux-x64"]
+    monkeypatch.setattr(build_sidecar.subprocess, "run", fake_run)
+    monkeypatch.setattr(build_sidecar, "verify_native_wheel", lambda _wheel: None)
+    build_sidecar.install_sidecar(fake_runtime, target, wheels_dir=wheels)
+    native = [
+        cmd[-1]
+        for cmd in invocations
+        if "install" in cmd and "steerable_agent_runtime_native" in cmd[-1]
+    ]
+    assert native and "0.6.26" in native[-1]
+
+
+def test_install_sidecar_from_wheels_requires_native(
+    fake_runtime: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    wheels = tmp_path / "dist-py"
+    wheels.mkdir()
+    for stem in (
+        "steerable_agent_protocol",
+        "steerable_agent_harness",
+        "steerable_agent_runtime",
+        "steerable_sidecar",
+        "steerable_egress_proxy",
+    ):
+        (wheels / f"{stem}-0.1.0-py3-none-any.whl").write_bytes(b"stub")
+
+    target = build_sidecar.TARGETS["linux-x64"]
+    monkeypatch.setattr(build_sidecar.subprocess, "run", lambda *a, **kw: None)
+    with pytest.raises(SystemExit) as excinfo:
+        build_sidecar.install_sidecar(fake_runtime, target, wheels_dir=wheels)
+    assert "steerable_agent_runtime_native" in str(excinfo.value)
+
+
+def test_install_native_coreloop_requires_a_wheel(fake_runtime: Path) -> None:
+    target = build_sidecar.host_target()
+    with pytest.raises(SystemExit) as excinfo:
+        build_sidecar.install_native_coreloop(
+            fake_runtime / "bin" / "python3", target, wheels_dir=None
+        )
+    assert "steerable_agent_runtime_native" in str(excinfo.value)
+
+
+def test_install_native_coreloop_rejects_a_bad_checksum(
+    fake_runtime: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    wheels = tmp_path / "wheels"
+    wheels.mkdir()
+    wheel = wheels / "steerable_agent_runtime_native-0.6.36-py3-none-any.whl"
+    wheel.write_bytes(b"tampered")
+
+    def reject(_wheel: Path) -> None:
+        raise SystemExit("checksum mismatch for steerable_agent_runtime_native")
+
+    monkeypatch.setattr(build_sidecar, "verify_native_wheel", reject)
+    with pytest.raises(SystemExit) as excinfo:
+        build_sidecar.install_native_coreloop(
+            fake_runtime / "bin" / "python3",
+            build_sidecar.TARGETS["linux-x64"],
+            wheels_dir=wheels,
+        )
+    assert "checksum mismatch" in str(excinfo.value)

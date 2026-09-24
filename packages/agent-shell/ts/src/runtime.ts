@@ -23,7 +23,7 @@ export function isElectronRuntime(): boolean {
 }
 
 interface ElectronAppLike {
-  getPath(name: 'userData'): string;
+  getPath(name: 'userData' | 'documents'): string;
   getAppPath(): string;
   on?(event: 'will-quit', listener: () => void): void;
   removeListener?(event: 'will-quit', listener: () => void): void;
@@ -60,6 +60,24 @@ export function getUserDataDir(): string {
   // 下 productName 分目录的共存语义对齐；中性 shell 缺省 .agent-shell。
   const dirName = getProductConfig().dataDirName ?? '.agent-shell';
   return path.join(os.homedir(), dirName);
+}
+
+/**
+ * 用户文档目录。项目默认家目录建在这里的「应用名」文件夹下
+ * （见 project-home.ts）。测试可用 STEERABLE_DOCUMENTS_DIR 改锚点，
+ * 避免写进真实 Documents。
+ */
+export function getDocumentsDir(): string {
+  if (process.env.STEERABLE_DOCUMENTS_DIR) return process.env.STEERABLE_DOCUMENTS_DIR;
+  const app = tryElectronApp();
+  if (app) {
+    try {
+      return app.getPath('documents');
+    } catch {
+      // 个别环境 getPath('documents') 不可用，回落到 ~/Documents。
+    }
+  }
+  return path.join(os.homedir(), 'Documents');
 }
 
 /**

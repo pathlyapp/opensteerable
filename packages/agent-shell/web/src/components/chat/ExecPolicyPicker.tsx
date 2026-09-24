@@ -6,8 +6,8 @@ import type { ExecPolicy } from '@/lib/exec-policy';
  * ExecPolicyPicker — 输入框上的命令沙箱切换（类 Codex 底部权限档）。
  *
  * 切档立刻记住，下一轮才生效：当前回合的 `execSandbox` 已经随流发出。
- * 工作区 = Seatbelt/bwrap 只允许写项目根；完整权限 = 不下发命令沙箱，
- * 本机路径（如 Downloads）不再被 Operation not permitted 拦住。
+ * 工作区 = Seatbelt/bwrap 只允许写项目家目录或本对话工作区；完整权限
+ * = 不下发命令沙箱，本机路径（如 Downloads）不再被 Operation not permitted 拦住。
  */
 
 const OPTIONS: Array<{
@@ -18,7 +18,8 @@ const OPTIONS: Array<{
   {
     id: 'workspace',
     label: '工作区',
-    description: '命令只能写入当前项目；项目外路径会被系统拒绝。',
+    description:
+      '命令只能写入当前项目或本对话工作区（文稿/<应用名>/conversations/）；工作区外路径会被系统拒绝。',
   },
   {
     id: 'full',
@@ -64,16 +65,16 @@ export function ExecPolicyPicker({
         title={current.description}
         onClick={() => setOpen((next) => !next)}
         className={[
-          'inline-flex h-7 max-w-[140px] items-center gap-1 rounded-full border px-2 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-70',
+          'inline-flex h-6 max-w-[140px] items-center gap-1 rounded-full border px-1.5 text-[12px] leading-[1.45] transition-colors disabled:cursor-not-allowed disabled:opacity-70',
           isFull
             ? 'border-amber-400/50 bg-amber-400/10 text-amber-700 dark:text-amber-400'
             : 'border-agent-border bg-agent-canvas text-agent-foreground hover:bg-agent-foreground/5',
         ].join(' ')}
       >
         {isFull ? (
-          <LuLockOpen className="h-3.5 w-3.5 shrink-0" />
+          <LuLockOpen className="h-3 w-3 shrink-0" />
         ) : (
-          <LuFolderLock className="h-3.5 w-3.5 shrink-0" />
+          <LuFolderLock className="h-3 w-3 shrink-0" />
         )}
         <span className="truncate">{current.label}</span>
         <LuChevronDown className="h-3 w-3 shrink-0 text-agent-muted-foreground" />
@@ -104,7 +105,7 @@ export function ExecPolicyPicker({
                     : 'hover:bg-agent-foreground/5',
                 ].join(' ')}
               >
-                <span className="text-xs font-medium text-agent-foreground">
+                <span className="text-[12px] font-medium leading-[1.45] text-agent-foreground">
                   {option.label}
                 </span>
                 <span className="text-[11px] leading-snug text-agent-muted-foreground">

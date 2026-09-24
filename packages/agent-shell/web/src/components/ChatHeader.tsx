@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { LuCheck, LuGitBranch, LuListTodo, LuListTree, LuLoaderCircle } from 'react-icons/lu';
-import type { LocalChat, LocalChatAgent, LocalTask } from '@/lib/local-api';
+import type { LocalChat, LocalTask } from '@/lib/local-api';
 import {
   activateChatBranch,
   getChatBranches,
@@ -13,7 +13,6 @@ import { actionableTasks, summarizeTasks, type ChatTaskSummary } from './chat/us
 
 interface ChatHeaderProps {
   chat: LocalChat | null;
-  agent: LocalChatAgent | null;
   /**
    * W1.2.1: called after the active branch switches — the page re-hydrates
    * the message list from the re-projected store. When provided (and the
@@ -29,8 +28,6 @@ interface ChatHeaderProps {
 /**
  * ChatHeader — slim title bar above ChatPanel. Shows:
  *   - chat title (完整显示，长标题换行不截断)
- *   - bound agent name + icon (read-only here; switching is done from the
- *     sidebar's expert team list)
  *   - shortened chat id (for support / debugging)
  *
  * Terminal / 场景包调试窗 / 本地模型设置 USED to live here, but per the
@@ -40,7 +37,6 @@ interface ChatHeaderProps {
  */
 export function ChatHeader({
   chat,
-  agent,
   onBranchSwitched,
   onInspectTask,
   tasks = [],
@@ -131,7 +127,7 @@ export function ChatHeader({
             data-branch-menu
           >
             {!branches || branchCount === 0 ? (
-              <div className="px-3 py-2 text-xs text-agent-muted-foreground">
+              <div className="px-2.5 py-1.5 text-xs text-agent-muted-foreground">
                 暂无分支 — 重新生成回复后，旧版本会保留在这里。
               </div>
             ) : (
@@ -163,7 +159,7 @@ export function ChatHeader({
                       setBranchMenuOpen(false);
                       setTreeModalOpen(true);
                     }}
-                    className="flex w-full items-center gap-2 rounded px-3 py-1.5 text-left text-xs text-agent-muted-foreground transition-colors hover:bg-agent-foreground/5 hover:text-agent-foreground"
+                    className="flex w-full items-center gap-2 rounded px-2.5 py-1 text-left text-xs text-agent-muted-foreground transition-colors hover:bg-agent-foreground/5 hover:text-agent-foreground"
                     data-action="branch-tree"
                   >
                     <LuListTree className="h-3 w-3 shrink-0" />
@@ -178,31 +174,14 @@ export function ChatHeader({
       : null;
 
   return (
-    <header className="flex w-full min-w-0 items-center gap-3 bg-agent-canvas px-3 py-2">
+    <header className="flex w-full min-w-0 items-center gap-2 bg-agent-canvas px-2.5 py-1.5">
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5">
         <span
-          className="break-words text-sm font-medium text-agent-foreground"
+          className="break-words text-xs font-medium text-agent-foreground"
           title={chat?.title}
         >
           {chat?.title ?? '未选择对话'}
         </span>
-        <span className="shrink-0 text-xs text-agent-muted-foreground">
-          {agent ? (
-            <>
-              <span className="mr-0.5">{agent.icon || '🤖'}</span>
-              {agent.name}
-            </>
-          ) : chat?.agentId ? (
-            <span className="font-mono">{chat.agentId}</span>
-          ) : (
-            <span className="italic">no agent</span>
-          )}
-        </span>
-        {chat && (
-          <span className="hidden shrink-0 font-mono text-[10px] text-agent-muted-foreground/70 md:inline">
-            {shortenId(chat.id)}
-          </span>
-        )}
       </div>
       {chat && onBranchSwitched && (
         <div className="shrink-0">
@@ -383,11 +362,6 @@ function taskButtonTitle(
     : `${base} · 点击处理 worktree`;
 }
 
-function shortenId(id: string): string {
-  if (id.length <= 12) return id;
-  return `${id.slice(0, 6)}…${id.slice(-4)}`;
-}
-
 /** Pin the branch menu to the trigger, clamped inside the chat panel so
  *  `overflow-hidden` ancestors cannot clip the left side of a `w-72` sheet. */
 function placeBranchMenu(button: HTMLElement): { top: number; left: number; width: number } {
@@ -419,7 +393,7 @@ function BranchRow({
       onClick={onSelect}
       aria-current={active ? 'true' : undefined}
       aria-disabled={disabled || active || undefined}
-      className={`flex w-full items-center gap-2 rounded px-3 py-1.5 text-left text-xs transition-colors ${
+      className={`flex w-full items-center gap-2 rounded px-2.5 py-1 text-left text-xs transition-colors ${
         active
           ? 'cursor-default bg-agent-foreground/5 font-medium text-agent-foreground'
           : 'text-agent-muted-foreground hover:bg-agent-foreground/5 hover:text-agent-foreground'

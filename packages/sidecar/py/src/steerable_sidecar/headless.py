@@ -71,7 +71,8 @@ from .workspace_tools import workspace_tools_for_cwd
 #: partial fix is almost never ending because the budget ran out.
 _SYSTEM = (
     "You are a coding agent in a Linux workspace. Complete the user's task "
-    "with bash, read_file, write_file, and edit_file. Prefer edit_file for "
+    "with bash, read_file, write_file, edit_file, view_image, and "
+    "capture_display. Prefer edit_file for "
     "in-place edits. Do not wait for confirmation.\n"
     "Keep going until the task is completely resolved before you end your "
     "turn. Do not stop at analysis, at a plan, or at a partial fix: carry it "
@@ -129,8 +130,9 @@ _SYSTEM = (
     "not a deadlock. bash already waits up to one hour, so do not wrap the "
     "main scoring, compile, or VM command in a short `timeout N`, and do "
     "not poll with a short sleep loop (`sleep 290; cat log`). Do not wait "
-    "with `while pgrep -f ...` — pgrep matches the wait loop; background "
-    "the job and `wait $!`. Resume incomplete downloads with `wget -c` and "
+    "with `while pgrep -f ...` — pgrep matches the wait loop — and do not "
+    "`tail -f` a log until a string appears; background the job and "
+    "`wait $!`. Resume incomplete downloads with `wget -c` and "
     "do not extract an unfinished tarball. If a time-budget notice appears, "
     "stop reasoning, `wait` for background jobs, then write or verify the "
     "required files. For anything longer than a short snippet write with "
@@ -143,13 +145,17 @@ _SYSTEM = (
     "not `wait $!` on the VM process. Bind the VM serial straight to the "
     "instruction-named telnet port rather than inserting a userspace replay "
     "proxy, and poll until the login prompt or desktop is actually there. "
-    "Confirm side-effect files (for example /tmp/frame.bmp) really appear.\n"
+    "Confirm side-effect files (for example /tmp/frame.bmp) really appear. "
+    "When the graded surface is a remote display (VNC), capture it with "
+    "capture_display — a hypervisor screendump is a different picture. "
+    "Look at the attached PNG; the JSON is only a preview.\n"
     "Disk-image and deleted-file work may use dd, debugfs, strings, and "
     "carving.\n"
     "PNG/JPEG/BMP files are pixels, not UTF-8: read_file returns an ASCII "
     "preview for 8-bit PNG, baseline JPEG, and uncompressed BMP (square "
-    "images also get a rank/file 8x8 brightness and occupancy grid); decode "
-    "exact pixels with Python (PIL/numpy) or ffmpeg.\n"
+    "images also get a rank/file 8x8 brightness and occupancy grid). When "
+    "what an image shows decides your next step, call view_image and look "
+    "at it; for exact pixel values use Python (PIL/numpy) or ffmpeg.\n"
     "Token counts must use that tokenizer's default special-token and "
     "concatenation settings: do not strip BOS/EOS or pass "
     "add_special_tokens=False unless the instruction says to.\n"
@@ -193,8 +199,9 @@ _SYSTEM_CC_ALIGN = (
 _ASCII_IMAGE_NOTE = (
     "PNG/JPEG/BMP files are pixels, not UTF-8: read_file returns an ASCII "
     "preview for 8-bit PNG, baseline JPEG, and uncompressed BMP (square "
-    "images also get a rank/file 8x8 brightness and occupancy grid); decode "
-    "exact pixels with Python (PIL/numpy) or ffmpeg.\n"
+    "images also get a rank/file 8x8 brightness and occupancy grid). When "
+    "what an image shows decides your next step, call view_image and look "
+    "at it; for exact pixel values use Python (PIL/numpy) or ffmpeg.\n"
 )
 _NATIVE_IMAGE_NOTE = (
     "PNG/JPEG files attach as images after the read_file JSON; that JSON "
@@ -717,6 +724,10 @@ async def _run(
         sys.stdout.write(f"\n[loop_error {type(exc).__name__}: {exc}]\n")
         sys.stdout.flush()
     finally:
+        if timed_out:
+            # Teardown may wait on the same subprocess that exhausted the
+            # budget. Exit before cleanup so Harbor's docker exec receives EOF.
+            _abandon_process_after_hard_timeout()
         # Close per-run MCP clients so no server subprocess outlives the run.
         for client in mcp_clients:
             await client.aclose()
@@ -746,8 +757,6 @@ async def _run(
             + "\n"
         )
         sys.stdout.flush()
-        if timed_out:
-            _abandon_process_after_hard_timeout()
 
 
 if __name__ == "__main__":  # pragma: no cover

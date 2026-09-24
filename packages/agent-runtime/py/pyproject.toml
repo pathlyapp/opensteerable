@@ -1,18 +1,21 @@
 [project]
 name = "steerable-agent-runtime"
-version = "0.6.21"
+version = "0.6.36"
 description = "Steerable agent runtime: LLM, tool, storage, and transport adapters."
 readme = "README.md"
 requires-python = ">=3.10"
 # Pre-1.0 inter-package pins use `>=X,<1.0.0` ranges — flexible enough
 # that any 0.x lockstep version installs cleanly. `bump_to.sh` keeps
-# all 7 Steerable packages at the same X.Y.Z, enforced by the
+# all 8 Steerable packages at the same X.Y.Z, enforced by the
 # release.yml lockstep gate. Tighten to `~=1.0` post-GA.
 # See packages/agent-harness/py/pyproject.toml for the rationale.
+# CoreLoop execution is the Rust engine. The matching native wheel
+# is a hard dependency: install or startup fails if it is missing.
 dependencies = [
   "pydantic>=2.10.0",
   "steerable-agent-protocol>=0.1.0,<1.0.0",
   "steerable-agent-harness>=0.1.0,<1.0.0",
+  "steerable-agent-runtime-native==0.6.36",
 ]
 
 [project.optional-dependencies]

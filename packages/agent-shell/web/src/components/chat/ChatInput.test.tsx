@@ -315,6 +315,26 @@ describe('ChatInput composer meta row', () => {
     ).toBeTruthy();
   });
 
+  it('renders trailingChrome on the right side of composer-meta-row', () => {
+    renderComposer(
+      <ChatInput
+        value=""
+        onChange={vi.fn()}
+        onSubmit={vi.fn()}
+        currentAgent={agent}
+        agents={[agent]}
+        onSelectAgent={vi.fn()}
+        leadingChrome={<button type="button">选择项目</button>}
+        trailingChrome={<div data-testid="test-todo">任务清单</div>}
+      />,
+    );
+
+    const row = screen.getByTestId('composer-meta-row');
+    const trailing = screen.getByTestId('test-todo');
+    expect(row.contains(trailing)).toBe(true);
+    expect(trailing.parentElement?.className).toContain('ml-auto');
+  });
+
   it('clicking another expert switches the current agent instead of inserting @mention', () => {
     const other = {
       ...agent,

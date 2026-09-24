@@ -58,16 +58,6 @@ py_pkgs = [
     "packages/plugin-sdk/py",
     "packages/sidecar/py",
 ]
-rust_tomls = [
-]
-# Path-dep copies of the crate version live in each crate's lockfile.
-rust_locks = [
-]
-native_pin_files = [
-    "packages/agent-runtime/py/pyproject.toml",
-    "pyproject.toml",
-]
-
 print(f"\nBumping all lockstep packages to {version}:\n")
 
 for d in ts_pkgs:
@@ -100,44 +90,6 @@ for d in py_pkgs:
     p.write_text(text, encoding="utf-8")
     name = project_name_re.search(text).group(1)
     print(f"  {name:<32}  {old:<10} -> {version}")
-
-package_version_re = re.compile(
-    r'(\[package\][\s\S]*?\nversion\s*=\s*")([^"]+)(")',
-    re.MULTILINE,
-)
-for rel, expected in rust_tomls:
-    p = Path(rel)
-    text = p.read_text(encoding="utf-8")
-    m = package_version_re.search(text)
-    if not m:
-        raise SystemExit(f"ERROR: could not locate '[package] / version = ...' in {p}")
-    old = m.group(2)
-    text = text[:m.start(2)] + version + text[m.end(2):]
-    p.write_text(text, encoding="utf-8")
-    print(f"  {expected:<32}  {old:<10} -> {version}  (rust crate, crates.io unpublished)")
-
-native_pin_re = re.compile(r"(steerable-agent-runtime-native)==[^\"']+")
-for rel in native_pin_files:
-    p = Path(rel)
-    text = p.read_text(encoding="utf-8")
-    text, n = native_pin_re.subn(rf"\1=={version}", text)
-    if n < 1:
-        raise SystemExit(f"ERROR: {p} has no steerable-agent-runtime-native pin")
-    p.write_text(text, encoding="utf-8")
-    print(f"  {'steerable-agent-runtime-native':<32}  pin -> {version}  ({rel})")
-
-for rel, names in rust_locks:
-    p = Path(rel)
-    text = p.read_text(encoding="utf-8")
-    for name in names:
-        pattern = re.compile(
-            rf'(name = "{re.escape(name)}"\nversion = ")([^"]+)(")'
-        )
-        text, n = pattern.subn(rf"\g<1>{version}\g<3>", text, count=1)
-        if n != 1:
-            raise SystemExit(f"ERROR: expected one lock entry for {name} in {p}, found {n}")
-    p.write_text(text, encoding="utf-8")
-    print(f"  {rel:<32}  lock versions -> {version}")
 
 # Also bump the workspace-root package.json so its `version` tracks the
 # release. It's `private: true` and never published, but keeping it in

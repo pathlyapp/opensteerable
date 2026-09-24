@@ -110,5 +110,35 @@ def test_download_sidecar_checks_manifest_sha256(tmp_path: Path) -> None:
     assert (tmp_path / f"{filename}.sha256").read_text(encoding="utf-8").startswith(digest)
 
 
-def test_lockstep_version_matches_the_native_pin() -> None:
-    assert fetch.lockstep_version() == "0.6.36"
+def test_artifact_version_comes_from_the_independent_lock(tmp_path: Path) -> None:
+    (tmp_path / "rust-artifacts.lock.json").write_text(
+        json.dumps({"artifactVersion": "1.2.3"}), encoding="utf-8"
+    )
+    assert fetch.artifact_version(tmp_path) == "1.2.3"
+
+
+def test_locked_bundle_manifest_digest_is_pinned(tmp_path: Path) -> None:
+    version = "1.2.3"
+    manifest = {
+        "schemaVersion": 1,
+        "artifactVersion": version,
+        "releaseTag": f"rust-v{version}",
+        "components": [],
+    }
+    blob = json.dumps(manifest).encode()
+    name = fetch.bundle_manifest_name(version)
+    (tmp_path / "rust-artifacts.lock.json").write_text(
+        json.dumps(
+            {
+                "artifactVersion": version,
+                "release": {
+                    "tag": f"rust-v{version}",
+                    "manifest": name,
+                    "sha256": hashlib.sha256(blob).hexdigest(),
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    routes = {fetch.release_asset_url(version, name): blob}
+    assert fetch.load_locked_bundle(tmp_path, opener=_opener(routes)) == manifest

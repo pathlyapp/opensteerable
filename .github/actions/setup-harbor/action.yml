@@ -18,9 +18,9 @@ runs:
       shell: bash
       run: |
         python3 scripts/fetch_verified_artifacts.py wheel \
-          --lockstep --platform manylinux-x64 --out dist/native
+          --artifact-lock --platform manylinux-x64 --out dist/native
         python3 scripts/fetch_verified_artifacts.py wheel \
-          --lockstep --platform musllinux-x64 --out dist/native
+          --artifact-lock --platform musllinux-x64 --out dist/native
         readarray -t wheels < <(python3 - <<'PY'
         from pathlib import Path
         wheels = sorted(Path("dist/native").glob("*.whl"))

@@ -163,9 +163,10 @@ jobs:
       - name: Download and smoke the published Rust sidecar
         run: |
           python scripts/fetch_verified_artifacts.py sidecar \
-            --lockstep --target linux-x64 --out dist/sidecar-bin
+            --artifact-lock --target linux-x64 --out dist/sidecar-bin
           binary=$(find dist/sidecar-bin -type f -name 'steerable-sidecar-bin-*-linux-x64' | head -1)
-          python scripts/fetch_verified_artifacts.py smoke-sidecar --binary "$binary"
+          python scripts/fetch_verified_artifacts.py smoke-sidecar \
+            --artifact-lock --binary "$binary"
 
   sidecar-budget:
     # D3 (sidecar bundle size budget): enforces a hard upper bound on the
@@ -196,7 +197,7 @@ jobs:
           uv build --all-packages --out-dir dist/py
           rm -f dist/py/steerable_example_*.whl dist/py/steerable_example_*.tar.gz
           python scripts/fetch_verified_artifacts.py wheel \
-            --lockstep --platform manylinux-x64 --out dist/py
+            --artifact-lock --platform manylinux-x64 --out dist/py
       - name: Build sidecar (host) under PR budget
         run: |
           python packages/sidecar/build/build_sidecar.py \

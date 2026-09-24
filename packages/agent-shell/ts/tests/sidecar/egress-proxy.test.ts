@@ -425,7 +425,10 @@ describe('ensureEgressProxyExecutable', () => {
 
   function versionedFixture(): { root: string; cacheDir: string } {
     const root = frameworkFixture();
-    writeFileSync(path.join(root, 'package.json'), JSON.stringify({ version: '9.9.9' }));
+    writeFileSync(
+      path.join(root, 'rust-artifacts.lock.json'),
+      JSON.stringify({ artifactVersion: '9.9.9', compatibility: { egressCli: 1 } }),
+    );
     return { root, cacheDir: path.join(root, 'cache') };
   }
 

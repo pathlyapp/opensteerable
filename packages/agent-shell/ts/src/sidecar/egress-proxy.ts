@@ -148,13 +148,22 @@ function hostEgressTarget(): string | null {
   return null;
 }
 
-function lockstepVersion(repoRoot: string): string | null {
+function artifactVersion(repoRoot: string): string | null {
   try {
-    const pkg = JSON.parse(readFileSync(path.join(repoRoot, 'package.json'), 'utf8')) as { version?: unknown };
-    return typeof pkg.version === 'string' ? pkg.version : null;
+    const lock = JSON.parse(readFileSync(path.join(repoRoot, 'rust-artifacts.lock.json'), 'utf8')) as {
+      artifactVersion?: unknown;
+      compatibility?: { egressCli?: unknown };
+    };
+    if (lock.compatibility?.egressCli !== 1) return null;
+    return typeof lock.artifactVersion === 'string' ? lock.artifactVersion : null;
   } catch {
-    // 读不到根 package.json 就无法定位缓存文件，交给下载步骤处理。
-    return null;
+    try {
+      const manifest = readFileSync(path.join(repoRoot, 'rust-artifacts.toml'), 'utf8');
+      return manifest.match(/\[artifacts\][\s\S]*?\nversion\s*=\s*"([^"]+)"/)?.[1] ?? null;
+    } catch {
+      // 读不到 artifact 版本就无法安全定位缓存文件。
+      return null;
+    }
   }
 }
 
@@ -174,13 +183,13 @@ export function verifiedCachedEgress(cacheDir: string, version: string, target: 
 
 const EGRESS_DOWNLOAD_TIMEOUT_MS = 60_000;
 
-/** Download the lockstep egress binary. Returns the printed path, or null. */
+/** Download the artifact-lock egress binary. Returns the printed path, or null. */
 export function downloadPublishedEgress(repoRoot: string, cacheDir: string): Promise<string | null> {
   const script = path.join(repoRoot, 'scripts', 'fetch_verified_artifacts.py');
   // 与 sidecar 同一解释器：系统 python3 可能不带 SSL，下载不了 https。
   const python = resolveSidecarPython();
   return new Promise((resolve) => {
-    const child = spawn(python, [script, 'egress', '--lockstep', '--target', 'host', '--out', cacheDir], {
+    const child = spawn(python, [script, 'egress', '--artifact-lock', '--target', 'host', '--out', cacheDir], {
       cwd: repoRoot,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -219,7 +228,7 @@ export async function ensureEgressProxyExecutable(
   if (!repoRoot) return null;
   const built = localBuiltEgress(repoRoot);
   if (built) return built;
-  const version = lockstepVersion(repoRoot);
+  const version = artifactVersion(repoRoot);
   const target = hostEgressTarget();
   if (!version || !target) return null;
   const cached = verifiedCachedEgress(cacheDir, version, target);

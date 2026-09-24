@@ -15,23 +15,24 @@ LOCKSTEP = (ROOT / "scripts" / "check_lockstep_versions.py").read_text(
 )
 
 
-def test_lockstep_tracks_the_native_wheel_pin() -> None:
+def test_framework_lockstep_validates_the_independent_native_pin() -> None:
     assert "steerable-agent-runtime-native" in LOCKSTEP
     assert "packages/agent-runtime/py/pyproject.toml" in LOCKSTEP
     assert "steerable-egress-proxy" not in LOCKSTEP
     assert "NATIVE_PIN_FILES" in LOCKSTEP
+    assert "rust-artifacts.lock.json" in LOCKSTEP
+    assert 'versions[NATIVE_PACKAGE]' not in LOCKSTEP
 
 
-def test_bump_rewrites_the_native_pin_not_the_closed_proxy() -> None:
-    assert "steerable-agent-runtime-native" in BUMP
+def test_framework_bump_leaves_the_private_artifact_pin_unchanged() -> None:
+    assert "steerable-agent-runtime-native" not in BUMP
     assert "egress-proxy" not in BUMP
-    assert "native_pin_files" in BUMP
 
 
 def test_release_verifies_published_native_wheels() -> None:
     assert "uses: ./.github/workflows/publish-native.yml" in RELEASE
     assert "needs: [validate, publish-native]" in RELEASE
-    assert "fetch_verified_artifacts.py verify-wheels" in PUBLISH_NATIVE
+    assert "fetch_verified_artifacts.py verify-wheels --artifact-lock" in PUBLISH_NATIVE
     assert "pathlyapp/opensteerable" in PUBLISH_NATIVE
     pypi = (ROOT / ".github" / "workflows" / "publish-pypi.yml").read_text(
         encoding="utf-8"

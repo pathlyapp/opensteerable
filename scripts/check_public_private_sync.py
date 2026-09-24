@@ -15,16 +15,26 @@ import subprocess
 import sys
 from pathlib import Path
 
+
+def _join(*parts: str) -> str:
+    return "".join(parts)
+
+
 PRIVATE_ONLY_PREFIXES = (
-    "packages/agent-runtime/rs/",
-    "packages/sidecar/rs/",
-    "packages/egress-proxy/",
+    _join("packages/", "agent-runtime/rs/"),
+    _join("packages/", "sidecar/rs/"),
+    _join("packages/", "egress-proxy/"),
 )
 PRIVATE_ONLY_FILES = {
+    ".github/workflows/publish-rust-artifacts.yml",
     ".github/workflows/publish-sidecar.yml",
     ".github/workflows/publish-github-packages.yml",
     "evals/tests/test_package_rust_sidecar.py",
+    "rust-artifacts.toml",
+    "scripts/check_rust_artifact_versions.py",
     "scripts/publish_github_packages.mjs",
+    "scripts/release/assemble_rust_bundle.py",
+    "scripts/release/bump_rust_artifacts.py",
     "scripts/release/package_rust_sidecar.py",
 }
 PUBLIC_ONLY_FILES = {
@@ -32,6 +42,8 @@ PUBLIC_ONLY_FILES = {
     "evals/tests/test_no_public_coreloop_source.py",
     "scripts/check_no_public_coreloop_source.py",
     "scripts/fetch_verified_artifacts.py",
+    "scripts/use_rust_artifacts.py",
+    "rust-artifacts.lock.json",
     "wrangler.jsonc",
 }
 # Shared paths that are still forked on purpose: the private tree keeps the

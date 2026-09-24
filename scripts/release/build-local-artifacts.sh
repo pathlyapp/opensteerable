@@ -37,9 +37,9 @@ echo "    built $(ls dist/py | wc -l | tr -d ' ') Python files"
 # repository. Download the host artifacts and verify their digests.
 mkdir -p dist/native dist/sidecar-bin
 uv run python scripts/fetch_verified_artifacts.py wheel \
-  --lockstep --platform host --out dist/native
+  --artifact-lock --platform host --out dist/native
 uv run python scripts/fetch_verified_artifacts.py sidecar \
-  --lockstep --target host --out dist/sidecar-bin
+  --artifact-lock --target host --out dist/sidecar-bin
 echo "    fetched $(ls dist/native | wc -l | tr -d ' ') native files"
 
 echo "== 5/5  artifact summary"

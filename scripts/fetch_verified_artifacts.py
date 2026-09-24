@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Download verified CoreLoop wheels and the Rust sidecar binary.
+"""Download verified private Rust artifacts selected by the public lock.
 
-Wheels come from PyPI. The sidecar binary comes from the public
-opensteerable GitHub Release for the same lockstep version. A file is
-kept only after its SHA-256 matches the published digest.
+Wheels come from PyPI. Executables come from the dedicated public
+``rust-vX.Y.Z`` Release. The pinned bundle manifest is verified before
+its component hashes are trusted.
 """
 
 from __future__ import annotations
@@ -13,7 +13,6 @@ import hashlib
 import json
 import os
 import platform
-import re
 import subprocess
 import sys
 import threading
@@ -36,19 +35,34 @@ SIDECAR_TARGETS = ("darwin-arm64", "darwin-x64", "linux-x64", "win32-x64")
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def lockstep_version(root: Path = ROOT) -> str:
-    """Return the runtime package version and require the native pin to match."""
-    text = (root / "packages" / "agent-runtime" / "py" / "pyproject.toml").read_text(
-        encoding="utf-8"
-    )
-    match = re.search(r"(?m)^version = \"([^\"]+)\"", text)
-    if match is None:
-        raise SystemExit("runtime pyproject.toml has no version")
-    version = match.group(1)
-    pin = f"{NATIVE_PROJECT}=={version}"
-    if pin not in text:
-        raise SystemExit(f"runtime is not pinned to {pin}")
-    return version
+def artifact_lock(root: Path = ROOT) -> dict:
+    """Load the public, reviewable pin for the private Rust bundle."""
+    return json.loads((root / "rust-artifacts.lock.json").read_text(encoding="utf-8"))
+
+
+def artifact_version(root: Path = ROOT) -> str:
+    return str(artifact_lock(root)["artifactVersion"])
+
+
+def bundle_manifest_name(version: str) -> str:
+    return f"steerable-rust-artifacts-{version}-manifest.json"
+
+
+def load_locked_bundle(root: Path = ROOT, *, opener=urllib.request.urlopen) -> dict:
+    lock = artifact_lock(root)
+    version = str(lock["artifactVersion"])
+    release = lock["release"]
+    if release["tag"] != f"rust-v{version}":
+        raise SystemExit("Rust artifact lock tag mismatch")
+    name = bundle_manifest_name(version)
+    if release["manifest"] != name:
+        raise SystemExit("Rust artifact lock manifest mismatch")
+    blob = fetch_bytes(release_asset_url(version, name), opener)
+    verify_bytes(blob, str(release["sha256"]), name)
+    bundle = json.loads(blob)
+    if bundle.get("artifactVersion") != version or bundle.get("releaseTag") != release["tag"]:
+        raise SystemExit("Rust bundle manifest header mismatch")
+    return bundle
 
 
 def host_wheel_platform() -> str:
@@ -153,11 +167,19 @@ def download_wheel(
     wheel_platform: str,
     dest: Path,
     *,
+    bundle: dict | None = None,
     opener=urllib.request.urlopen,
 ) -> Path:
     """Download one verified native wheel into ``dest``."""
     release = load_pypi_release(version, opener)
     chosen = select_wheel(release["urls"], wheel_platform)
+    if bundle is not None:
+        listed = {
+            item["name"]: item["sha256"]
+            for item in bundle.get("native", {}).get("files", [])
+        }
+        if listed.get(chosen["filename"]) != chosen["digests"]["sha256"]:
+            raise SystemExit(f"bundle does not pin wheel {chosen['filename']}")
     blob = fetch_bytes(str(chosen["url"]), opener)
     verify_bytes(blob, str(chosen["digests"]["sha256"]), str(chosen["filename"]))
     dest.mkdir(parents=True, exist_ok=True)
@@ -202,11 +224,18 @@ def download_egress(
     target: str,
     dest: Path,
     *,
+    bundle: dict | None = None,
     opener=urllib.request.urlopen,
 ) -> Path:
     """Download one verified egress-proxy binary into ``dest``."""
     manifest_url = release_asset_url(version, egress_manifest_name(version))
-    manifest = json.loads(fetch_bytes(manifest_url, opener).decode("utf-8"))
+    manifest_blob = fetch_bytes(manifest_url, opener)
+    component = component_from_bundle(bundle, "egress")
+    if component is not None:
+        if component["manifest"] != egress_manifest_name(version):
+            raise SystemExit("egress component manifest name mismatch")
+        verify_bytes(manifest_blob, str(component["sha256"]), component["manifest"])
+    manifest = json.loads(manifest_blob.decode("utf-8"))
     if manifest.get("version") != version or manifest.get("kind") != "rust-egress-proxy":
         raise SystemExit("egress manifest header mismatch")
     entry = next(
@@ -248,8 +277,20 @@ def manifest_name(version: str) -> str:
 
 def release_asset_url(version: str, filename: str) -> str:
     return (
-        f"https://github.com/{RELEASE_REPO}/releases/download/v{version}/{filename}"
+        f"https://github.com/{RELEASE_REPO}/releases/download/rust-v{version}/{filename}"
     )
+
+
+def component_from_bundle(bundle: dict | None, kind: str) -> dict | None:
+    if bundle is None:
+        return None
+    component = next(
+        (item for item in bundle.get("components", []) if item.get("kind") == kind),
+        None,
+    )
+    if component is None:
+        raise SystemExit(f"Rust bundle has no {kind} component")
+    return component
 
 
 def download_sidecar(
@@ -257,11 +298,18 @@ def download_sidecar(
     target: str,
     dest: Path,
     *,
+    bundle: dict | None = None,
     opener=urllib.request.urlopen,
 ) -> Path:
     """Download one verified sidecar binary into ``dest``."""
     manifest_url = release_asset_url(version, manifest_name(version))
-    manifest = json.loads(fetch_bytes(manifest_url, opener).decode("utf-8"))
+    manifest_blob = fetch_bytes(manifest_url, opener)
+    component = component_from_bundle(bundle, "sidecar")
+    if component is not None:
+        if component["manifest"] != manifest_name(version):
+            raise SystemExit("sidecar component manifest name mismatch")
+        verify_bytes(manifest_blob, str(component["sha256"]), component["manifest"])
+    manifest = json.loads(manifest_blob.decode("utf-8"))
     if manifest.get("version") != version or manifest.get("kind") != "rust-sidecar":
         raise SystemExit("sidecar manifest header mismatch")
     entry = next(
@@ -289,7 +337,9 @@ def download_sidecar(
     return path
 
 
-def smoke_sidecar(binary: Path, timeout: float = 15) -> None:
+def smoke_sidecar(
+    binary: Path, timeout: float = 15, expected_protocol: str | None = None
+) -> None:
     """Start a sidecar and require the ready marker plus ``system.ping``."""
     proc = subprocess.Popen(
         [str(binary)],
@@ -317,6 +367,15 @@ def smoke_sidecar(binary: Path, timeout: float = 15) -> None:
     if '"engine": "rust"' not in ready[0] and '"engine":"rust"' not in ready[0]:
         proc.kill()
         raise SystemExit(f"sidecar ready marker is not rust: {ready[0]!r}")
+    if expected_protocol is not None:
+        marker = ready[0].split("__SIDECAR_READY__:", 1)[-1]
+        ready_payload = json.loads(marker)
+        if ready_payload.get("protocolVersion") != expected_protocol:
+            proc.kill()
+            raise SystemExit(
+                "sidecar protocol mismatch: "
+                f"expected {expected_protocol}, got {ready_payload.get('protocolVersion')}"
+            )
     assert proc.stdin is not None and proc.stdout is not None
     lifecycle = proc.stdout.readline()
     if b"lifecycle.ready" not in lifecycle:
@@ -334,10 +393,10 @@ def smoke_sidecar(binary: Path, timeout: float = 15) -> None:
 
 
 def _resolve_version(args: argparse.Namespace) -> str:
-    if args.lockstep:
-        return lockstep_version()
+    if args.artifact_lock:
+        return artifact_version()
     if not args.version:
-        raise SystemExit("pass --version or --lockstep")
+        raise SystemExit("pass --version or --artifact-lock")
     return args.version
 
 
@@ -348,49 +407,54 @@ def main(argv: list[str] | None = None) -> None:
 
     wheel = sub.add_parser("wheel", help="download one verified native wheel")
     wheel.add_argument("--version")
-    wheel.add_argument("--lockstep", action="store_true")
+    wheel.add_argument("--artifact-lock", "--lockstep", action="store_true")
     wheel.add_argument("--platform", choices=[*WHEEL_PLATFORMS, "host"], default="host")
     wheel.add_argument("--out", required=True, type=Path)
 
     sidecar = sub.add_parser("sidecar", help="download one verified Rust sidecar")
     sidecar.add_argument("--version")
-    sidecar.add_argument("--lockstep", action="store_true")
+    sidecar.add_argument("--artifact-lock", "--lockstep", action="store_true")
     sidecar.add_argument("--target", choices=[*SIDECAR_TARGETS, "host"], default="host")
     sidecar.add_argument("--out", required=True, type=Path)
 
     egress = sub.add_parser("egress", help="download one verified egress proxy binary")
     egress.add_argument("--version")
-    egress.add_argument("--lockstep", action="store_true")
+    egress.add_argument("--artifact-lock", "--lockstep", action="store_true")
     egress.add_argument("--target", choices=[*SIDECAR_TARGETS, "host"], default="host")
     egress.add_argument("--out", required=True, type=Path)
 
     verify = sub.add_parser("verify-wheels", help="download every platform wheel and verify it")
     verify.add_argument("--version")
-    verify.add_argument("--lockstep", action="store_true")
+    verify.add_argument("--artifact-lock", "--lockstep", action="store_true")
     verify.add_argument("--out", type=Path, default=Path("dist/native"))
 
     smoke = sub.add_parser("smoke-sidecar", help="ping a downloaded sidecar binary")
     smoke.add_argument("--binary", required=True, type=Path)
+    smoke.add_argument("--artifact-lock", action="store_true")
 
     args = parser.parse_args(argv)
+    bundle = load_locked_bundle() if getattr(args, "artifact_lock", False) else None
     if args.command == "wheel":
         wheel_platform = host_wheel_platform() if args.platform == "host" else args.platform
-        path = download_wheel(_resolve_version(args), wheel_platform, args.out)
+        path = download_wheel(_resolve_version(args), wheel_platform, args.out, bundle=bundle)
         print(path)
     elif args.command == "sidecar":
         target = host_sidecar_target() if args.target == "host" else args.target
-        path = download_sidecar(_resolve_version(args), target, args.out)
+        path = download_sidecar(_resolve_version(args), target, args.out, bundle=bundle)
         print(path)
     elif args.command == "egress":
         target = host_sidecar_target() if args.target == "host" else args.target
-        path = download_egress(_resolve_version(args), target, args.out)
+        path = download_egress(_resolve_version(args), target, args.out, bundle=bundle)
         print(path)
     elif args.command == "verify-wheels":
         version = _resolve_version(args)
         for wheel_platform in WHEEL_PLATFORMS:
-            print(download_wheel(version, wheel_platform, args.out))
+            print(download_wheel(version, wheel_platform, args.out, bundle=bundle))
     elif args.command == "smoke-sidecar":
-        smoke_sidecar(args.binary)
+        expected = None
+        if args.artifact_lock:
+            expected = str(artifact_lock()["compatibility"]["sidecarProtocol"])
+        smoke_sidecar(args.binary, expected_protocol=expected)
         print(f"sidecar smoke ok: {args.binary}")
     else:
         raise SystemExit(f"unknown command {args.command}")

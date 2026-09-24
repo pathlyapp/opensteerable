@@ -16,8 +16,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   window.__DEEPPATH_BS__ = {
     platform: 'darwin',
-    flavor: 'aroli',
-    brandName: 'Aroli',
+    flavor: 'generic',
+    brandName: 'Test',
   };
   mocks.listen.mockResolvedValue(vi.fn());
 });

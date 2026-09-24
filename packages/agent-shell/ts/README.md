@@ -12,6 +12,11 @@ menus, screenshots, and updates. `STEERABLE_HOST_READY` on stdout is the
 machine-readable startup record. `STEERABLE_HOST_PARENT_PID` makes the Node
 host shut down if its desktop supervisor disappears.
 
+The reusable Rust host source is published as
+`@steerable/agent-shell-tauri`. Product `src-tauri` crates depend on its
+installed npm path and only supply product configuration plus
+`tauri::generate_context!()`.
+
 ## BS composition
 
 Products can register an `AuthProvider` from `@steerable/agent-shell/auth`

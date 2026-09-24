@@ -116,6 +116,8 @@ importers:
         specifier: ^3.2.4
         version: 3.2.4(@types/debug@4.1.13)(@types/node@22.19.19)(happy-dom@15.11.7)(lightningcss@1.32.0)
 
+  packages/agent-shell/tauri: {}
+
   packages/agent-shell/ts:
     dependencies:
       '@modelcontextprotocol/sdk':

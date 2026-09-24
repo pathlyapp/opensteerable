@@ -50,6 +50,7 @@ ts_pkgs = [
     "packages/pack-sdk/ts",
     "packages/agent-shell/ts",
     "packages/agent-shell/web",
+    "packages/agent-shell/tauri",
 ]
 py_pkgs = [
     "packages/agent-protocol/py",

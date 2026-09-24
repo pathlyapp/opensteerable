@@ -44,17 +44,6 @@ const ALLOW_MARK = 'shell-neutral:allow';
 
 /** 命中即违规的字面量（大小写敏感；按需扩列，扩列即加重门禁）。 */
 const FORBIDDEN = [
-  '时踪',
-  '亦庄',
-  '测井',
-  'CIFLog',
-  'ciflog',
-  'CIFLOG',
-  'cflog',
-  'moduflow',
-  'ModuFlow',
-  'MODUFLOW',
-  'etown',
   'deeppath.cc',
   'deeppath.cloud',
   'deeppath-agent',

@@ -82,12 +82,8 @@ nav:
       - Runtime: spec/runtime.md
       - Sidecar: spec/sidecar.md
       - CoreLoop: spec/core-loop.md
-      - CoreLoop Rust tests: spec/coreloop-rust-test-catalog.md
       - Compaction: spec/compaction.md
   - UI Components: ui/index.md
-  - Migration:
-      - From DeepPath: migration/deeppath.md
-      - API SSE Drift Survey: migration/api-sse-drift.md
 
 plugins:
   - search

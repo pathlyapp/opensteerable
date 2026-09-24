@@ -6,8 +6,8 @@ Steerable is pre-1.0; only the **latest minor** receives security fixes.
 
 | Version | Supported |
 |---|---|
-| 0.2.x   | ✅ |
-| 0.1.x   | ❌ (please upgrade) |
+| 0.6.x   | ✅ |
+| < 0.6   | ❌ (please upgrade) |
 | < 0.1   | ❌ |
 
 After 1.0, the policy will widen to "latest two minors".
@@ -23,10 +23,6 @@ Email <security@pathlyapp.com> with:
 - Steps to reproduce, or a minimal proof-of-concept.
 - Your assessment of severity and any suggested mitigation.
 
-You can encrypt sensitive content using the maintainers' age key:
-[`docs/security/age-public-key.txt`](./docs/security/age-public-key.txt) (to be
-published; until then, plain email is acceptable).
-
 We will acknowledge receipt within **3 business days** and aim to ship a fix
 or mitigation within **30 days** for critical issues.
 
@@ -38,6 +34,8 @@ In scope:
 - Published artefacts on npm under the `@steerable/*` scope and on PyPI under
   the `steerable-*` prefix.
 - The portable Python sidecar binary built by `packages/sidecar/build/build_sidecar.py`.
+- The native CoreLoop wheel and Rust sidecar/egress binaries pinned by
+  `rust-artifacts.lock.json`.
 
 Out of scope:
 
@@ -57,9 +55,8 @@ Every `@steerable/*` npm tarball ships **sigstore provenance attestations**
 npm audit signatures @steerable/agent-ui
 ```
 
-PyPI uploads currently use an account-scoped API token; migration to PyPI
-**Trusted Publishing** (OIDC, no long-lived secret) is tracked in
-[`TODO.md`](./TODO.md).
+PyPI workflows prefer **Trusted Publishing** (OIDC, no long-lived secret);
+maintainer-managed API tokens are an explicit fallback.
 
 The sidecar binary is built reproducibly from `python-build-standalone` and
 code-signed (macOS notarised, Windows Authenticode) via the

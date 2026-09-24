@@ -68,7 +68,7 @@ export interface ToolContribution {
 }
 
 /**
- * 主进程长驻领域服务（如 CflogService / PptEditService）。
+ * 主进程长驻领域服务（如 DomainService / DocumentEditService）。
  * 宿主在装配期调用 create，把返回值交给包内工具/IPC/路由使用；
  * 宿主不感知服务类型——包内部通过闭包共享。
  */

@@ -14,6 +14,6 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true,
+    sourcemap: process.env.STEERABLE_SOURCE_MAPS === '1',
   },
 });

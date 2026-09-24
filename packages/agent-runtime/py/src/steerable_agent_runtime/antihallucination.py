@@ -1,7 +1,4 @@
-"""Anti-hallucination layer — ported from deeppath-agent's TS loop
-(`local-backend/deferred-detector.ts` / `turn-router.ts` / `grounding-judge.ts`
-+ the discipline-retry / narration wiring in `router.ts`) and sunk into
-CoreLoop as a ``LoopHooks`` implementation.
+"""Anti-hallucination layer implemented as a ``LoopHooks`` extension.
 
 Four capabilities, all fail-open / fail-conservative and bounded:
 

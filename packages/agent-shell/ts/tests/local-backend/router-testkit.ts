@@ -540,7 +540,7 @@ vi.mock('../../src/llm/index.js', () => ({
 
 vi.mock('../../src/runtime.js', () => ({
   getAppRootDir: () => '/tmp/app-root',
-  // proj/yizhuang-agent: 系统提示词会带上本会话附件目录（项目围栏外的只读
+  // 系统提示词会带上本会话附件目录（项目围栏外的只读
   // 放行根），router.ts 经 chatAttachmentsDirPath() 读它。
   getUserDataDir: () => '/tmp/user-data',
   getDocumentsDir: () =>

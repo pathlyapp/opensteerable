@@ -6,6 +6,7 @@
  * neither works under plain Node/vitest).
  */
 
+import { createHash } from 'node:crypto';
 import { getBrand } from '../brand.js';
 
 /**
@@ -111,14 +112,21 @@ export const OPENAI_COMPAT_DEFAULTS: LlmSettings = {
   maxTotalTokens: 60000,
 };
 
-// 0.0.35 及之前打包进客户端的内置 DeepSeek key（已作废，上游返回 401）。
-// 保留常量仅作迁移指纹：老安装的已存设置若还带着它，升级后静默清空，
-// 否则用户永远拿着一把死 key，报 401 也不知道为什么。
-export const EXPIRED_BAKED_API_KEY = 'sk-b1383d225ee44f118ad99e359ec9e5d8';
+// 0.0.35 及之前打包进客户端的内置 DeepSeek key 已作废。只保留不可逆
+// SHA-256 指纹用于清理老安装；公开源码和新客户端不再携带原始凭据。
+export const EXPIRED_BAKED_API_KEY_SHA256 =
+  '5b761efc05315a24cb86e83a8a9e50fa773d3dc33a8ece4713faeae20ccd75e4';
+
+export function apiKeyMatchesFingerprint(
+  apiKey: string | undefined,
+  sha256: string,
+): boolean {
+  return !!apiKey && createHash('sha256').update(apiKey).digest('hex') === sha256;
+}
 
 /** 已存设置是否还挂着作废的出厂内置 key。 */
 export function llmSettingsCarryExpiredBakedKey(s: LlmSettings): boolean {
-  return !!s.apiKey && s.apiKey === EXPIRED_BAKED_API_KEY;
+  return apiKeyMatchesFingerprint(s.apiKey, EXPIRED_BAKED_API_KEY_SHA256);
 }
 
 // Ollama 预设：用户切到 Ollama provider 时的默认连接参数（指向本机默认端口

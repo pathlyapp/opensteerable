@@ -11,7 +11,7 @@ import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-CATALOG_PATH = REPO_ROOT / "docs" / "spec" / "coreloop-rust-test-catalog.json"
+CATALOG_PATH = REPO_ROOT / "docs" / "spec" / "runtime-contract.json"
 SIDECAR_PATH = (
     Path(__file__).resolve().parents[1]
     / "src"

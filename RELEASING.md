@@ -189,7 +189,7 @@ without a registry.
 
      ```bash
      gh secret set NPM_TOKEN \
-       --repo pathlyapp/steerable-framework \
+       --repo pathlyapp/opensteerable \
        --body "<paste-the-token>"
      ```
 
@@ -210,7 +210,7 @@ without a registry.
      # On https://pypi.org/manage/account/token/, scope it to all four
      # `steerable-*` projects.
      gh secret set PYPI_API_TOKEN \
-       --repo pathlyapp/steerable-framework \
+       --repo pathlyapp/opensteerable \
        --body "pypi-XXXX..."
      ```
 

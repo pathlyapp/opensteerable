@@ -116,7 +116,7 @@ _NAT64_WELL_KNOWN = ipaddress.ip_network("64:ff9b::/96")
 #: all resolved to 198.18.0.x under Clash fake-ip and were refused).
 _FAKE_IP_RANGE = ipaddress.ip_network("198.18.0.0/15")
 
-_USER_AGENT = "steerable-sidecar/0.1 (+https://github.com/deeppath/steerable-framework)"
+_USER_AGENT = "steerable-sidecar/0.1 (+https://github.com/pathlyapp/opensteerable)"
 
 #: Env marker the desktop sets on the sidecar process when the framework's
 #: per-host egress proxy holds the host list (W1.3.3). Distinct from the

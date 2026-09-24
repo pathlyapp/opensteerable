@@ -7,7 +7,7 @@ written to help you decide, not to declare a winner.
 !!! note "Honesty policy"
     Every claim below links to a spec page or names a shipped artifact.
     Where Steerable is behind, the table says so. If you find a stale row,
-    [open an issue](https://github.com/pathlyapp/steerable-framework/issues) —
+    [open an issue](https://github.com/pathlyapp/opensteerable/issues) —
     this page is reviewed on every release.
 
 !!! info "How the Claude Code column was sourced"
@@ -59,8 +59,7 @@ each tier is independently adoptable.
    server's ~114 emission sites, then adopted by the desktop. Transports
    render wire formats — including byte-compatible rendering onto an
    existing frontend contract — instead of the loop printing SSE.
-   See [CoreLoop spec](spec/core-loop.md) and the
-   [API SSE drift survey](migration/api-sse-drift.md).
+   See the [CoreLoop spec](spec/core-loop.md).
 3. **Cross-language contract as codegen, not parallel implementation.**
    `spec/*.schema.json` is the single source of truth; TypeScript types and
    Pydantic models are generated and drift-checked in CI. The conformance

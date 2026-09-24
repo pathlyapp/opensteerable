@@ -3,7 +3,7 @@
 # Identical to default.harness.yaml except `tools: minimal` — the arm E
 # comparison (default spec, full surface incl. bash_session/write_stdin)
 # isolates the interactive-session tools' contribution on the interactive
-# task set pre-registered in HARNESS_TODO 1.5.3.
+# Task set is registered in suite.yaml.
 context:
   - impl: pressure_compaction
   - impl: spill

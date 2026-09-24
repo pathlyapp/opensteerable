@@ -101,6 +101,7 @@ def main() -> None:
     lock = {
         "schemaVersion": 1,
         "artifactVersion": args.version,
+        "license": str(manifest.get("license", "MIT")),
         "release": {
             "repository": REPO,
             "tag": f"rust-v{args.version}",

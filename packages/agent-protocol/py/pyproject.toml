@@ -2,6 +2,7 @@
 name = "steerable-agent-protocol"
 version = "0.6.39"
 description = "Steerable protocol schemas for Python"
+license = { text = "Apache-2.0" }
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

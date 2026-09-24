@@ -410,5 +410,4 @@ The framework was extracted from this codebase and is dogfooded back into it on 
 [Sidecar](spec/sidecar.md){ .md-button }
 [ACP (editor embed)](spec/acp.md){ .md-button }
 [UI components](ui/index.md){ .md-button }
-[DeepPath migration](migration/deeppath.md){ .md-button }
 </div>

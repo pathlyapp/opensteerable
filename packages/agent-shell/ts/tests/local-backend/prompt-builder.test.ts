@@ -51,7 +51,7 @@ const BASE = makeSkill({
   layer: 'eager',
   content: 'BASE_EAGER_CONTENT 你是本地助手',
 });
-const CFLOG = makeSkill({
+const CATALOG_SKILL = makeSkill({
   name: 'csv-tools',
   dirName: '90-csv-tools',
   content: 'CSV_EMBEDDED_GUIDANCE 用 csv_scan_workspace 读取目录',
@@ -71,7 +71,7 @@ const OTHER = makeSkill({
 beforeEach(() => {
   mocks.loadSkills.mockReset();
   mocks.findSkill.mockReset();
-  mocks.loadSkills.mockResolvedValue([BASE, CFLOG, USER, OTHER]);
+  mocks.loadSkills.mockResolvedValue([BASE, CATALOG_SKILL, USER, OTHER]);
 });
 
 describe('prompt-builder / A6 分层披露', () => {
@@ -107,7 +107,7 @@ describe('prompt-builder / A6 分层披露', () => {
       layer: 'eager',
       content: 'PINNED_EAGER_CONTENT',
     });
-    mocks.loadSkills.mockResolvedValue([BASE, pinned, CFLOG]);
+    mocks.loadSkills.mockResolvedValue([BASE, pinned, CATALOG_SKILL]);
     const { prompt } = await buildSystemPrompt({
       ignoreConditions: true,
       eagerOnly: true,
@@ -150,7 +150,7 @@ describe('prompt-builder / 智能体勾选的技能', () => {
     // 条件过滤后只剩 eager 层的 00-base；勾选项从全量那次加载里补回。
     mocks.loadSkills.mockImplementation(
       async (options: { ignoreConditions?: boolean } = {}) =>
-        options.ignoreConditions ? [BASE, CFLOG, USER, OTHER] : [BASE],
+        options.ignoreConditions ? [BASE, CATALOG_SKILL, USER, OTHER] : [BASE],
     );
     const { prompt } = await buildSystemPrompt({
       conditions: ['has-tools'],
@@ -166,7 +166,7 @@ describe('prompt-builder / 智能体勾选的技能', () => {
     mocks.loadSkills.mockImplementation(
       async (options: { excludeSkillNames?: Iterable<string> } = {}) => {
         const excluded = new Set(Array.from(options.excludeSkillNames ?? []));
-        return [BASE, CFLOG].filter(
+        return [BASE, CATALOG_SKILL].filter(
           (module) => !excluded.has(module.dirName) && !excluded.has(module.name),
         );
       },

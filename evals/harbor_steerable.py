@@ -593,7 +593,7 @@ class SteerableHarborAgent(BaseInstalledAgent):
             env.setdefault("STEERABLE_OPENROUTER_ALLOW_FALLBACKS", "0")
         env.setdefault(
             "STEERABLE_HTTP_REFERER",
-            "https://github.com/pathlyapp/steerable-framework",
+            "https://github.com/pathlyapp/opensteerable",
         )
         env.setdefault("STEERABLE_HTTP_TITLE", "Steerable Harbor TB")
         log = f"{self.environment_logs_dir.as_posix()}/headless.log"

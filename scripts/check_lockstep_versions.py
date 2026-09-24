@@ -70,6 +70,8 @@ def _read_versions() -> dict[str, str]:
         versions[name] = tomllib.loads((ROOT / rel).read_text(encoding="utf-8"))["package"]["version"]
     lock = json.loads((ROOT / "rust-artifacts.lock.json").read_text(encoding="utf-8"))
     artifact_version = lock["artifactVersion"]
+    if lock.get("license") != "MIT":
+        raise SystemExit("ERROR: Rust artifact lock must declare the MIT license")
     pin = f"{NATIVE_PACKAGE}=={artifact_version}"
     for rel in NATIVE_PIN_FILES:
         text = (ROOT / rel).read_text(encoding="utf-8")

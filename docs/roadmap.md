@@ -102,9 +102,7 @@ specifically so the prefix stays byte-stable forever and a state change
 costs one small tail fragment.
 
 Steerable's `recompact_margin` hysteresis (`compaction.py:83-88`) makes
-prefix invalidation *cheaper* rather than preventing it. It is scar
-tissue from the dogfood pathology recorded in `CORELOOP_TODO.md` (22
-compactions across 5 traces). Cache reads cost roughly 10% of input
+prefix invalidation *cheaper* rather than preventing it. Cache reads cost roughly 10% of input
 price and break even at about 2.3 reuses per hour, so this is the
 highest-leverage cost lever available — and there is currently **no way
 to measure it**: `cached_tokens` and `cache_control` have zero matches
@@ -418,9 +416,7 @@ The order is the argument:
 #### The MCP ordering decision (resolved)
 
 The 2026-07-28 MCP spec made the core stateless HTTP — no handshake, no
-session id, self-describing requests — which retires the "sidecar becomes
-a process supervisor" objection recorded in `CORELOOP_TODO.md`. The
-ordering argument above held: MCP landed only after timeouts, exposure
+session id, self-describing requests. MCP landed only after timeouts, exposure
 tiers, catalog caps, and name qualification existed, so the largest
 unbounded third-party context source arrived bounded, discoverable, and
 cache-friendly from day one.
@@ -556,9 +552,7 @@ GitHub, and an official Python SDK at stable v1.
 **Decision: the planned `protocolVersion` 1.0.0 freeze of the bespoke
 15-method sidecar surface is cancelled.** Freezing a bespoke surface as a
 multi-vendor standard consolidates in the same slot is the wrong
-direction. The [freeze scope proposed in the SSE drift
-survey](migration/api-sse-drift.md#sidecar-protocol-v1-proposed-freeze-scope)
-is superseded by the following.
+direction. The earlier freeze proposal is superseded by the following.
 
 1. **Fix the real concurrency bug.** Declare a serialization scope per
    RPC method (codex's `ClientRequestSerializationScope`,
@@ -569,9 +563,8 @@ is superseded by the following.
    dispatcher keys a per-scope lock and the table is testable without a
    server.
 2. **Add AG-UI and ACP transports as peers** to the existing ones,
-   keeping the bespoke `SSEEvent` path for DeepPath byte-compatibility.
-   [The SSE drift survey](migration/api-sse-drift.md) already establishes
-   that transports render wire formats; this is that rule applied
+   keeping the bespoke `SSEEvent` path for existing clients.
+   Transports render wire formats; this is that rule applied
    outward. A second protocol consumer is also the only real test of
    whether the event taxonomy is genuinely transport-neutral.
 3. **Reposition Tier 1's pitch** from "our envelope" to "the codegen
@@ -613,4 +606,3 @@ part of this work rather than as part of a freeze.
 - [CoreLoop spec](spec/core-loop.md) — the loop and its event taxonomy
 - [Safety spec](spec/safety.md) — the two-layer model this page critiques
 - [Sidecar spec](spec/sidecar.md) — the JSON-RPC surface that is no longer being frozen
-- [API SSE Drift Survey](migration/api-sse-drift.md) — the adoption-cost study whose freeze proposal this page supersedes

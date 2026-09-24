@@ -14,7 +14,7 @@ export default createProductViteConfig({ productDir, flavor });
 
 The product's Vite build compiles this package's `src/` into the product's own
 bundle; there is no prebuilt `dist/` here. See
-[`docs/spec/architecture.md`](https://github.com/pathlyapp/steerable-framework/blob/develop/docs/spec/architecture.md)
+[`docs/spec/architecture.md`](https://github.com/pathlyapp/opensteerable/blob/develop/docs/spec/architecture.md)
 for the tier model.
 
 Products that require authentication can register an `AppShellGate` from

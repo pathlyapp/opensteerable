@@ -388,8 +388,8 @@ can read.
 
 Attaching is unconditional here and gated on `read_file`, because the two
 tools carry different intent. A `read_file` that attached every PNG it
-touched spent context on trials that never needed to look, and lost its
-flaky A/B ([33985962466](https://github.com/pathlyapp/steerable-framework/actions/runs/33985962466)).
+touched spent context on trials that never needed to look and regressed the
+evaluation sample.
 `view_image` only runs when the model decided the picture matters, so the
 pixels are the whole result. `read_file`'s ASCII preview carries a `pixels`
 field pointing at `view_image`, so the affordance is discoverable without

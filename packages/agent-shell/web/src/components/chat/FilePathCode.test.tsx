@@ -76,7 +76,7 @@ describe('FilePathCode', () => {
 
   it('可点击时只显示文件名，完整路径放在 title', async () => {
     const full =
-      'C:\\Users\\wangtai\\projects\\pathlyapp\\deeppath-agent\\output\\自我介绍_简约商务.pptx';
+      'C:\\Users\\dev\\projects\\example-app\\output\\自我介绍_简约商务.pptx';
     resolveLocalPaths.mockResolvedValue({
       resolved: [{ candidate: full, path: full, isDirectory: false }],
     });

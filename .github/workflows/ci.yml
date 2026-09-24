@@ -46,6 +46,8 @@ jobs:
       - uses: actions/checkout@v5
       - name: Public source gate
         run: python scripts/check_no_public_coreloop_source.py
+      - name: Public exposure gate
+        run: python scripts/check_public_exposure.py
 
   py:
     runs-on: ubuntu-latest

@@ -16,6 +16,8 @@ from evals.flaky_score import (
     _arm_of,
     bootstrap_delta,
     collect,
+    decisions,
+    decisions_report,
     extras,
     report,
     sign_test,
@@ -179,6 +181,76 @@ def test_extras_count_compose_death_without_agent_log(tmp_path: Path) -> None:
     )
     text = extras(tmp_path)
     assert "arm a: 1 incomplete (no reward)  0 reminder hook_action  0 livelock" in text
+
+
+def _append_log(root: Path, arm: str, shard: int, lines: str) -> None:
+    log = next((root / f"eval-steerable-flaky-{arm}-{shard}").rglob("headless.log"))
+    log.write_text(log.read_text() + lines)
+
+
+def test_decisions_count_both_routing_verdicts(tmp_path: Path) -> None:
+    """``allow_no_tool`` is the denominator: without it a forced-turn count
+    cannot be told apart from routing never having run."""
+    _trial(tmp_path, "a", 0, "task", "h0", reward=1.0, calls=4)
+    _trial(tmp_path, "b", 0, "task", "h0", reward=1.0, calls=4)
+    _append_log(
+        tmp_path,
+        "b",
+        0,
+        "[hook_action {'hook': 'pre_step', 'action': 'data_need_route', "
+        "'reason': 'anti-hallucination data-need routing', "
+        "'value': 'require_tool', 'probability': None, 'round': 0}]\n"
+        "[hook_action {'hook': 'pre_step', 'action': 'data_need_route', "
+        "'reason': 'anti-hallucination data-need routing', "
+        "'value': 'allow_no_tool', 'probability': None, 'round': 0}]\n",
+    )
+    counts = decisions(tmp_path)
+    assert counts["b"].routes == {"require_tool": 1, "allow_no_tool": 1}
+    assert counts["a"].routes == {}
+    text = decisions_report(counts)
+    assert "arm b: data-need route allow_no_tool=1  require_tool=1" in text
+    # An arm with no recorded decisions contributes no line to read wrongly.
+    assert "arm a:" not in text
+
+
+def test_decisions_separate_dropped_tool_choice_gates(tmp_path: Path) -> None:
+    """A gate the vendor downgraded to ``auto`` never forced anything; counting
+    it as a gate that held would make the arm comparison meaningless."""
+    _trial(tmp_path, "b", 0, "task", "h0", reward=1.0, calls=4)
+    _append_log(
+        tmp_path,
+        "b",
+        0,
+        "[hook_action {'action': 'tool_choice', 'honored': True, "
+        "'hook': 'pre_step', 'round': 0, 'value': 'required'}]\n"
+        "[hook_action {'action': 'tool_choice', 'honored': False, "
+        "'hook': 'pre_step', 'round': 0, 'value': 'required'}]\n",
+    )
+    counts = decisions(tmp_path)
+    assert (counts["b"].forced, counts["b"].forced_dropped) == (2, 1)
+    assert (
+        "arm b: tool_choice gates 2, 1 downgraded by the vendor"
+        in decisions_report(counts)
+    )
+
+
+def test_decisions_count_discipline_retries_by_reason(tmp_path: Path) -> None:
+    _trial(tmp_path, "a", 0, "task", "h0", reward=1.0, calls=4)
+    _append_log(
+        tmp_path,
+        "a",
+        0,
+        "[hook_action {'hook': 'before_completion', 'action': 'retry', "
+        "'reason': 'fabricated_data', 'round': 2}]\n"
+        "[hook_action {'hook': 'before_completion', 'action': 'retry', "
+        "'reason': 'deferred_execution', 'round': 3}]\n",
+    )
+    counts = decisions(tmp_path)
+    assert counts["a"].discipline == {"fabricated_data": 1, "deferred_execution": 1}
+    assert (
+        "arm a: before_completion retry deferred_execution=1  fabricated_data=1"
+        in decisions_report(counts)
+    )
 
 
 def test_extras_count_livelock_fires(tmp_path: Path) -> None:

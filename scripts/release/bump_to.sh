@@ -10,8 +10,8 @@
 #
 # CI (`.github/workflows/release.yml`) takes over from the tag push: it
 # validates the lockstep, creates the GitHub Release, and chains
-# publish-{npm,pypi}.yml. Those are idempotent — anything already on the
-# registry is skipped — so a re-tag after a botched run is safe.
+# publish-{npm,pypi,native}.yml. Those are idempotent — anything already
+# on the registry is skipped — so a re-tag after a botched run is safe.
 set -euo pipefail
 
 if [[ $# -ne 1 ]]; then
@@ -55,20 +55,32 @@ py_pkgs = [
     "packages/agent-protocol/py",
     "packages/agent-harness/py",
     "packages/agent-runtime/py",
+    "packages/plugin-sdk/py",
     "packages/sidecar/py",
     "packages/egress-proxy/py",
 ]
+rust_tomls = [
+    ("packages/egress-proxy/rs/Cargo.toml", "steerable-egress-proxy"),
+]
+# Path-dep copies of the crate version live in each crate's lockfile.
+rust_locks = [
+    ("packages/egress-proxy/rs/Cargo.lock", ("steerable-egress-proxy",)),
+]
+native_pin_files = [
+    "packages/agent-runtime/py/pyproject.toml",
+    "pyproject.toml",
+]
 
-print(f"\nBumping all 9 publishable packages to {version}:\n")
+print(f"\nBumping all lockstep packages to {version}:\n")
 
 for d in ts_pkgs:
     p = Path(d) / "package.json"
-    data = json.loads(p.read_text())
+    data = json.loads(p.read_text(encoding="utf-8"))
     old = data["version"]
     data["version"] = version
     # `json.dumps` with indent=2 + trailing newline matches what pnpm /
     # most npm tooling writes, so commits don't churn whitespace.
-    p.write_text(json.dumps(data, indent=2) + "\n")
+    p.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     print(f"  {data['name']:<32}  {old:<10} -> {version}")
 
 # pyproject.toml: surgical regex on the `version = "..."` line under
@@ -82,15 +94,53 @@ project_name_re = re.compile(r'\[project\][\s\S]*?\nname\s*=\s*"([^"]+)"', re.MU
 
 for d in py_pkgs:
     p = Path(d) / "pyproject.toml"
-    text = p.read_text()
+    text = p.read_text(encoding="utf-8")
     m = project_version_re.search(text)
     if not m:
         raise SystemExit(f"ERROR: could not locate '[project] / version = ...' in {p}")
     old = m.group(2)
     text = text[:m.start(2)] + version + text[m.end(2):]
-    p.write_text(text)
+    p.write_text(text, encoding="utf-8")
     name = project_name_re.search(text).group(1)
     print(f"  {name:<32}  {old:<10} -> {version}")
+
+package_version_re = re.compile(
+    r'(\[package\][\s\S]*?\nversion\s*=\s*")([^"]+)(")',
+    re.MULTILINE,
+)
+for rel, expected in rust_tomls:
+    p = Path(rel)
+    text = p.read_text(encoding="utf-8")
+    m = package_version_re.search(text)
+    if not m:
+        raise SystemExit(f"ERROR: could not locate '[package] / version = ...' in {p}")
+    old = m.group(2)
+    text = text[:m.start(2)] + version + text[m.end(2):]
+    p.write_text(text, encoding="utf-8")
+    print(f"  {expected:<32}  {old:<10} -> {version}  (rust crate, crates.io unpublished)")
+
+native_pin_re = re.compile(r"(steerable-agent-runtime-native)==[^\"']+")
+for rel in native_pin_files:
+    p = Path(rel)
+    text = p.read_text(encoding="utf-8")
+    text, n = native_pin_re.subn(rf"\1=={version}", text)
+    if n < 1:
+        raise SystemExit(f"ERROR: {p} has no steerable-agent-runtime-native pin")
+    p.write_text(text, encoding="utf-8")
+    print(f"  {'steerable-agent-runtime-native':<32}  pin -> {version}  ({rel})")
+
+for rel, names in rust_locks:
+    p = Path(rel)
+    text = p.read_text(encoding="utf-8")
+    for name in names:
+        pattern = re.compile(
+            rf'(name = "{re.escape(name)}"\nversion = ")([^"]+)(")'
+        )
+        text, n = pattern.subn(rf"\g<1>{version}\g<3>", text, count=1)
+        if n != 1:
+            raise SystemExit(f"ERROR: expected one lock entry for {name} in {p}, found {n}")
+    p.write_text(text, encoding="utf-8")
+    print(f"  {rel:<32}  lock versions -> {version}")
 
 # Also bump the workspace-root package.json so its `version` tracks the
 # release. It's `private: true` and never published, but keeping it in
@@ -98,10 +148,10 @@ for d in py_pkgs:
 # pre-v0.2.1) and gets a half-bump that the lockstep gate catches but
 # only after a CI round-trip.
 root = Path("package.json")
-root_data = json.loads(root.read_text())
+root_data = json.loads(root.read_text(encoding="utf-8"))
 old = root_data.get("version", "(none)")
 root_data["version"] = version
-root.write_text(json.dumps(root_data, indent=2) + "\n")
+root.write_text(json.dumps(root_data, indent=2) + "\n", encoding="utf-8")
 print(f"\n  {root_data['name']:<32}  {old:<10} -> {version}  (workspace root, not published)")
 PY
 
@@ -109,6 +159,19 @@ echo
 echo "Refreshing lockfiles..."
 pnpm install --lockfile-only
 uv lock
+# uv records the already-published native sdist even when the project
+# forbids building it. Drop that line so the public lockfile does not
+# point at the Rust source archive.
+python3 - <<'PY'
+from pathlib import Path
+path = Path("uv.lock")
+kept = [
+    line
+    for line in path.read_text(encoding="utf-8").splitlines(keepends=True)
+    if not ("steerable_agent_runtime_native" in line and line.strip().startswith("sdist"))
+]
+path.write_text("".join(kept), encoding="utf-8")
+PY
 
 echo
 echo "Lockstep sanity check:"

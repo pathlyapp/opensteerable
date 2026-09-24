@@ -29,6 +29,10 @@ vi.mock('../../src/sidecar/handle.js', () => ({
       : Promise.resolve(null),
 }));
 
+import {
+  resetProductConfigForTests,
+  setProductConfig,
+} from '../../src/product-config.js';
 import { findSkill, getSkillsDir, listSkillRoots, loadSkills, classifySkillOrigin, setWorkspaceSkillRootsProvider } from '../../src/local-backend/skill-loader.js';
 
 function makeSkill(overrides: Partial<SkillModule>): SkillModule {
@@ -55,6 +59,7 @@ beforeEach(() => {
   mocks.whenResolves = 'unset';
   mocks.userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-loader-test-'));
   setWorkspaceSkillRootsProvider(null);
+  resetProductConfigForTests();
 });
 
 describe('skill-loader / loadSkills RPC 客户端', () => {
@@ -74,7 +79,16 @@ describe('skill-loader / loadSkills RPC 客户端', () => {
     });
   });
 
-  it('缺省 roots 为内置目录 + 用户目录（用户覆盖内置）', async () => {
+  it('未引入内置技能时缺省 roots 只有用户目录', async () => {
+    mocks.listSkills.mockResolvedValue([]);
+    await loadSkills({ ignoreConditions: true });
+    const call = mocks.listSkills.mock.calls[0][0];
+    expect(call.roots).toEqual([path.join(mocks.userDataDir, 'skills')]);
+    expect(call.exclude).toBeUndefined();
+  });
+
+  it('产品引入内置技能后 roots 含内置目录（用户覆盖内置）', async () => {
+    setProductConfig({ builtinSkills: true });
     mocks.listSkills.mockResolvedValue([]);
     await loadSkills({ ignoreConditions: true });
     const call = mocks.listSkills.mock.calls[0][0];
@@ -82,6 +96,7 @@ describe('skill-loader / loadSkills RPC 客户端', () => {
   });
 
   it('工作区 extra roots 插在内置与用户目录之间，缺目录的跳过', async () => {
+    setProductConfig({ builtinSkills: true });
     const extra = fs.mkdtempSync(path.join(os.tmpdir(), 'workspace-skills-'));
     const missing = path.join(os.tmpdir(), 'skill-loader-missing-skills-does-not-exist');
     setWorkspaceSkillRootsProvider(() => [extra, missing]);
@@ -101,7 +116,12 @@ describe('skill-loader / loadSkills RPC 客户端', () => {
     expect(classifySkillOrigin('/tmp/some-project/skills')).toBe('workspace');
   });
 
-  it('listSkillRoots 在未注册 provider 时只有内置 + 用户', () => {
+  it('listSkillRoots 未引入内置技能时只有用户目录', () => {
+    expect(listSkillRoots()).toEqual([path.join(mocks.userDataDir, 'skills')]);
+  });
+
+  it('listSkillRoots 引入内置技能后是内置 + 用户', () => {
+    setProductConfig({ builtinSkills: true });
     expect(listSkillRoots()).toEqual([getSkillsDir(), path.join(mocks.userDataDir, 'skills')]);
   });
 

@@ -34,7 +34,13 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, Sequence
 
-from .hooks import CompletionAction, CompletionDraft, NoopHooks, PreStepAction
+from .hooks import (
+    CompletionAction,
+    CompletionDraft,
+    DecisionNote,
+    NoopHooks,
+    PreStepAction,
+)
 
 if TYPE_CHECKING:
     from .llm import LLMMessage, LLMProvider
@@ -473,12 +479,22 @@ class AntiHallucinationHooks(NoopHooks):
         ):
             return PreStepAction(kind="proceed")
         self._route = await self._classify_route()
+        # Both branches record the verdict: the allow_no_tool turns are the
+        # denominator for how often routing forces a tool at all, and a run
+        # with no note at all means routing was skipped (plan mode, no tools,
+        # forcing disabled) rather than that it allowed a free turn.
+        note = DecisionNote(
+            action="data_need_route",
+            reason="anti-hallucination data-need routing",
+            value=self._route,
+        )
         if self._route == "require_tool":
             return PreStepAction(
                 kind="proceed",
                 tool_choice=self._config.force_tool_choice,
+                notes=(note,),
             )
-        return PreStepAction(kind="proceed")
+        return PreStepAction(kind="proceed", notes=(note,))
 
     async def _classify_route(self) -> DataNeedRoute:
         from .llm import LLMMessage

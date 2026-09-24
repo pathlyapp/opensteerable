@@ -114,6 +114,27 @@ def test_forced_tool_choice_downgraded_when_flagged_off() -> None:
     assert body["tool_choice"] == "auto"
 
 
+def test_honors_forced_tool_choice_matches_the_downgrade() -> None:
+    """The probe callers record must agree with what the body actually sends.
+
+    Two sources downgrade: the compat flag and the model-name paths host
+    flags cannot cover (Z.AI GLM, Qwen/DeepSeek thinking over OpenRouter).
+    """
+    assert _provider().honors_forced_tool_choice() is True
+    assert (
+        _provider(
+            compat=OpenAICompatFlags(supports_forced_tool_choice=False)
+        ).honors_forced_tool_choice()
+        is False
+    )
+    assert (
+        _provider(
+            model="z-ai/glm-5", base_url="https://openrouter.ai/api/v1"
+        ).honors_forced_tool_choice()
+        is False
+    )
+
+
 def test_forced_tool_choice_kept_by_default() -> None:
     from steerable_agent_runtime.llm import LLMMessage
 

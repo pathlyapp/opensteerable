@@ -9,7 +9,7 @@
  *   - BS/browser：File 没有路径，这里把字节读成 base64 走 HTTP 端点落盘。
  * 返回的落盘路径会重写消息正文里的文件引用与图像附件元数据。
  */
-import { getElectronBridge, isElectron } from './electron-bridge';
+import { getElectronBridge } from './electron-bridge';
 
 export interface AttachmentFile {
   name: string;
@@ -39,17 +39,41 @@ export async function fileToBase64(file: File): Promise<string> {
   return btoa(binary);
 }
 
+/** 正文引用：优先落盘路径，浏览器未落盘时退回文件名（避免写成空的 ``）。 */
+export function attachmentRefLabel(file: AttachmentFile): string {
+  return file.path || file.name;
+}
+
+/**
+ * 把附件写进用户消息：正文「关联文件」列表 + 图像 metadata。
+ * 只收录有路径或文件名的项。
+ */
+export function composeAttachmentUserContent(
+  text: string,
+  files: AttachmentFile[],
+): { content: string; images: Array<{ path: string; name: string }> } {
+  const usable = files.filter((file) => attachmentRefLabel(file));
+  let content = text.trim();
+  if (usable.length > 0) {
+    const fileRefs = usable.map((file) => `- \`${attachmentRefLabel(file)}\``).join('\n');
+    content = content ? `${content}\n\n---\n关联文件:\n${fileRefs}` : `关联文件:\n${fileRefs}`;
+  }
+  const images = usable
+    .filter((file) => isImageFile(file.path || file.name))
+    .map((file) => ({ path: attachmentRefLabel(file), name: file.name }));
+  return { content, images };
+}
+
 /**
  * 把一批附件持久化到会话附件目录，返回「提交时应使用」的文件列表：
  * 成功项用落盘路径，失败项退回原文件（不让用户的选择因单个文件失败而丢失）。
- * 非 Electron / 无 attachments 桥 / 空 chatId 时原样返回。
+ * 无 attachments 桥 / 空 chatId 时原样返回。
  */
 export async function saveChatAttachments(
   chatId: string | null | undefined,
   files: AttachmentFile[],
 ): Promise<AttachmentFile[]> {
   if (!chatId || files.length === 0) return files;
-  if (!isElectron()) return files;
   const bridge = getElectronBridge();
   if (!bridge?.attachments?.save) return files;
   try {

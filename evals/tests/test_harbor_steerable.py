@@ -5,7 +5,6 @@ from pathlib import Path
 from evals.suite import load_suite
 
 from evals.harbor_helpers import (
-    _APT_PYTHON_INSTALL,
     _ENSURE_PYTHON_310,
     _PY310_BIN,
     _UV_MIN_BYTES,
@@ -78,15 +77,6 @@ def test_no_proxy_localhost_is_not_rewritten_to_host_docker() -> None:
         rewrite_forwarded_env_value("HTTP_PROXY", "http://127.0.0.1:7890")
         == "http://host.docker.internal:7890"
     )
-
-
-def test_apt_python_install_waits_without_fuser() -> None:
-    assert "fuser" not in _APT_PYTHON_INSTALL
-    assert "readlink" in _APT_PYTHON_INSTALL
-    assert "python3-venv" in _APT_PYTHON_INSTALL
-    assert "/usr/bin/apt-get" in _APT_PYTHON_INSTALL
-    assert "mirrors.tuna.tsinghua.edu.cn/ubuntu" in _APT_PYTHON_INSTALL
-    assert "archive.ubuntu.com" in _APT_PYTHON_INSTALL
 
 
 def test_ensure_python_310_upgrades_before_venv() -> None:
@@ -252,6 +242,8 @@ def test_calibration_knobs_can_be_overridden_per_arm() -> None:
     }
     assert "STEERABLE_TEMPERATURE" in forwarded
     assert "STEERABLE_REASONING_EFFORT" in forwarded
+    assert "STEERABLE_SOFT_TIMEOUT_MS" in forwarded
+    assert "STEERABLE_HARD_TIMEOUT_SEC" in forwarded
     assert "STEERABLE_REMINDERS" in forwarded
     assert "STEERABLE_DELIVERY_VERIFY" in forwarded
     assert "STEERABLE_LIVELOCK_EMPTY_STREAK" in forwarded
@@ -265,6 +257,24 @@ def test_calibration_knobs_can_be_overridden_per_arm() -> None:
     assert 'os.environ.get("STEERABLE_HARNESS")' in text
     run_body = text[text.index("    async def run(") :]
     assert run_body.index("_forwarded_env(") < run_body.index("env.setdefault(")
+
+
+def test_rust_coreloop_requires_and_installs_a_native_wheel() -> None:
+    src = Path(__file__).resolve().parents[1] / "harbor_steerable.py"
+    text = src.read_text()
+    tuning = text[text.index("_TUNING_KEYS = (") : text.index("_PROXY_KEYS = (")]
+    assert '"STEERABLE_RUST_CORELOOP"' not in tuning
+    assert "STEERABLE_RUST_CORELOOP" not in text
+    assert "STEERABLE_NATIVE_WHEEL" in text
+    assert "STEERABLE_NATIVE_WHEEL_MUSL" in text
+    assert "pip install --no-deps" in text
+    assert "ldd --version" in text
+    assert "/etc/alpine-release" in text
+    assert "musllinux_remote" in text
+    assert "import steerable_agent_runtime_native as n; assert n.run_turn" in text
+    assert text.index("await self._install_native_coreloop(environment)") < text.index(
+        "await self._save_venv"
+    )
 
 
 def test_zai_defaults_do_not_follow_a_model_switch() -> None:
@@ -318,18 +328,28 @@ def test_harbor_run_matches_claude_code_tb_knobs() -> None:
         text.index("@with_prompt_template") : text.index("def _forwarded_env")
     ]
     assert run_fn.index("await self.exec_as_agent") < run_fn.index(
+        "await self._repair_verifier_package_state"
+    )
+    assert run_fn.index("await self._repair_verifier_package_state") < run_fn.index(
         "await self._align_verifier_python"
     )
     assert run_fn.index("await self._align_verifier_python") < run_fn.index(
         "await self._record_token_usage"
     )
     assert "finally:" in run_fn
+    assert "apt-get update" in text
+    assert "apt-get check" in text
+    assert "apt-get -f install -y" in text
+    assert "archive.debian.org/debian" in text
+    assert "disabled after bullseye EOL" in text
+    assert 'Acquire::Check-Valid-Until \\"false\\";' in text
     assert text.index("await self._inject_host_uv") < text.index(
         "await self._inject_host_python"
     )
     assert text.index("await self._inject_host_python") < text.index(
         "await self._ensure_python_310"
     )
+    assert "_ensure_python_apt" not in text
     assert text.index("await self._ensure_python_310") < text.index(
         "await self._align_verifier_python"
     )

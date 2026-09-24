@@ -22,10 +22,19 @@ import {
   readStoredExecPolicy,
   type ExecPolicy,
 } from "@/lib/exec-policy";
+import { clampWebChatMode, hostToolChrome, settingsChrome } from "@/lib/host-tools";
 import type { ExecutedAction } from "@/components/chat/ExecutedActionsCard";
+import { inspectTaskTitle, type InspectTaskInput } from "@/components/chat/executed-actions-model";
 import type { ChildInfo } from "@/components/chat/OrchestrationChildrenCard";
-import { foldOrchestrationChildEvents } from "@/components/chat/orchestration-children-model";
+import {
+  extractPersistedOrchestrationChildren,
+  foldOrchestrationChildEvents,
+} from "@/components/chat/orchestration-children-model";
 import { parseTurnBlocks, type TurnBlock } from "@/components/chat/turn-timeline";
+import {
+  parseLlmSpeedPayload,
+  type LlmSpeedSnapshot,
+} from "@/components/chat/process-status";
 import { parseTurnFiles, type TurnFile } from "@/components/chat/turn-files";
 import { readPersistedDurationMs } from "@/components/chat/elapsed";
 import {
@@ -46,13 +55,16 @@ import {
   type ChatLiveStream,
   type LocalChatMessage,
   type LocalProject,
-  type LocalTask,
 } from "@/lib/local-api";
 import type { AgentOutletContext } from "@/layouts/AgentLayout";
 import {
   setPendingFirstMessage,
   takePendingFirstMessage,
 } from "@/lib/pending-first-message";
+import {
+  composeAttachmentUserContent,
+  saveChatAttachments,
+} from "@/lib/attachments";
 import { BRAND_NAME, pickDefaultAgentId } from "@/brand";
 
 /**
@@ -78,10 +90,8 @@ type ChatMessageWithMetadata = ChatMessage & LocalChatMessage;
 const CHAT_MODE_STORAGE_KEY = "agent-chat-mode";
 
 function readStoredMode(): ChatMode {
-  if (typeof localStorage === "undefined") return "agent";
-  return localStorage.getItem(CHAT_MODE_STORAGE_KEY) === "plan"
-    ? "plan"
-    : "agent";
+  if (typeof localStorage === "undefined") return clampWebChatMode("agent");
+  return clampWebChatMode(localStorage.getItem(CHAT_MODE_STORAGE_KEY));
 }
 
 function extractPersistedActions(
@@ -233,6 +243,8 @@ function AgentChatLoader({
   const [initialTurnFiles, setInitialTurnFiles] = useState<
     Record<string, TurnFile[]>
   >({});
+  const [initialOrchestrationChildren, setInitialOrchestrationChildren] =
+    useState<Record<string, ChildInfo[]>>({});
   const [initialSuggestedReplies, setInitialSuggestedReplies] =
     useState<SuggestedRepliesState | null>(null);
   // W7-1: 后端在 messages 响应里下发 interrupted（上一轮崩溃/强杀中断）。
@@ -270,6 +282,9 @@ function AgentChatLoader({
         setInitialTimelines(extractPersistedTimelines(response.messages));
         setInitialDurations(extractPersistedDurations(response.messages));
         setInitialTurnFiles(extractPersistedTurnFiles(response.messages));
+        setInitialOrchestrationChildren(
+          extractPersistedOrchestrationChildren(response.messages),
+        );
         setInitialSuggestedReplies(
           extractLatestSuggestedReplies(
             ordered as ChatMessageWithMetadata[],
@@ -285,6 +300,7 @@ function AgentChatLoader({
         setInitialTimelines({});
         setInitialDurations({});
         setInitialTurnFiles({});
+        setInitialOrchestrationChildren({});
         setInitialSuggestedReplies(null);
         setInitialInterrupted(false);
         setInitialLiveStream({ active: false });
@@ -297,7 +313,7 @@ function AgentChatLoader({
 
   if (initialMessages === null) {
     return (
-      <div className="flex h-full w-full items-center justify-center text-sm text-agent-muted-foreground">
+      <div className="flex h-full w-full items-center justify-center text-xs text-agent-muted-foreground">
         加载对话历史…
       </div>
     );
@@ -311,6 +327,7 @@ function AgentChatLoader({
       initialTimelines={initialTimelines}
       initialDurations={initialDurations}
       initialTurnFiles={initialTurnFiles}
+      initialOrchestrationChildren={initialOrchestrationChildren}
       initialSuggestedReplies={initialSuggestedReplies}
       initialInterrupted={initialInterrupted}
       initialLiveStream={initialLiveStream}
@@ -327,6 +344,7 @@ interface AgentChatViewProps {
   initialTimelines: Record<string, TurnBlock[]>;
   initialDurations: Record<string, number>;
   initialTurnFiles: Record<string, TurnFile[]>;
+  initialOrchestrationChildren: Record<string, ChildInfo[]>;
   initialSuggestedReplies: SuggestedRepliesState | null;
   /** W7-1: 打开会话时上一轮处于中断态（崩溃/强杀，无完成记录）。 */
   initialInterrupted: boolean;
@@ -343,6 +361,7 @@ function AgentChatView({
   initialTimelines,
   initialDurations,
   initialTurnFiles,
+  initialOrchestrationChildren,
   initialSuggestedReplies,
   initialInterrupted,
   initialLiveStream,
@@ -358,8 +377,9 @@ function AgentChatView({
   // 当前会话绑定的项目 — Codex 式 cwd 指示：输入框上方显示项目名徽章，
   // 点击可关联到其他项目 / 修改项目目录 / 移出项目。无项目会话不显示。
   const [projects, setProjects] = useState<LocalProject[]>([]);
+  const showProjectsChrome = hostToolChrome("projects");
   const fetchProjects = useCallback(async () => {
-    if (!isElectron()) return;
+    if (!isElectron() || !hostToolChrome("projects")) return;
     try {
       const res = await listProjects();
       setProjects(res.projects ?? []);
@@ -386,8 +406,14 @@ function AgentChatView({
     dismissFinished,
   } = useChatTasks(chatId);
   const handleInspectTask = useCallback(
-    (task: LocalTask) => {
-      ctx.inspectTask({ id: task.id, chatId: task.chatId, title: task.task });
+    (task: InspectTaskInput) => {
+      ctx.inspectTask({
+        id: task.id,
+        chatId: task.chatId,
+        title: inspectTaskTitle(task),
+        ...(task.recordId ? { recordId: task.recordId } : {}),
+        ...(task.live ? { live: true } : {}),
+      });
     },
     [ctx],
   );
@@ -449,11 +475,18 @@ function AgentChatView({
     number | undefined
   >(undefined);
   const pendingDurationMessageIdRef = useRef<string | null>(null);
+  const [currentLlmSpeed, setCurrentLlmSpeed] = useState<LlmSpeedSnapshot | undefined>(
+    undefined,
+  );
+  const currentLlmSpeedRef = useRef<LlmSpeedSnapshot | null>(null);
+  const [llmSpeedByMessageId, setLlmSpeedByMessageId] = useState<
+    Record<string, LlmSpeedSnapshot>
+  >({});
   // P3.1 编排：本轮子代理生命周期（orchestration_child SSE 事件累积），
   // 与 currentTurnActions 同款 reconcile 模式（message_id 落库后按键归档）。
   const [currentTurnChildren, setCurrentTurnChildren] = useState<ChildInfo[]>([]);
   const [orchestrationChildrenByMessageId, setOrchestrationChildrenByMessageId] =
-    useState<Record<string, ChildInfo[]>>({});
+    useState<Record<string, ChildInfo[]>>(initialOrchestrationChildren);
   const pendingChildrenRef = useRef<ChildInfo[]>([]);
   // Round counter for the in-flight turn. Bumped on every `round_end` event
   // emitted by chat-transport (was previously suppressed). Driving this state
@@ -487,9 +520,10 @@ function AgentChatView({
   );
 
   const handleModeChange = useCallback((next: ChatMode) => {
-    setMode(next);
+    const clamped = clampWebChatMode(next);
+    setMode(clamped);
     if (typeof localStorage !== "undefined") {
-      localStorage.setItem(CHAT_MODE_STORAGE_KEY, next);
+      localStorage.setItem(CHAT_MODE_STORAGE_KEY, clamped);
     }
   }, []);
 
@@ -517,6 +551,13 @@ function AgentChatView({
         pendingTimelineRef.current = blocks;
         setCurrentTurnTimeline(blocks);
       }
+      return;
+    }
+    if (ev.event === "llm_speed") {
+      const snap = parseLlmSpeedPayload(ev.payload);
+      if (!snap) return;
+      currentLlmSpeedRef.current = snap;
+      setCurrentLlmSpeed(snap);
       return;
     }
     if (ev.event === "turn_files") {
@@ -554,6 +595,8 @@ function AgentChatView({
               task: ev.payload?.task as string | undefined,
               depth: ev.payload?.depth as number | undefined,
               profile: ev.payload?.profile as string | undefined,
+              // 子代理自己的 durable record：委派行靠它跳转右侧过程栏。
+              recordId: ev.payload?.recordId as string | undefined,
               status: "running",
             },
           ];
@@ -583,6 +626,13 @@ function AgentChatView({
       const messageId = ev.payload?.messageId as string | undefined;
       if (!messageId) return;
       pendingDurationMessageIdRef.current = messageId;
+      const queuedSpeed = currentLlmSpeedRef.current;
+      if (queuedSpeed) {
+        setLlmSpeedByMessageId((prev) => ({
+          ...prev,
+          [messageId]: queuedSpeed,
+        }));
+      }
       const queued = pendingActionsRef.current;
       if (queued.length > 0) {
         setExecutedActionsByMessageId((prev) => ({
@@ -727,6 +777,25 @@ function AgentChatView({
           }
           return next;
         });
+        const snap = currentLlmSpeedRef.current;
+        if (snap) {
+          const frozen: LlmSpeedSnapshot = {
+            ...snap,
+            live: false,
+            requestStartedAt: null,
+            elapsedMs: snap.elapsedMs,
+          };
+          currentLlmSpeedRef.current = frozen;
+          setCurrentLlmSpeed(frozen);
+          setLlmSpeedByMessageId((prev) => {
+            const next = { ...prev };
+            if (lastAssistant) next[lastAssistant.id] = frozen;
+            if (pendingDurationMessageIdRef.current) {
+              next[pendingDurationMessageIdRef.current] = frozen;
+            }
+            return next;
+          });
+        }
       }
     }
     wasStreamingRef.current = isStreaming;
@@ -770,6 +839,8 @@ function AgentChatView({
       turnStartedAtRef.current = started;
       setCurrentTurnStartedAtMs(started);
       pendingDurationMessageIdRef.current = null;
+      currentLlmSpeedRef.current = null;
+      setCurrentLlmSpeed(undefined);
       // 新一轮开始：记录本轮是否为 plan 模式，并隐藏上一份计划的操作条。
       planTurnRef.current = input.metadata?.mode === "plan";
       setPlanReady(false);
@@ -842,6 +913,8 @@ function AgentChatView({
     turnStartedAtRef.current = started;
     setCurrentTurnStartedAtMs(started);
     pendingDurationMessageIdRef.current = null;
+    currentLlmSpeedRef.current = null;
+    setCurrentLlmSpeed(undefined);
     planTurnRef.current = mode === "plan";
     setPlanReady(false);
     const metadata = {
@@ -987,7 +1060,7 @@ function AgentChatView({
   return (
     <div className="flex h-full w-full flex-col">
       {hydrationError && (
-        <div className="border-b border-agent-border bg-agent-muted/60 px-3 py-1 text-xs text-agent-destructive">
+        <div className="border-b border-agent-border bg-agent-muted/60 px-2.5 py-1 text-xs text-agent-destructive">
           加载对话历史失败：{hydrationError}
         </div>
       )}
@@ -1001,6 +1074,7 @@ function AgentChatView({
         pendingFollowUps={pendingFollowUps.map((m) => m.content)}
         onRemoveFollowUp={removeFollowUp}
         className="flex-1"
+        chatId={chatId}
         emptyHero={{
           title: BRAND_NAME,
           subtitle: '输入消息，直接开始一段新对话。',
@@ -1008,7 +1082,6 @@ function AgentChatView({
         header={
           <ChatHeader
             chat={chat}
-            agent={agent}
             onBranchSwitched={isElectron() ? onBranchTick : undefined}
             onInspectTask={ctx.inspectTask}
             tasks={tasks}
@@ -1036,6 +1109,8 @@ function AgentChatView({
         currentTurnTimeline={effectiveCurrentTurnTimeline}
         currentTurnStartedAtMs={currentTurnStartedAtMs}
         durationByMessageId={durationByMessageId}
+        currentLlmSpeed={currentLlmSpeed}
+        llmSpeedByMessageId={llmSpeedByMessageId}
         turnFilesByMessageId={turnFilesByMessageId}
         currentTurnFiles={currentTurnFiles}
         currentTurnChildren={effectiveCurrentTurnChildren}
@@ -1051,7 +1126,9 @@ function AgentChatView({
         suggestedReplies={visibleSuggestedReplies}
         onSelectSuggestion={handleSelectSuggestion}
         onOpenSettings={
-          isElectron() ? () => setLlmSettingsOpen(true) : undefined
+          isElectron() && settingsChrome("llm")
+            ? () => setLlmSettingsOpen(true)
+            : undefined
         }
         inputToolbarExtras={
           <ModelPicker
@@ -1064,27 +1141,33 @@ function AgentChatView({
         }
         mode={mode}
         onModeChange={handleModeChange}
-        execPolicy={execPolicy}
-        onExecPolicyChange={handleExecPolicyChange}
+        execPolicy={hostToolChrome("local-fs") ? execPolicy : "workspace"}
+        onExecPolicyChange={
+          hostToolChrome("local-fs") ? handleExecPolicyChange : undefined
+        }
         inputLeadingChrome={
-          <ChatProjectBadge
-            chatId={chatId}
-            project={chatProject}
-            projects={projects}
-            onProjectsChanged={fetchProjects}
-            onChatProjectChanged={ctx.refreshChats}
-          />
+          showProjectsChrome ? (
+            <ChatProjectBadge
+              chatId={chatId}
+              project={chatProject}
+              projects={projects}
+              onProjectsChanged={fetchProjects}
+              onChatProjectChanged={ctx.refreshChats}
+            />
+          ) : undefined
         }
         inputBanner={
           <>
             {/* W6-5 项目信任门控：项目含规则文件但未信任时提示授权。 */}
+            {showProjectsChrome ? (
             <ProjectTrustBanner
               chatId={chatId}
               project={chatProject}
               onTrustChanged={fetchProjects}
             />
+            ) : null}
             {planReady && !isStreaming ? (
-            <div className="mx-3 mb-1 flex items-center justify-between gap-3 rounded-agent-md border border-amber-400/50 bg-amber-400/10 px-3 py-2 text-xs">
+            <div className="mx-2.5 mb-1 flex items-center justify-between gap-2 rounded-agent-md border border-amber-400/50 bg-amber-400/10 px-2.5 py-1.5 text-xs">
               <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
                 <LuListChecks className="h-4 w-4 shrink-0" />
                 <span>计划已生成。确认无误后可切换到 Agent 模式开始执行。</span>
@@ -1113,7 +1196,7 @@ function AgentChatView({
           </>
         }
       />
-      {isElectron() && (
+      {isElectron() && settingsChrome("llm") && (
         <LocalLlmSettingsModal
           open={llmSettingsOpen}
           onClose={() => setLlmSettingsOpen(false)}
@@ -1164,18 +1247,19 @@ function EmptyChatGate() {
   useEffect(() => {
     setSelectedProjectId(projectIdFromUrl);
   }, [projectIdFromUrl]);
-  useEffect(() => {
-    if (!isElectron()) return;
-    let cancelled = false;
-    listProjects()
-      .then((res) => {
-        if (!cancelled) setProjects(res.projects ?? []);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
+  const showProjectsChrome = hostToolChrome("projects");
+  const fetchProjects = useCallback(async () => {
+    if (!isElectron() || !hostToolChrome("projects")) return;
+    try {
+      const res = await listProjects();
+      setProjects(res.projects ?? []);
+    } catch {
+      /* 列表失败保持旧数据 */
+    }
   }, []);
+  useEffect(() => {
+    void fetchProjects();
+  }, [fetchProjects]);
 
   useEffect(() => {
     inputRef.current?.focusAtEnd();
@@ -1188,9 +1272,10 @@ function EmptyChatGate() {
     null;
 
   const handleModeChange = useCallback((next: ChatMode) => {
-    setMode(next);
+    const clamped = clampWebChatMode(next);
+    setMode(clamped);
     if (typeof localStorage !== "undefined") {
-      localStorage.setItem(CHAT_MODE_STORAGE_KEY, next);
+      localStorage.setItem(CHAT_MODE_STORAGE_KEY, clamped);
     }
   }, []);
 
@@ -1218,41 +1303,38 @@ function EmptyChatGate() {
       length: trimmed.length,
     });
 
-    // 与 LocalChatPanel.handleSubmit 相同的装配规则：文件路径附到正文，
-    // @ 引用进 metadata，plan 模式打 metadata.mode。
-    if (files.length > 0) {
-      const fileRefs = files.map((f) => `- \`${f.path}\``).join("\n");
-      trimmed = trimmed
-        ? `${trimmed}\n\n---\n关联文件:\n${fileRefs}`
-        : `关联文件:\n${fileRefs}`;
-    }
     const mentionedAgentIds = mentionReferences
       .filter((ref) => ref.type === "agent")
       .map((ref) => ref.id);
     const referencedChatIds = mentionReferences
       .filter((ref) => ref.type === "chat")
       .map((ref) => ref.id);
-    const metadata = {
-      ...(mode === "plan" ? { mode: "plan" as const } : {}),
-      ...(execPolicy === "full" ? { execPolicy: "full" as const } : {}),
-      ...(ctx.selectedAgentId ? { agentId: ctx.selectedAgentId } : {}),
-      ...(mentionedAgentIds.length > 0 ? { mentionedAgentIds } : {}),
-      ...(referencedChatIds.length > 0 ? { referencedChatIds } : {}),
-      ...(modelOverride ? { model: modelOverride } : {}),
-      ...(effortOverride ? { reasoningEffort: effortOverride } : {}),
-    };
 
     setIsCreating(true);
     setCreateError(null);
     try {
       const id = await ctx.createChat({
-        ...(selectedProjectId ? { projectId: selectedProjectId } : {}),
+        ...(selectedProjectId && showProjectsChrome ? { projectId: selectedProjectId } : {}),
         ...(ctx.selectedAgentId ? { agentId: ctx.selectedAgentId } : {}),
       });
       if (!id) throw new Error("创建对话失败，请重试");
+      // 落地页提交时还没有 chatId；先建会话再落盘，正文用落盘路径。
+      const resolvedFiles =
+        files.length > 0 ? await saveChatAttachments(id, files) : files;
+      const assembled = composeAttachmentUserContent(trimmed, resolvedFiles);
+      const metadata = {
+        ...(mode === "plan" ? { mode: "plan" as const } : {}),
+        ...(execPolicy === "full" ? { execPolicy: "full" as const } : {}),
+        ...(ctx.selectedAgentId ? { agentId: ctx.selectedAgentId } : {}),
+        ...(mentionedAgentIds.length > 0 ? { mentionedAgentIds } : {}),
+        ...(referencedChatIds.length > 0 ? { referencedChatIds } : {}),
+        ...(modelOverride ? { model: modelOverride } : {}),
+        ...(effortOverride ? { reasoningEffort: effortOverride } : {}),
+        ...(assembled.images.length > 0 ? { images: assembled.images } : {}),
+      };
       setPendingFirstMessage({
         chatId: id,
-        content: trimmed,
+        content: assembled.content,
         metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
       });
       navigate(`/agent/${id}`);
@@ -1265,15 +1347,15 @@ function EmptyChatGate() {
 
   return (
     <div
-      className="flex h-full w-full items-center justify-center p-4 sm:p-8"
+      className="flex h-full w-full items-center justify-center p-3 sm:p-5"
       data-testid="empty-chat-home"
     >
-      <div className="flex w-full max-w-2xl flex-col items-center gap-6">
+      <div className="flex w-full max-w-3xl flex-col items-center gap-4">
         <div className="text-center">
           <h1 className="text-xl font-semibold tracking-tight text-agent-foreground">
             {BRAND_NAME}
           </h1>
-          <p className="mt-1.5 text-sm text-agent-muted-foreground">
+          <p className="mt-1.5 text-xs text-agent-muted-foreground">
             输入消息，直接开始一段新对话。
           </p>
         </div>
@@ -1295,7 +1377,9 @@ function EmptyChatGate() {
             selectedAgentId={ctx.selectedAgentId}
             onSelectAgent={handleSelectAgent}
             onOpenSettings={
-              isElectron() ? () => setLlmSettingsOpen(true) : undefined
+              isElectron() && settingsChrome("llm")
+                ? () => setLlmSettingsOpen(true)
+                : undefined
             }
             toolbarExtras={
               <ModelPicker
@@ -1307,18 +1391,21 @@ function EmptyChatGate() {
               />
             }
             leadingChrome={
-              isElectron() ? (
+              isElectron() && showProjectsChrome ? (
                 <ProjectPickerButton
                   projects={projects}
                   value={selectedProjectId}
                   onChange={setSelectedProjectId}
+                  onProjectsChanged={fetchProjects}
                 />
               ) : undefined
             }
             mode={mode}
             onModeChange={handleModeChange}
-            execPolicy={execPolicy}
-            onExecPolicyChange={handleExecPolicyChange}
+            execPolicy={hostToolChrome("local-fs") ? execPolicy : "workspace"}
+            onExecPolicyChange={
+              hostToolChrome("local-fs") ? handleExecPolicyChange : undefined
+            }
             files={files}
             onFilesChange={setFiles}
             onMentionReferencesChange={setMentionReferences}
@@ -1340,7 +1427,7 @@ function EmptyChatGate() {
           </p>
         )}
       </div>
-      {isElectron() && (
+      {isElectron() && settingsChrome("llm") && (
         <LocalLlmSettingsModal
           open={llmSettingsOpen}
           onClose={() => setLlmSettingsOpen(false)}

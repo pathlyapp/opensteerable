@@ -10,6 +10,7 @@ import {
   sanitizeCompatOverrides,
   sanitizeLlmProvider,
   sanitizePresetsChoice,
+  resolveLockedLlmSettings,
   sidecarWireProvider,
   vendorModelsListUrl,
   type LlmSettings,
@@ -262,5 +263,42 @@ describe('vendorModelsListUrl', () => {
     expect(vendorModelsListUrl('ollama', 'http://127.0.0.1:11434')).toBe(
       'http://127.0.0.1:11434/v1/models',
     );
+  });
+});
+
+describe('resolveLockedLlmSettings', () => {
+  it('钉死 product.json 的 model / baseUrl，密钥走 apiKeyEnv', () => {
+    const settings = resolveLockedLlmSettings(
+      {
+        provider: 'openai-compat',
+        vendorId: 'deepseek',
+        model: 'deepseek-chat',
+        baseUrl: 'https://api.deepseek.com',
+        apiKeyEnv: 'DEEPSEEK_API_KEY',
+      },
+      { DEEPSEEK_API_KEY: 'sk-from-env' },
+      { ...OPENAI_COMPAT_DEFAULTS, model: 'old-model', apiKey: 'sk-old' },
+    );
+    expect(settings).toMatchObject({
+      provider: 'openai-compat',
+      vendorId: 'deepseek',
+      model: 'deepseek-chat',
+      baseUrl: 'https://api.deepseek.com',
+      apiKey: 'sk-from-env',
+    });
+  });
+
+  it('没有环境变量时回落已存 key', () => {
+    const settings = resolveLockedLlmSettings(
+      { model: 'deepseek-chat', apiKeyEnv: 'DEEPSEEK_API_KEY' },
+      {},
+      { ...OPENAI_COMPAT_DEFAULTS, apiKey: 'sk-saved' },
+    );
+    expect(settings.apiKey).toBe('sk-saved');
+  });
+
+  it('缺 llm.model 时 fail loud', () => {
+    expect(() => resolveLockedLlmSettings({})).toThrow(/llm.model/);
+    expect(() => resolveLockedLlmSettings(undefined)).toThrow(/must declare llm/);
   });
 });

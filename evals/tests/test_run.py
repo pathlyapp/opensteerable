@@ -323,6 +323,31 @@ def test_env_start_error_tasks_detects_dataset_remote_protocol(tmp_path: Path) -
     assert any_verifier_reward(tmp_path) is False
 
 
+def test_env_start_error_tasks_ignores_scored_agent_timeout(tmp_path: Path) -> None:
+    """Agent execution uses compose exec too; its traceback is not startup."""
+    trial = tmp_path / "2026-09-21__14-58-33" / "raman-fitting__u74ELUP"
+    trial.mkdir(parents=True)
+    traceback = (
+        "File harbor/environments/docker/docker.py in _run_docker_compose_command\n"
+        "asyncio.exceptions.CancelledError\n"
+        "harbor.trial.errors.AgentTimeoutError: timed out after 2700 seconds\n"
+    )
+    (trial / "exception.txt").write_text(traceback)
+    (trial / "result.json").write_text(
+        json.dumps(
+            {
+                "verifier_result": {"rewards": {"reward": 0.0}},
+                "exception_info": {
+                    "exception_type": "AgentTimeoutError",
+                    "exception_message": "timed out after 2700 seconds",
+                    "exception_traceback": traceback,
+                },
+            }
+        )
+    )
+    assert env_start_error_tasks(tmp_path) == ()
+
+
 def test_empty_shard_is_skipped_only_for_an_explicit_task_list(capsys) -> None:
     """Finishing a cancelled catalog dispatches fewer ids than the matrix has
     shards. A split still has to fill every shard or its tail goes unnoticed."""
@@ -453,4 +478,93 @@ def test_print_summary_retry_job_clears_env_start_error(
     )
     assert _print_summary(tmp_path) == EXIT_OK
     assert "errored=0" in capsys.readouterr().out
+
+
+def test_print_summary_counts_scored_timeout_as_zero(
+    tmp_path: Path, capsys
+) -> None:
+    """Harbor reports timeout in exception_stats even when verifier scored it."""
+    job = tmp_path / "2026-09-21__10-29-55"
+    trial = job / "raman-fitting__abc"
+    trial.mkdir(parents=True)
+    (trial / "exception.txt").write_text("AgentTimeoutError\n")
+    (job / "result.json").write_text(
+        json.dumps(
+            {
+                "stats": {
+                    "n_completed_trials": 1,
+                    "n_errored_trials": 1,
+                    "evals": {
+                        "steerable": {
+                            "metrics": [{"mean": 0.0}],
+                            "reward_stats": {
+                                "reward": {"0.0": ["raman-fitting__abc"]}
+                            },
+                            "exception_stats": {
+                                "AgentTimeoutError": ["raman-fitting__abc"]
+                            },
+                        }
+                    },
+                }
+            }
+        )
+    )
+    assert _print_summary(tmp_path) == EXIT_OK
+    output = capsys.readouterr()
+    assert "harbor reported" not in output.err
+
+
+def test_print_summary_rejects_unscored_exception(tmp_path: Path, capsys) -> None:
+    job = tmp_path / "2026-09-21__10-29-55"
+    trial = job / "compile-compcert__abc"
+    trial.mkdir(parents=True)
+    (trial / "exception.txt").write_text("Docker startup failed\n")
+    (job / "result.json").write_text(
+        json.dumps(
+            {
+                "stats": {
+                    "n_completed_trials": 1,
+                    "n_errored_trials": 1,
+                    "evals": {
+                        "steerable": {
+                            "metrics": [],
+                            "exception_stats": {
+                                "RuntimeError": ["compile-compcert__abc"]
+                            },
+                        }
+                    },
+                }
+            }
+        )
+    )
+    assert _print_summary(tmp_path) == EXIT_HARBOR
+    assert "harbor reported 1 errored trial" in capsys.readouterr().err
+
+
+def test_print_summary_rejects_incomplete_job(tmp_path: Path, capsys) -> None:
+    job = tmp_path / "2026-09-21__10-29-55"
+    job.mkdir()
+    (job / "result.json").write_text(
+        json.dumps(
+            {
+                "stats": {
+                    "n_completed_trials": 11,
+                    "n_errored_trials": 0,
+                    "n_running_trials": 1,
+                    "n_pending_trials": 0,
+                    "n_cancelled_trials": 0,
+                    "evals": {
+                        "steerable": {
+                            "metrics": [{"mean": 0.64}],
+                            "reward_stats": {
+                                "reward": {"1.0": ["fix-git__abc"]}
+                            },
+                        }
+                    },
+                }
+            }
+        )
+    )
+    assert _print_summary(tmp_path) == EXIT_HARBOR
+    assert "1 incomplete trial" in capsys.readouterr().err
 

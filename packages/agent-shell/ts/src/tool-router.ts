@@ -27,6 +27,8 @@ import {
   isToolAllowed,
   type AgentToolPolicy,
 } from './local-backend/agent-capability.js';
+import { isHostToolCapabilityEnabled } from './host-tools.js';
+import { getResolvedHostTools } from './host-tools-runtime.js';
 
 /** 已注册 MCP 服务的动态工具名前缀：`mcp__<serverKey>__<toolName>`。 */
 export const MCP_DYNAMIC_TOOL_PREFIX = 'mcp__';
@@ -734,7 +736,10 @@ export class ToolRouter {
    */
   listModelSchemas(policy?: AgentToolPolicy | null): ToolSchema[] {
     const effective = policy ?? { mode: 'all', tools: [] };
-    const all = filterToolsByPolicy(this.listSchemas(), effective);
+    const tools = getResolvedHostTools();
+    const all = filterToolsByPolicy(this.listSchemas(), effective).filter((s) =>
+      isHostToolCapabilityEnabled(s.name, tools),
+    );
     const hasDeferred = all.some(s => s.exposure === 'deferred');
     return all.filter(s => {
       if ((s.exposure ?? 'direct') !== 'direct') return false;
@@ -757,6 +762,9 @@ export class ToolRouter {
       throw new Error(
         `工具 ${call.name} 被当前智能体的工具策略拒绝（智能体管理 → 工具权限）`,
       );
+    }
+    if (!isHostToolCapabilityEnabled(call.name, getResolvedHostTools())) {
+      throw new Error(`工具 ${call.name} 未在本产品引入`);
     }
     if (call.name.startsWith(MCP_DYNAMIC_TOOL_PREFIX)) {
       return await this.executeRegisteredMcpTool(call.name, args);
@@ -1060,10 +1068,11 @@ export class ToolRouter {
     policy: AgentToolPolicy | null,
   ): unknown {
     const cap = resolveMaxResults(args.max_results);
+    const tools = getResolvedHostTools();
     const deferred = filterToolsByPolicy(
       this.listSchemas().filter(s => s.exposure === 'deferred'),
       policy ?? { mode: 'all', tools: [] },
-    );
+    ).filter((s) => isHostToolCapabilityEnabled(s.name, tools));
     const ranked = rankTools(deferred, String(args.query ?? ''));
     const matches = ranked.slice(0, cap).map(schema => ({
       name: schema.name,

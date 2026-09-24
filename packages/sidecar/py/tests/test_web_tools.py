@@ -962,6 +962,8 @@ def test_workspace_router_omits_web_tools_when_declined(tmp_path) -> None:
     assert "web_fetch" not in offered
     assert "web_search" not in offered
     assert "bash" in offered
+    assert "view_image" in offered
+    assert "capture_display" in offered
 
     with_web = {
         t["function"]["name"]

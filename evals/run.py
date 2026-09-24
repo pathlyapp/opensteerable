@@ -329,6 +329,24 @@ def _env_start_hit(text: str) -> bool:
     return any(marker in lowered for marker in _ENV_START_MARKERS)
 
 
+def _trial_has_verifier_reward(trial_dir: Path) -> bool:
+    """True when Harbor already produced a score for this trial.
+
+    Agent timeouts unwind through Docker's compose-exec implementation, so
+    their traceback contains ``_run_docker_compose_command`` too. Once the
+    verifier assigned reward 0 or 1, the trial is complete and must not be
+    retried as an environment-start failure.
+    """
+    try:
+        payload = json.loads((trial_dir / "result.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    if not isinstance(payload, dict):
+        return False
+    rewards = ((payload.get("verifier_result") or {}).get("rewards")) or {}
+    return rewards.get("reward") is not None
+
+
 def env_start_error_tasks(jobs_dir: Path) -> tuple[str, ...]:
     """Catalog ids whose Harbor trial died in docker compose / image pull."""
     found: list[str] = []
@@ -343,6 +361,8 @@ def env_start_error_tasks(jobs_dir: Path) -> tuple[str, ...]:
         found.append(task)
 
     for exc in sorted(jobs_dir.rglob("exception.txt")):
+        if _trial_has_verifier_reward(exc.parent):
+            continue
         try:
             text = exc.read_text(encoding="utf-8", errors="replace")
         except OSError:
@@ -358,7 +378,12 @@ def env_start_error_tasks(jobs_dir: Path) -> tuple[str, ...]:
             payload = json.loads(result.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             continue
-        info = payload.get("exception_info") if isinstance(payload, dict) else None
+        if not isinstance(payload, dict):
+            continue
+        rewards = ((payload.get("verifier_result") or {}).get("rewards")) or {}
+        if rewards.get("reward") is not None:
+            continue
+        info = payload.get("exception_info")
         if not isinstance(info, dict):
             continue
         text = " ".join(
@@ -410,7 +435,13 @@ def any_verifier_reward(jobs_dir: Path) -> bool:
 
 
 def _trial_outcomes(jobs_dir: Path) -> dict[str, str]:
-    """task id → ``1`` / ``0`` / ``exception``. Later Harbor jobs overwrite."""
+    """Task id → ``1`` / ``0`` / ``exception``. Later Harbor jobs overwrite.
+
+    A verifier reward wins over an exception from the same trial. Harbor
+    records an ``AgentTimeoutError`` as an exception even after running the
+    verifier and assigning reward 0; that is a scored task failure, not an
+    unscored harness error.
+    """
     out: dict[str, str] = {}
     for result in sorted(jobs_dir.glob("*/result.json")):
         try:
@@ -492,11 +523,15 @@ def _print_summary(jobs_dir: Path, *, require_mean: float | None = None) -> int:
         print(f"harbor result missing stats: {latest}", file=sys.stderr)
         return EXIT_HARBOR
     print(json.dumps(stats, indent=2, sort_keys=True))
+    outcomes = _trial_outcomes(jobs_dir)
     if len(results) == 1:
-        errored = int(stats.get("n_errored_trials") or 0)
+        errored = (
+            sum(1 for value in outcomes.values() if value == "exception")
+            if outcomes
+            else int(stats.get("n_errored_trials") or 0)
+        )
         mean = _job_mean(stats)
     else:
-        outcomes = _trial_outcomes(jobs_dir)
         errored = sum(1 for value in outcomes.values() if value == "exception")
         n = len(outcomes)
         ones = sum(1 for value in outcomes.values() if value.startswith("1"))
@@ -509,6 +544,16 @@ def _print_summary(jobs_dir: Path, *, require_mean: float | None = None) -> int:
     _append_github_step_summary(latest, mean=mean, n_errored=int(errored))
     if errored:
         print(f"harbor reported {errored} errored trial(s)", file=sys.stderr)
+        return EXIT_HARBOR
+    incomplete = sum(
+        int(stats.get(key) or 0)
+        for key in ("n_running_trials", "n_pending_trials", "n_cancelled_trials")
+    )
+    if incomplete:
+        print(
+            f"harbor result has {incomplete} incomplete trial(s)",
+            file=sys.stderr,
+        )
         return EXIT_HARBOR
     if require_mean is not None:
         if mean is None or mean + 1e-9 < require_mean:

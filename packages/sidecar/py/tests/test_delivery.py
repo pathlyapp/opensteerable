@@ -2680,6 +2680,185 @@ async def test_named_script_runs_without_backticks_when_side_effect_missing(
 
 
 @pytest.mark.asyncio
+async def test_named_entrypoint_recreates_stale_output_before_accepting(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "weights.npy"
+    script = tmp_path / "steal.py"
+    hooks = DeliveryHooks(
+        instruction=(
+            f"Write {script}. When run it must save the matrix to {output}."
+        ),
+        named_outputs=(str(script), str(output)),
+    )
+    script.write_text(
+        f"from pathlib import Path\nPath({str(output)!r}).write_bytes(b'fresh')\n",
+        encoding="utf-8",
+    )
+    output.write_bytes(b"stale")
+
+    action = await hooks.before_completion(_draft(tools=2), LoopContext())
+
+    assert action.kind == "accept"
+    assert output.read_bytes() == b"fresh"
+    assert hooks._clean_entry_verified is True
+
+
+@pytest.mark.asyncio
+async def test_named_entrypoint_clean_failure_restores_output_and_retries(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "weights.npy"
+    script = tmp_path / "steal.py"
+    hooks = DeliveryHooks(
+        instruction=(
+            f"Write {script}. When run it must save the matrix to {output}."
+        ),
+        named_outputs=(str(script), str(output)),
+    )
+    script.write_text("raise RuntimeError('broken')\n", encoding="utf-8")
+    output.write_bytes(b"stale")
+
+    action = await hooks.before_completion(_draft(tools=2), LoopContext())
+
+    assert action.kind == "retry"
+    assert action.reason == "named_entrypoint_clean"
+    assert "old output file does not prove" in (action.message or "")
+    assert output.read_bytes() == b"stale"
+
+
+@pytest.mark.asyncio
+async def test_named_entrypoint_clean_retry_runs_after_script_edit(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "weights.npy"
+    script = tmp_path / "steal.py"
+    hooks = DeliveryHooks(
+        instruction=(
+            f"Write {script}. When run it must save the matrix to {output}."
+        ),
+        named_outputs=(str(script), str(output)),
+    )
+    script.write_text("raise RuntimeError('broken')\n", encoding="utf-8")
+    output.write_bytes(b"stale")
+    failed = await hooks.before_completion(_draft(tools=2), LoopContext())
+    assert failed.reason == "named_entrypoint_clean"
+
+    script.write_text(
+        f"from pathlib import Path\nPath({str(output)!r}).write_bytes(b'fixed')\n",
+        encoding="utf-8",
+    )
+    await hooks.post_tool_result(
+        ToolResult(success=True),
+        ToolCall(
+            id="edit",
+            name="edit_file",
+            arguments={"path": str(script), "edits": []},
+        ),
+        LoopContext(),
+    )
+    action = await hooks.before_completion(_draft(tools=3), LoopContext())
+
+    assert action.kind == "accept"
+    assert output.read_bytes() == b"fixed"
+
+
+@pytest.mark.asyncio
+async def test_named_entrypoint_does_not_recreate_preexisting_input(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "weights.npy"
+    output.write_bytes(b"input")
+    script = tmp_path / "inspect.py"
+    hooks = DeliveryHooks(
+        instruction=f"Write {script}; it may inspect {output}.",
+        named_outputs=(str(script), str(output)),
+    )
+    script.write_text("raise RuntimeError('must not run')\n", encoding="utf-8")
+
+    action = await hooks.before_completion(_draft(tools=2), LoopContext())
+
+    assert action.kind == "accept"
+    assert output.read_bytes() == b"input"
+
+
+@pytest.mark.asyncio
+async def test_named_entrypoint_recreates_output_existing_before_hook(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "weights.npy"
+    script = tmp_path / "steal.py"
+    output.write_bytes(b"stale")
+    script.write_text(
+        f"from pathlib import Path\nPath({str(output)!r}).write_bytes(b'fresh')\n",
+        encoding="utf-8",
+    )
+    hooks = DeliveryHooks(
+        instruction=(
+            f"Write {script}. When run, save the recovered matrix to {output}."
+        ),
+        named_outputs=(str(script), str(output)),
+    )
+
+    action = await hooks.before_completion(_draft(tools=2), LoopContext())
+
+    assert action.kind == "accept"
+    assert output.read_bytes() == b"fresh"
+
+
+@pytest.mark.asyncio
+async def test_named_entrypoint_restores_preexisting_output_on_clean_failure(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "weights.npy"
+    script = tmp_path / "steal.py"
+    output.write_bytes(b"stale")
+    script.write_text("raise RuntimeError('broken')\n", encoding="utf-8")
+    hooks = DeliveryHooks(
+        instruction=(
+            f"Write {script}. When run, save the recovered matrix to {output}."
+        ),
+        named_outputs=(str(script), str(output)),
+    )
+
+    action = await hooks.before_completion(_draft(tools=2), LoopContext())
+
+    assert action.kind == "retry"
+    assert action.reason == "named_entrypoint_clean"
+    assert output.read_bytes() == b"stale"
+
+
+@pytest.mark.asyncio
+async def test_wrap_up_runs_clean_entrypoint_before_completion(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "weights.npy"
+    script = tmp_path / "steal.py"
+    output.write_bytes(b"stale")
+    script.write_text("raise RuntimeError('broken')\n", encoding="utf-8")
+    hooks = DeliveryHooks(
+        instruction=(
+            f"Write {script}. When run, save the recovered matrix to {output}."
+        ),
+        named_outputs=(str(script), str(output)),
+    )
+    wrap = [
+        LLMMessage.text_of("user", "The time budget for this task is almost gone.")
+    ]
+
+    action = await hooks.pre_step(wrap, LoopContext())
+
+    assert action.reason == "wrap_up_clean_entrypoint"
+    assert action.tool_choice == "required"
+    assert action.appends
+    assert "old output file does not prove" in (
+        action.appends[0].message.content_text or ""
+    )
+    assert output.read_bytes() == b"stale"
+    assert hooks.wrap_up_may_drop_tools() is False
+
+
+@pytest.mark.asyncio
 async def test_named_make_builds_missing_elf(tmp_path) -> None:
     elf = tmp_path / "doomgeneric_mips"
     (tmp_path / "Makefile").write_text(

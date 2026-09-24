@@ -18,15 +18,15 @@ export interface ReverseToolDeps {
   onBlocked?: (info: { command: string; rules: string[] }) => void;
   /**
    * 项目模式：按 chatId 解析项目根（绝对路径），无绑定/已删除返回 null。
-   * main.ts 注入 LocalBackendRouter.resolveChatProject 的适配；未注入时
+   * main.ts 注入对话可写根（项目家目录或无项目对话工作区）；未注入时
    * 项目围栏不生效（CLI/test 场景）。
    */
-  resolveProjectRoot?: (chatId: string) => string | null;
+  resolveProjectRoot?: (chatId: string) => Promise<string | null>;
   /**
    * 额外放行的只读根（会话附件目录等）。写入仍只受 projectRoot 围栏约束，
    * 这里只放宽 local_read_file 的读取范围。
    */
-  resolveAdditionalReadRoots?: (chatId: string) => string[];
+  resolveAdditionalReadRoots?: (chatId: string) => string[] | Promise<string[]>;
 }
 
 /**
@@ -83,10 +83,10 @@ export function createToolInvokeHandler(deps: ReverseToolDeps): SidecarReverseHa
       typeof p.context?.workspaceRoot === 'string' && p.context.workspaceRoot
         ? p.context.workspaceRoot
         : p.context?.chatId
-          ? (deps.resolveProjectRoot?.(p.context.chatId) ?? null)
+          ? (await deps.resolveProjectRoot?.(p.context.chatId) ?? null)
           : null;
     const additionalReadRoots = p.context?.chatId
-      ? (deps.resolveAdditionalReadRoots?.(p.context.chatId) ?? [])
+      ? await Promise.resolve(deps.resolveAdditionalReadRoots?.(p.context.chatId) ?? [])
       : [];
     if (name === 'local_exec_shell') {
       const classification = classifyShellCommand(String(toolArgs.command ?? ''));

@@ -77,6 +77,7 @@ from steerable_agent_runtime import (
     PluginLoadError,
     PluginStateError,
     PolicyDeniedError,
+    RequiredDelegationGate,
     RouterToolExecutor,
     SandboxedToolExecutor,
     SessionApprovalCache,
@@ -1874,6 +1875,22 @@ class Sidecar:
                 store=JsonApprovalStore(store_path) if store_path else None,
                 timeout_s=(float(timeout_ms) / 1000.0) if timeout_ms else None,
             )
+        # Child-safe sidecar-local tools must be visible and dispatchable
+        # before SubagentExecutor snapshots its tool domain. User interaction
+        # is deliberately absent: children report questions through
+        # request_parent_input and the parent owns ask_user.
+        child_local_names: list[str] = []
+        if self.tools.get("todo_write") is not None:
+            from steerable_agent_runtime import todo_write_tool_descriptor
+            from .run_code import RunCodeBoundExecutor
+
+            child_local_names.append("todo_write")
+            tools = [*(tools or []), todo_write_tool_descriptor()]
+            executor = RunCodeBoundExecutor(
+                executor,
+                router=self.tools,
+                local_names=child_local_names,
+            )
         # subagent: the delegation seam is ON BY DEFAULT (delegate-on-pool
         # unification) — delegate_subagent is the model's single multi-agent
         # surface; the six-tool orchestration family below is the opt-in
@@ -1885,6 +1902,7 @@ class Sidecar:
         # Children run as pooled AgentPool runs: lifecycle lands on the
         # agent.child notification stream, and a concurrent profile's
         # same-round delegations execute in parallel under the pool budget.
+        loop_config = _build_loop_config(params)
         subagent_param = params.get("subagent", True)
         subagent_executor: SubagentExecutor | None = None
         if subagent_param:
@@ -1899,6 +1917,9 @@ class Sidecar:
             # "...", "maxRounds": N, "concurrent": bool}}}`` and the tool
             # schema advertises the names as a ``subagent_type`` enum. An
             # unknown name fails closed listing the registered ones.
+            # Round / tool-error walls inherit the parent loop unless a
+            # profile pins its own — a child must not die at 8/12 rounds
+            # while the parent still has the spec's 80.
             registry = None
             profiles = subagent_opts.get("profiles")
             if isinstance(profiles, dict) and profiles:
@@ -1913,7 +1934,14 @@ class Sidecar:
                     registry.register(
                         str(name),
                         SubagentConfig(
-                            max_rounds=int(p.get("maxRounds", 8)),
+                            max_rounds=int(
+                                p.get("maxRounds", loop_config.max_rounds)
+                            ),
+                            max_tool_errors=int(
+                                p.get(
+                                    "maxToolErrors", loop_config.max_tool_errors
+                                )
+                            ),
                             tool_filter=p_filter,
                             model=(
                                 str(p["model"]) if p.get("model") is not None else None
@@ -1946,9 +1974,24 @@ class Sidecar:
                 SubagentConfig(
                     tool_filter=tool_filter,
                     max_parallel=int(subagent_opts.get("maxParallel", 4)),
+                    max_rounds=int(
+                        subagent_opts.get("maxRounds", loop_config.max_rounds)
+                    ),
+                    max_tool_errors=int(
+                        subagent_opts.get(
+                            "maxToolErrors", loop_config.max_tool_errors
+                        )
+                    ),
                 ),
                 registry=registry,
                 provider_factory=_subagent_provider_factory,
+                # Each child writes its own durable record
+                # (``<parent>:child:<lineage id>``) so the host can render
+                # the delegation's process; the id rides child_spawned.
+                history_store=self.storage,
+                record_id_prefix=(
+                    params.get("recordId") or params.get("chatId") or None
+                ),
                 # Children advertise the host tool surface (minus the
                 # delegation tool itself), narrowed per profile; the
                 # descriptor appended below is deliberately not in the
@@ -1963,6 +2006,22 @@ class Sidecar:
                 *(tools or []),
                 subagent_tool_descriptor(registry=registry),
             ]
+            # requiredProfiles: the host named these sub-agents for the turn
+            # (desktop ``@`` mentions), so finishing without delegating to
+            # one is a skipped instruction, not a choice. The prompt alone
+            # cannot enforce that — a turn that ran other tools and narrated
+            # the hand-off passes every other discipline guard.
+            required_profiles = [
+                str(name) for name in subagent_opts.get("requiredProfiles") or []
+            ]
+            if required_profiles:
+                hooks = ChainHooks(
+                    RequiredDelegationGate(
+                        required_profiles,
+                        tool_name=SubagentConfig().tool_name,
+                    ),
+                    hooks,
+                )
         # worldState: slow-changing host context (time, workspace, git
         # branch, …) as plain per-section data. The loop injects it once as
         # a <world-state> fragment; later turns diff against the snapshot
@@ -2084,13 +2143,11 @@ class Sidecar:
             # (mirrors subagent/skills above) or the model never sees run_code.
             tools = [*(tools or []), run_code_tool_descriptor()]
         # todo_write: session task list (CC TodoWrite parity). Registered
-        # unconditionally at boot, so it is advertised every turn; dispatch
-        # is intercepted locally like run_code (the host does not know it).
+        # unconditionally at boot and advertised above before the subagent
+        # snapshots its domain. Keep it in this outer dispatcher too so
+        # parent run_code calls capture the complete executor chain.
         if self.tools.get("todo_write") is not None:
-            from steerable_agent_runtime import todo_write_tool_descriptor
-
             local_names.append("todo_write")
-            tools = [*(tools or []), todo_write_tool_descriptor()]
         # run_js/wait_js: conversational JS PTC (the codex CodeModeHost
         # counterpart). Same router-answered local dispatch as run_code; the
         # session binds to this run's chatId inside the tool.
@@ -2159,7 +2216,7 @@ class Sidecar:
         loop = CoreLoop(
             provider,
             executor,
-            _build_loop_config(params),
+            loop_config,
             hooks=hooks,
             # Wave 1 durable record: the continuous per-chat log. An
             # explicit recordId (the fork path's fresh log) wins over the
@@ -2357,6 +2414,21 @@ class Sidecar:
                     "kind": "LoopError",
                     "message": data["message"],
                     **({"traceId": trace_id} if trace_id else {}),
+                },
+            )
+        elif kind == "completion" and data.get("status") == "executing":
+            # Per-round bookkeeping (think → act → observe). Hosts seal the
+            # live thinking segment here so the next LLM burst starts a new
+            # block instead of concatenating every round into one wall.
+            await transport.emit_notification(
+                "stream.chunk",
+                {
+                    "streamId": stream_id,
+                    "notice": {
+                        "kind": "round_end",
+                        "status": "executing",
+                        "round": data.get("round"),
+                    },
                 },
             )
         elif kind == "completion" and data.get("status") != "executing":

@@ -8,7 +8,7 @@ import {
   rowsEligibleForAutoUpload,
 } from '../../src/storage/insights-settings';
 import { redactInsightText, toolNamesOnly } from '../../src/storage/insights-redact';
-import { setProductConfig } from '../../src/product-config';
+import { resetProductConfigForTests, setProductConfig } from '../../src/product-config';
 
 const ID = '550e8400-e29b-41d4-a716-446655440000';
 
@@ -79,6 +79,7 @@ describe('insights api base', () => {
     expect(resolveInsightsApiBase(unset, '')).toBe('');
     setProductConfig({ insightsApiBase: 'https://insights.example' });
     expect(resolveInsightsApiBase(unset, '')).toBe('https://insights.example');
+    resetProductConfigForTests();
   });
 });
 

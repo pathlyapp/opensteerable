@@ -15,6 +15,7 @@ import {
   useChatsAndAgents,
   type UseChatsAndAgentsResult,
 } from '@/hooks/useChatsAndAgents';
+import { hostToolChrome, sanitizeRightPanelKind, settingsChrome } from '@/lib/host-tools';
 
 /**
  * AgentLayout wraps `/agent`, `/agent/:chatId`, and `/` (default) with a
@@ -272,14 +273,16 @@ function AgentLayoutContent() {
     try {
       const saved = window.localStorage.getItem(RIGHT_PANEL_KEY);
       if (saved !== null) {
-        return saved === 'terminal' || packChatSlots.some((s) => s.slotId === saved)
-          ? saved
-          : null;
+        const raw =
+          saved === 'terminal' || packChatSlots.some((s) => s.slotId === saved)
+            ? saved
+            : null;
+        return sanitizeRightPanelKind(raw);
       }
       // 新 key 不存在时才迁移老版本仅持久化终端的旧 key。
-      return window.localStorage.getItem(TERMINAL_OPEN_KEY) === '1'
-        ? 'terminal'
-        : null;
+      return sanitizeRightPanelKind(
+        window.localStorage.getItem(TERMINAL_OPEN_KEY) === '1' ? 'terminal' : null,
+      );
     } catch {
       return null;
     }
@@ -311,7 +314,8 @@ function AgentLayoutContent() {
       打开任一面板即离开任务 dock（栏位同一时刻只呈现一个内容）。 */
   const toggleRightPanel = useCallback(
     (kind: string) => {
-      const next: RightPanelState = rightPanelRef.current === kind ? null : kind;
+      const raw: RightPanelState = rightPanelRef.current === kind ? null : kind;
+      const next = sanitizeRightPanelKind(raw);
       rightPanelRef.current = next;
       if (next !== null) setInspectedTask(null);
       setRightPanelState(next);
@@ -363,6 +367,7 @@ function AgentLayoutContent() {
   }, []);
 
   const showTerminalFromTask = useCallback(() => {
+    if (!hostToolChrome('terminal')) return;
     setInspectedTask(null);
     rightPanelRef.current = 'terminal';
     setRightPanelState('terminal');
@@ -394,14 +399,14 @@ function AgentLayoutContent() {
   }, [chatId, persistRightPanel]);
 
   // Same drag ergonomics as the sidebar handle, mirrored: the terminal's
-  // right edge is pinned to the window's right padding (p-2 = 8px), so the
+  // right edge is pinned to the window's right padding (p-1.5 = 6px), so the
   // width is the distance from the cursor to that edge.
   useEffect(() => {
     if (!isTerminalResizing) return;
     const onMove = (e: MouseEvent) => {
       const next = Math.min(
         MAX_TERMINAL_WIDTH,
-        Math.max(MIN_TERMINAL_WIDTH, window.innerWidth - 8 - e.clientX),
+        Math.max(MIN_TERMINAL_WIDTH, window.innerWidth - 6 - e.clientX),
       );
       terminalWidthRef.current = next;
       setTerminalWidth(next);
@@ -450,16 +455,18 @@ function AgentLayoutContent() {
     <div className="relative flex h-full w-full bg-agent-muted/30">
       {sidebarCollapsed ? (
         // 收起态：窄 rail 只放展开按钮。新建对话仍可用 Cmd+N / 菜单触发。
-        <div className="flex h-full w-10 flex-shrink-0 flex-col items-center border-r border-agent-border/60 bg-agent-muted/70 py-2 backdrop-blur-md">
-          <button
-            type="button"
-            onClick={toggleSidebarCollapsed}
-            className="flex h-7 w-7 items-center justify-center rounded-full text-agent-muted-foreground transition-colors duration-200 hover:bg-agent-foreground/5 hover:text-agent-foreground"
-            title="展开侧边栏"
-            aria-label="展开侧边栏"
-          >
-            <LuPanelLeftOpen className="h-3.5 w-3.5" />
-          </button>
+        <div className="flex h-full w-10 flex-shrink-0 flex-col items-center border-r border-agent-border/60 bg-agent-muted/70 backdrop-blur-md">
+          <div className="flex h-11 w-full items-center justify-center">
+            <button
+              type="button"
+              onClick={toggleSidebarCollapsed}
+              className="flex h-7 w-7 items-center justify-center rounded-full text-agent-muted-foreground transition-colors duration-200 hover:bg-agent-foreground/5 hover:text-agent-foreground"
+              title="展开侧边栏"
+              aria-label="展开侧边栏"
+            >
+              <LuPanelLeftOpen className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
       ) : (
         <>
@@ -484,7 +491,7 @@ function AgentLayoutContent() {
           />
         </>
       )}
-      <div className="h-full min-w-0 flex-1 p-2">
+      <div className="h-full min-w-0 flex-1 p-1.5">
         <div className="flex h-full w-full">
           <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden rounded-agent-lg bg-agent-canvas shadow-sm">
             <div className="min-h-0 flex-1 overflow-hidden">
@@ -497,7 +504,7 @@ function AgentLayoutContent() {
                 } satisfies AgentOutletContext}
               />
             </div>
-            <InsightsConsentBanner />
+            {settingsChrome('insights') && <InsightsConsentBanner />}
           </div>
           {(rightPanel !== null || inspectedTask !== null) && (
             <>
@@ -521,7 +528,9 @@ function AgentLayoutContent() {
                   <TaskProcessPanel
                     inspected={inspectedTask}
                     onClose={closeTaskProcess}
-                    onShowTerminal={showTerminalFromTask}
+                    onShowTerminal={
+                      hostToolChrome('terminal') ? showTerminalFromTask : undefined
+                    }
                   />
                 ) : rightPanel === 'terminal' ? (
                   <TerminalPanel

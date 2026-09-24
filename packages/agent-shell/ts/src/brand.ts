@@ -2,7 +2,7 @@
  * 品牌/ flavor 单一真源（主进程与 Node 侧共用）。
  *
  * flavor 是开放字符串（ScenarioId，0.3g 起不再是二值联合）：`generic`
- * 是无场景包的产品 flavor，其余 flavor 由场景包激活。合法 flavor 集合
+ * 是无品牌 shell 兜底，产品 flavor 由应用层注入。合法 flavor 集合
  * = 应用层 products/manifest.json 的 flavors 键（best-effort 校验，
  * 读不到清单时不强制）。
  *
@@ -25,7 +25,7 @@ import path from 'node:path';
 import { getAppRootDir } from './runtime.js';
 import type { ScenarioId } from './scenario/pack.js';
 
-/** 开放字符串（0.3g）：'generic' | 各场景产品 flavor | 未来产品 id。 */
+/** 开放字符串（0.3g）：'generic'（无品牌兜底）| 各产品 flavor。 */
 export type AppFlavor = ScenarioId;
 
 /** shell 默认智能体；场景产品里仍可选，但不一定作为首页默认。 */
@@ -37,6 +37,11 @@ export interface Brand {
   flavor: AppFlavor;
   /** UI 显示名：窗口标题、通知标题等 */
   displayName: string;
+  /**
+   * 侧栏等品牌锁头里 logo 旁的标题。省略则只显示 logo，
+   * 并按 logo 原尺寸等比例缩放（一体字标不要再叠标题、不要压成方图）。
+   */
+  title?: string;
   /** LLM 身份自称（系统提示词里用） */
   agentName: string;
   /** 一句话定位（fallback prompt 用） */
@@ -51,6 +56,7 @@ export interface Brand {
  */
 const SHELL_BRAND: Omit<Brand, 'flavor'> = {
   displayName: 'Steerable Shell',
+  title: 'Steerable Shell',
   agentName: 'Agent',
   tagline: '一款本地桌面 AI 伙伴',
   defaultAgentId: LOCAL_ASSISTANT_AGENT_ID,

@@ -24,7 +24,6 @@ from harbor.environments.base import BaseEnvironment
 from harbor.models.agent.context import AgentContext
 
 from evals.harbor_helpers import (
-    _APT_PYTHON_INSTALL,
     _ENSURE_PYTHON_310,
     _NO_PROXY_ENV,
     _REMOTE_SRC,
@@ -60,6 +59,8 @@ _INSTRUCTION_REMOTE = "/tmp/steerable-instruction.md"
 # as JSON (a YAML subset the runtime loader parses with stdlib json).
 _HARNESS_REMOTE = "/tmp/steerable-harness.json"
 _REMOTE_VENV_TAR = "/tmp/steerable-venv.tgz"
+_NATIVE_WHEEL_ENV = "STEERABLE_NATIVE_WHEEL"
+_NATIVE_WHEEL_MUSL_ENV = "STEERABLE_NATIVE_WHEEL_MUSL"
 _CREDENTIAL_KEYS = (
     "STEERABLE_API_KEY",
     "STEERABLE_BASE_URL",
@@ -77,6 +78,8 @@ _TUNING_KEYS = (
     "STEERABLE_IDLE_STREAM_TIMEOUT_MS",
     "STEERABLE_IDLE_STREAM_MAX_CHARS",
     "STEERABLE_REASONING_WITHOUT_PROGRESS_CHARS",
+    "STEERABLE_SOFT_TIMEOUT_MS",
+    "STEERABLE_HARD_TIMEOUT_SEC",
     # Sampling, for the same reason: 17 of 89 tasks flip outcome between runs
     # of the same commit, and the same task has run 10 and 48 tool calls on
     # two runs, so trajectory spread is what the flapping is made of. The
@@ -142,18 +145,12 @@ class SteerableHarborAgent(BaseInstalledAgent):
 
     @override
     async def install(self, environment: BaseEnvironment) -> None:
-        pip_check = await environment.exec(
-            command="python3 -m pip --version", user="root"
-        )
         proxy_env = self._forwarded_env(_PROXY_KEYS)
         # Harbor scopes extra_env to agent setup/run only. TB hidden tests
         # download uv from GitHub inside the same container; without a
         # rewritten host proxy that step hangs (VerifierTimeoutError).
         if proxy_env:
             environment._persistent_env.update(proxy_env)
-        if pip_check.return_code != 0:
-            apt_env = {"DEBIAN_FRONTEND": "noninteractive", **proxy_env}
-            await self._ensure_python_apt(environment, apt_env)
         await self._inject_host_uv(environment)
         await self._inject_host_python(environment)
         await self._ensure_python_310(environment, proxy_env)
@@ -181,8 +178,9 @@ class SteerableHarborAgent(BaseInstalledAgent):
             await self._overlay_source(environment, proxy_env)
         else:
             await self._pip_install_packages(environment, proxy_env)
-            if py_tag:
-                await self._save_venv(environment, _venv_tarball(py_tag))
+        await self._install_native_coreloop(environment)
+        if not restored and py_tag:
+            await self._save_venv(environment, _venv_tarball(py_tag))
         await self._seed_uv(environment)
         environment._persistent_env["PATH"] = _merge_trial_path(
             environment._persistent_env.get("PATH", "")
@@ -204,44 +202,6 @@ class SteerableHarborAgent(BaseInstalledAgent):
         if result.return_code != 0:
             return ""
         return (result.stdout or "").strip()
-
-    async def _ensure_python_apt(
-        self, environment: BaseEnvironment, apt_env: dict[str, str]
-    ) -> None:
-        """Install pip/venv after Ubuntu's boot apt releases the dpkg lock.
-
-        Slim images have no ``fuser``. A Harbor timeout also leaves apt-get
-        running, so a second install must wait on ``/proc/*/fd`` and only then
-        kill a stuck lock holder.
-        """
-        try:
-            await self.exec_as_root(
-                environment,
-                command=_APT_PYTHON_INSTALL,
-                env=apt_env or None,
-                timeout_sec=900,
-            )
-        except Exception:
-            try:
-                await self.exec_as_root(
-                    environment,
-                    command=_APT_PYTHON_INSTALL,
-                    env=apt_env or None,
-                    timeout_sec=900,
-                )
-            except Exception:
-                # apt is best-effort: EOL images (Debian 11 qemu tasks) 404
-                # on the security pool. The host-uv injection next in
-                # install() brings up Python 3.12 without apt, and
-                # _ensure_python_310 raises if no >=3.10 interpreter lands.
-                return
-        pip_check = await environment.exec(
-            command="python3 -m pip --version", user="root"
-        )
-        if pip_check.return_code != 0:
-            await self.ensure_system_dependencies(
-                environment, ("python3", "python_pip")
-            )
 
     async def _inject_host_uv(self, environment: BaseEnvironment) -> None:
         """Put a Linux musl ``uv`` in the trial before Python upgrade.
@@ -340,6 +300,51 @@ class SteerableHarborAgent(BaseInstalledAgent):
                 timeout_sec=15,
             )
         except Exception:
+            return
+
+    async def _repair_verifier_package_state(
+        self, environment: BaseEnvironment
+    ) -> None:
+        """Finish an interrupted apt transaction before Harbor's verifier setup.
+
+        Agent setup is intentionally best-effort on old task images. When apt
+        partially upgrades a package set and then fails, Harbor's verifier
+        cannot install its own declared dependencies: the test process starts
+        without tools such as ``sshpass`` and a correct agent result scores
+        zero. A healthy package database is left untouched.
+        """
+        try:
+            await self.exec_as_root(
+                environment,
+                command=(
+                    "if command -v apt-get >/dev/null 2>&1; then "
+                    "export DEBIAN_FRONTEND=noninteractive; "
+                    "if [ -r /etc/os-release ]; then . /etc/os-release; fi; "
+                    "if [ \"${ID:-}\" = debian ] "
+                    "&& [ \"${VERSION_CODENAME:-}\" = bullseye ]; then "
+                    "for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list; do "
+                    "[ -f \"$f\" ] || continue; "
+                    "sed -i "
+                    "-e 's|http://deb.debian.org/debian|http://archive.debian.org/debian|g' "
+                    "-e '/debian-security/s/^/# disabled after bullseye EOL: /' "
+                    "\"$f\"; "
+                    "done; "
+                    "printf '%s\\n' 'Acquire::Check-Valid-Until \"false\";' "
+                    "> /etc/apt/apt.conf.d/99steerable-eol; "
+                    "rm -rf /var/lib/apt/lists/*; "
+                    "fi; "
+                    "apt-get update; "
+                    "if ! apt-get check >/dev/null 2>&1; then "
+                    "dpkg --configure -a || true; "
+                    "apt-get -f install -y; "
+                    "apt-get check; "
+                    "fi; "
+                    "fi"
+                ),
+                timeout_sec=300,
+            )
+        except Exception:
+            # Non-Debian and EOL images still reach verifiers that need no apt.
             return
 
     async def _ensure_python_310(
@@ -467,6 +472,51 @@ class SteerableHarborAgent(BaseInstalledAgent):
             timeout_sec=600,
         )
 
+    async def _install_native_coreloop(self, environment: BaseEnvironment) -> None:
+        """Install the caller-provided Linux abi3 wheel matching trial libc.
+
+        Catalog images include glibc and musl systems. CI builds both wheels;
+        the trial selects musllinux for Alpine and manylinux otherwise.
+        """
+        raw_manylinux = (os.environ.get(_NATIVE_WHEEL_ENV) or "").strip()
+        raw_musllinux = (os.environ.get(_NATIVE_WHEEL_MUSL_ENV) or "").strip()
+        if not raw_manylinux or not raw_musllinux:
+            raise RuntimeError(
+                "STEERABLE_NATIVE_WHEEL and STEERABLE_NATIVE_WHEEL_MUSL must "
+                "point to manylinux and musllinux "
+                "steerable-agent-runtime-native wheels"
+            )
+        wheels = (
+            (_NATIVE_WHEEL_ENV, Path(raw_manylinux).expanduser().resolve()),
+            (_NATIVE_WHEEL_MUSL_ENV, Path(raw_musllinux).expanduser().resolve()),
+        )
+        for env_name, wheel in wheels:
+            if not wheel.is_file() or wheel.suffix != ".whl":
+                raise RuntimeError(f"{env_name} does not name a wheel file: {wheel}")
+        manylinux_remote = f"/tmp/{wheels[0][1].name}"
+        musllinux_remote = f"/tmp/{wheels[1][1].name}"
+        await environment.upload_file(wheels[0][1], manylinux_remote)
+        await environment.upload_file(wheels[1][1], musllinux_remote)
+        await self.exec_as_root(
+            environment,
+            command=(
+                f"wheel={shlex.quote(manylinux_remote)}; "
+                "if ldd --version 2>&1 | grep -qi musl || "
+                "[ -f /etc/alpine-release ]; then "
+                f"wheel={shlex.quote(musllinux_remote)}; fi; "
+                f"{shlex.quote(_VENV_PYTHON)} -m pip install --no-deps "
+                '--force-reinstall "$wheel"'
+            ),
+            timeout_sec=600,
+        )
+        await self.exec_as_root(
+            environment,
+            command=(
+                f"{shlex.quote(_VENV_PYTHON)} -c "
+                f"{shlex.quote('import steerable_agent_runtime_native as n; assert n.run_turn')}"
+            ),
+        )
+
     async def _save_venv(self, environment: BaseEnvironment, tarball: Path) -> None:
         try:
             tarball.parent.mkdir(parents=True, exist_ok=True)
@@ -569,6 +619,7 @@ class SteerableHarborAgent(BaseInstalledAgent):
             # Harbor pip-installs pytest then runs /usr/local/bin/python -m
             # pytest. Re-point python at python3 after the agent in case a
             # trial retargeted the symlink.
+            await self._repair_verifier_package_state(environment)
             await self._align_verifier_python(environment)
             await self._record_token_usage(environment, context, log)
 

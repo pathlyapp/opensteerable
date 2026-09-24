@@ -6,6 +6,7 @@ import {
   LuLoaderCircle,
 } from 'react-icons/lu';
 import { openLocalPath } from '@/lib/local-api';
+import { hostToolChrome } from '@/lib/host-tools';
 import {
   formatFileSize,
   splitTurnFilePath,
@@ -30,10 +31,12 @@ interface TurnFilesCardProps {
 export function TurnFilesCard({ files }: TurnFilesCardProps) {
   const [openingPath, setOpeningPath] = useState<string | null>(null);
   const [openError, setOpenError] = useState<{ path: string; message: string } | null>(null);
+  const allowOpenPath = hostToolChrome('local-fs');
 
   if (files.length === 0) return null;
 
   const handleOpen = async (file: TurnFile) => {
+    if (!allowOpenPath) return;
     if (openingPath) return;
     setOpeningPath(file.path);
     setOpenError(null);
@@ -57,9 +60,13 @@ export function TurnFilesCard({ files }: TurnFilesCardProps) {
       className="rounded-agent-lg border border-agent-border bg-agent-canvas shadow-sm"
       data-turn-files=""
     >
-      <div className="flex items-center gap-1.5 border-b border-agent-border/60 px-3 py-1.5 text-[11px] text-agent-muted-foreground">
+      <div className="flex items-center gap-1.5 border-b border-agent-border/60 px-2.5 py-1 text-[11px] text-agent-muted-foreground">
         <LuFiles className="h-3.5 w-3.5" />
-        <span>本轮产生了 {files.length} 个文件，点击打开</span>
+        <span>
+          {allowOpenPath
+            ? `本轮产生了 ${files.length} 个文件，点击打开`
+            : `本轮产生了 ${files.length} 个文件`}
+        </span>
       </div>
       <ul className="max-h-64 overflow-y-auto py-1">
         {files.map((file) => {
@@ -72,9 +79,13 @@ export function TurnFilesCard({ files }: TurnFilesCardProps) {
               <button
                 type="button"
                 onClick={() => void handleOpen(file)}
-                disabled={openingPath !== null}
+                disabled={!allowOpenPath || openingPath !== null}
                 title={file.path}
-                className="flex w-full items-center gap-2 px-3 py-1 text-left text-xs transition-colors hover:bg-agent-foreground/5 disabled:cursor-wait"
+                className={`flex w-full items-center gap-2 px-2.5 py-1 text-left text-xs transition-colors ${
+                  allowOpenPath
+                    ? 'hover:bg-agent-foreground/5 disabled:cursor-wait'
+                    : 'cursor-default'
+                }`}
                 data-turn-file=""
                 data-kind={file.kind}
               >

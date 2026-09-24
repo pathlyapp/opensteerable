@@ -3,7 +3,7 @@
  * 锁定：request 的方法 / 头 / body 形状与错误语义（detail 优先、status 挂上）、
  * steer / approval / askUser / attachments 的端点逐字形状、startStream 的
  * data→end 事件序列与取消语义（本地取消按正常结束上报）、
- * 浏览器形态下 local.* 的降级回答（目录选择取消、截图不支持）。
+ * 浏览器形态下 local.selectDirectory 打 /host/local/select-directory、截图不支持。
  * fetch 用 vi.stubGlobal 替身，不起真实服务器。
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -75,6 +75,17 @@ describe('localBackend.request', () => {
       headers: { 'Content-Type': 'application/json' },
       body: '{"agentId":"a1"}',
     });
+  });
+
+  it('非 2xx 且响应带 error 时优先抛 error（项目路由用 error 字段）', async () => {
+    stubFetch(() => jsonResponse({ error: '项目文件夹不能为空', detail: 'ignored' }, 400));
+    const bridge = createHttpBridge();
+    const err = await bridge.localBackend
+      .request({ method: 'POST', path: '/api/v2/projects' })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toBe('项目文件夹不能为空');
+    expect((err as Error & { status?: number }).status).toBe(400);
   });
 
   it('非 2xx 且响应带 detail 时抛 detail，status 挂在错误上', async () => {
@@ -277,13 +288,22 @@ describe('BS token（bootstrap 注入的 Bearer）', () => {
 });
 
 describe('浏览器形态的 local.* 降级', () => {
-  it('目录选择直接取消（浏览器给不了路径）', async () => {
-    stubFetch(() => jsonResponse({}));
+  it('目录选择走宿主 /host/local/select-directory', async () => {
+    const fetchMock = stubFetch(() =>
+      jsonResponse({ canceled: false, filePaths: ['/tmp/src'] }),
+    );
     const bridge = createHttpBridge();
-    await expect(bridge.local!.selectDirectory()).resolves.toEqual({
-      canceled: true,
-      filePaths: [],
+    await expect(bridge.local!.selectDirectory({ title: '添加源文件夹' })).resolves.toEqual({
+      canceled: false,
+      filePaths: ['/tmp/src'],
     });
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/host/local/select-directory',
+      expect.objectContaining({
+        method: 'POST',
+        body: '{"title":"添加源文件夹"}',
+      }),
+    );
   });
 
   it('窗口截图明确不支持', async () => {

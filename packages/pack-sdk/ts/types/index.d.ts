@@ -91,6 +91,10 @@ export interface ServiceCreateContext {
  * ppt_*），跨包不许共享表。
  */
 export interface MigrationContribution {
+  /** Monotonic migration generation persisted by the selected driver. */
+  readonly version?: number;
+  /** Table creation required before incremental column checks. */
+  readonly beforeDdl?: readonly string[];
   /** DDL 语句（CREATE TABLE/INDEX IF NOT EXISTS …），合并为一次 exec 执行。 */
   readonly ddl?: readonly string[];
   /** 增量列迁移（已有库的 ALTER TABLE ADD COLUMN，列已存在则跳过）。 */
@@ -222,6 +226,11 @@ export interface RendererContribution {
 export interface BrandSpec {
   /** UI 显示名：窗口标题、通知标题等。 */
   readonly displayName: string;
+  /**
+   * 品牌锁头里 logo 旁的标题。省略则只显示 logo，并按原比例缩放。
+   * 一体字标（图形+文字已在 logo 里）不要配此项。
+   */
+  readonly title?: string;
   /** LLM 身份自称（系统提示词里用）。 */
   readonly agentName: string;
   /** 一句话定位（fallback prompt 用）。 */

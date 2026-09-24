@@ -94,7 +94,14 @@ def test_system_prompt_is_organised_and_bounded() -> None:
 def test_system_prompt_keeps_tools_and_grading_facts() -> None:
     """Facts the model has no way to discover from inside the container."""
     prompt = headless_mod._SYSTEM
-    for tool in ("bash", "read_file", "write_file", "edit_file"):
+    for tool in (
+        "bash",
+        "read_file",
+        "write_file",
+        "edit_file",
+        "view_image",
+        "capture_display",
+    ):
         assert tool in prompt
     # Each of these cost a scored task before it was written down.
     assert "still run after you stop" in prompt
@@ -102,6 +109,7 @@ def test_system_prompt_keeps_tools_and_grading_facts() -> None:
     assert "pgrep matches the wait loop" in prompt
     assert "a huge write_file argument often never emits" in prompt
     assert "read_file returns an ASCII preview" in prompt
+    assert "Look at the attached PNG" in prompt
     assert "git gc --prune" in prompt
     assert "cannot be found anywhere in the repo" in prompt
 
@@ -781,6 +789,13 @@ def test_hard_timeout_abandon_exits_the_process() -> None:
 
     src = inspect.getsource(headless_mod._abandon_process_after_hard_timeout)
     assert "os._exit" in src
+
+
+def test_hard_timeout_abandons_before_teardown() -> None:
+    import inspect
+
+    src = inspect.getsource(headless_mod._run)
+    assert src.index("if timed_out:") < src.index("for client in mcp_clients:")
 
 
 @pytest.mark.asyncio

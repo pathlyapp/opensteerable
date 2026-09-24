@@ -45,9 +45,8 @@ def test_agent_logs_are_uploaded_for_efficiency_metrics(workflow: str) -> None:
 
 
 def test_flaky_feishu_copy_matches_the_split() -> None:
-    """The start card still said 25 ids after suite.yaml shrank flaky to 20,
-    then 20 after the `8e260de` rebuild shrank it to 15."""
-    assert "15 题 × 2 臂" in WEEKLY
+    """The start card must match the current paired A/B sample and repeats."""
+    assert "27 题 × 2 臂 × 3 次" in WEEKLY
     assert "25 题" not in WEEKLY
 
 
@@ -83,7 +82,7 @@ def test_catalog_dispatch_offers_both_harnesses() -> None:
 
 
 def test_catalog_feishu_label_names_the_agent() -> None:
-    """A catalog Mean posted without its agent reads as the product score."""
+    """A catalog Mean posted without its agent is ambiguous."""
     assert 'label="GHA catalog 89 × $EVAL_AGENT"' in WEEKLY
 
 
@@ -213,6 +212,14 @@ def test_weekly_cheap_12_matrix_runs_every_live_agent() -> None:
         assert agent in WEEKLY, f"cheap-12 matrix does not run {agent}"
 
 
+def test_cheap12_jobs_keep_the_whole_result_inside_the_workflow_wall() -> None:
+    """Two Harbor lanes can exceed four hours even when every trial obeys its timeout."""
+    eval_job = WEEKLY.split("  eval:", 1)[1].split("  probe:", 1)[0]
+    probe_job = WEEKLY.split("  probe:", 1)[1].split("  failed-prev:", 1)[0]
+    assert "timeout-minutes: 360" in eval_job
+    assert "timeout-minutes: 360" in probe_job
+
+
 def test_cheap12_probe_is_gated_on_model() -> None:
     """An empty model must keep the Monday LIVE_AGENTS smoke; a model
     input is the new-baseline probe, not a silent mix of the two."""
@@ -262,12 +269,27 @@ def test_cheap12_probe_deepseek_pins_alibaba() -> None:
     assert "DeepSeek 0423 官方 deepseek 不提供" not in WEEKLY
 
 
-def test_cheap12_probe_cards_are_a_new_baseline() -> None:
+def test_cheap12_probe_cards_are_marked_exploratory() -> None:
     """A probe Mean posted as GHA cheap-12 is read as the old easy-12
-    smoke, then mixed with catalog-89 80.7%."""
+    smoke, then mixed with the current catalog-89 score."""
     assert "不上首页" in WEEKLY
-    assert "不和 catalog-89 80.7%" in WEEKLY
-    assert 'label="$label · 新基线不上首页"' in WEEKLY
+    assert "不和 catalog-89 当前 79.0%" in WEEKLY
+    assert 'label="$label · 探索性单跑不上首页"' in WEEKLY
+
+
+def test_explicit_catalog_tasks_accept_steerable_overrides() -> None:
+    """A failed-task experiment must vary a tunable without changing code."""
+    catalog = WEEKLY.split("  catalog:", 1)[1].split("  flaky:", 1)[0]
+    assert "github.event.inputs.tasks != ''" in catalog
+    assert "EVAL_ENV: ${{ github.event.inputs.arm_b_env }}" in catalog
+    assert "refusing override outside the STEERABLE_ namespace" in catalog
+
+
+def test_replicate_label_is_only_a_concurrency_dimension() -> None:
+    """Three identical samples must run concurrently without changing Harbor argv."""
+    assert "github.event.inputs.replicate || 'default'" in WEEKLY
+    workflow_body = WEEKLY.split("jobs:", 1)[1]
+    assert "github.event.inputs.replicate" not in workflow_body
 
 
 def test_arms_matrix_references_registered_harnesses() -> None:

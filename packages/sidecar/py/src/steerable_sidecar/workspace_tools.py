@@ -26,7 +26,7 @@ from steerable_agent_runtime import ToolRouter
 from steerable_agent_runtime.llm import LLMMessage
 
 from .file_edit import EditError, EditOp, apply_edits, content_version
-from .png_ascii import ascii_png_preview
+from .png_ascii import ascii_png_preview, decode_bmp_rgb, encode_png_rgb
 from .workspace_fs import LOCAL_FS, LocalFs, WorkspaceFs, WorkspaceFsError
 
 _MAX_OUTPUT = 100_000
@@ -36,9 +36,10 @@ _MIN_KEEP_BYTES = 8192
 # TB compiles, QEMU, and training exceed the old 5 min cap; Claude Code
 # does not kill a single bash at 300s. Harbor's long-task kill is ~180 min.
 _BASH_TIMEOUT_SEC = 3600
-# Native pixels for PNG/JPEG reads. Off by default; flaky arm B sets
-# ``STEERABLE_READ_IMAGES=1``. ASCII preview stays either way. BMP stays
-# ASCII: vision endpoints accept PNG/JPEG, not BMP.
+# Native pixels for PNG/JPEG ``read_file``. Off by default; flaky arm B
+# sets ``STEERABLE_READ_IMAGES=1``. ``capture_display`` always attaches
+# (same size cap). ASCII preview stays either way. BMP stays ASCII:
+# vision endpoints accept PNG/JPEG, not BMP.
 _IMAGE_ATTACH_MAX_BYTES = 400_000
 
 #: One-shot bash execution behind the tool: (command, cwd) → result.
@@ -56,7 +57,8 @@ _BASH_SCHEMA = {
                 "not poll with `sleep 290`. Do not wrap compile, VM, or train "
                 "in `timeout N` with N under 300 — bash already caps at 3600s. "
                 "Do not wait with `while pgrep -f ...` (pgrep matches the "
-                "wait loop). Background long jobs and `wait $!`, or poll a "
+                "wait loop). Do not `tail -f` a log until a string appears. "
+                "Background long jobs and `wait $!`, or poll a "
                 "pidfile."
             ),
         },
@@ -99,10 +101,34 @@ _SHORT_TIMEOUT_ERROR = (
     "Refusing `timeout N` around compile/VM with N under 300s. Bash already "
     "caps at 3600s. Drop the timeout wrapper so the job can finish."
 )
+# cheap-12 compile-compcert hung Harbor 7200s on
+# `tail -f … | grep -m1 BUILD_SUCCESS`. Same class as pgrep-self-wait:
+# the bash tool never returns, so Harbor's wait_for raises AgentTimeoutError
+# and evals.run fails the smoke job.
+_FOLLOW_LOG_CMD = re.compile(r"\btail\b[^\n|;]{0,80}", re.IGNORECASE)
+_FOLLOW_LOG_FLAG = re.compile(
+    r"(?:--follow\b|(?<![-\w])-F\b|(?<![-\w])-\w*f\w*)",
+    re.IGNORECASE,
+)
+_FOLLOW_LOG_ERROR = (
+    "Refusing `tail -f` / `tail --follow`: it blocks this bash call until "
+    "the file grows or the 3600s cap. Background the job "
+    "(`cmd & pid=$!`) and `wait \"$pid\"`, or poll a pidfile."
+)
 _READ_SCHEMA = {
     "type": "object",
     "properties": {
         "path": {"type": "string", "description": "File path relative to the workspace"},
+    },
+    "required": ["path"],
+}
+_VIEW_IMAGE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "path": {
+            "type": "string",
+            "description": "Image file path: PNG, JPEG, or uncompressed BMP.",
+        },
     },
     "required": ["path"],
 }
@@ -241,6 +267,33 @@ _BASH_SESSION_SCHEMA = {
     },
 }
 
+_CAPTURE_DISPLAY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "target": {
+            "type": "string",
+            "description": (
+                "Remote display the client or grader sees. RFB/VNC: "
+                "vnc://host:1, :1, host:5901. Display numbers 0-99 map to "
+                "TCP 5900+N. This is the VNC framebuffer, not a hypervisor "
+                "screendump."
+            ),
+        },
+        "path": {
+            "type": "string",
+            "description": "Optional workspace path to write the captured PNG.",
+        },
+        "nudge": {
+            "type": "boolean",
+            "description": (
+                "Send a tiny pointer move over RFB before the snapshot so a "
+                "stale client framebuffer refreshes."
+            ),
+        },
+    },
+    "required": ["target"],
+}
+
 _WRITE_STDIN_SCHEMA = {
     "type": "object",
     "properties": {
@@ -342,7 +395,8 @@ def workspace_tools_for_cwd(
     contract is offline must say so: TB 2.1 tasks are solved from the
     container alone, and a reachable ``web_fetch`` both confounds a harness
     comparison and lets a trial answer from outside the environment under
-    test.
+    test. ``capture_display`` stays registered: it reads a display inside
+    the workspace, not the public web.
 
     ``run_code`` defaults to ``STEERABLE_RUN_CODE=1``. Harbor does not
     special-case it the way web tools are omitted; leave the env unset
@@ -511,6 +565,10 @@ def workspace_tools_for_cwd(
             return ToolResult(
                 success=False, error=_SHORT_TIMEOUT_ERROR, needsFollowup=True
             )
+        if follow_log_wait(command):
+            return ToolResult(
+                success=False, error=_FOLLOW_LOG_ERROR, needsFollowup=True
+            )
         return await run(command, root)
 
     async def read_file(path: str) -> ToolResult:
@@ -556,6 +614,46 @@ def workspace_tools_for_cwd(
             },
         )
 
+    async def view_image(path: str) -> ToolResult:
+        try:
+            target = _resolve_under(root, path, jailed=jailed)
+        except ValueError as exc:
+            return ToolResult(success=False, error=str(exc), needsFollowup=True)
+        try:
+            raw = target.read_bytes()
+        except (OSError, ValueError) as exc:
+            return ToolResult(success=False, error=str(exc), needsFollowup=True)
+        pixels = _attachable_pixels(raw)
+        if pixels is None:
+            return ToolResult(
+                success=False,
+                error=(
+                    f"{target} is not a PNG, JPEG, or uncompressed BMP image "
+                    f"({len(raw)} bytes). Convert it with ffmpeg or PIL and "
+                    "view the converted file."
+                ),
+                needsFollowup=True,
+            )
+        blob = _image_blob(pixels)
+        if blob is None:
+            return ToolResult(
+                success=False,
+                error=(
+                    f"{target} is {len(pixels)} bytes, over the "
+                    f"{_IMAGE_ATTACH_MAX_BYTES}-byte attach limit. Re-encode it "
+                    "smaller (ffmpeg -vf scale, PIL thumbnail) and view that file."
+                ),
+                needsFollowup=True,
+            )
+        data: dict[str, object] = {
+            "path": str(target),
+            "mediaType": blob["media_type"],
+            "_image": blob,
+        }
+        preview = ascii_png_preview(pixels)
+        if preview is not None:
+            data["content"] = preview
+        return ToolResult(success=True, data=data)
 
     async def write_file(
         path: str, content: str, expectedVersion: str | None = None
@@ -711,7 +809,8 @@ def workspace_tools_for_cwd(
         if _read_images_enabled()
         else (
             "Read a UTF-8 text file from the workspace. Prefer an absolute path. "
-            "PNG/JPEG/BMP files return an ASCII preview, not UTF-8."
+            "PNG/JPEG/BMP files return an ASCII preview, not UTF-8; view_image "
+            "shows the pixels."
         )
     )
     router.register(
@@ -720,6 +819,19 @@ def workspace_tools_for_cwd(
         mode="read",
         description=read_desc,
         schema=_READ_SCHEMA,
+        require_consent=False,
+    )
+    router.register(
+        view_image,
+        name="view_image",
+        mode="read",
+        description=(
+            "Look at an image file (PNG, JPEG, or uncompressed BMP). The pixels "
+            "are attached as an image you can see; the JSON carries only an "
+            "ASCII preview. Call this whenever what the image shows decides "
+            "your next step — read_file returns the preview alone."
+        ),
+        schema=_VIEW_IMAGE_SCHEMA,
         require_consent=False,
     )
     router.register(
@@ -953,6 +1065,64 @@ def workspace_tools_for_cwd(
         require_consent=False,
     )
 
+    async def capture_display(
+        target: str,
+        path: str | None = None,
+        nudge: bool = False,
+    ) -> ToolResult:
+        from .display import DisplayError, capture_rfb, parse_display_target
+
+        try:
+            spec = parse_display_target(target)
+        except ValueError as exc:
+            return ToolResult(success=False, error=str(exc), needsFollowup=True)
+        try:
+            frame = await asyncio.to_thread(
+                capture_rfb, spec.host, spec.port, nudge=bool(nudge)
+            )
+        except DisplayError as exc:
+            return ToolResult(success=False, error=str(exc), needsFollowup=True)
+        png = encode_png_rgb(frame.width, frame.height, frame.rgb)
+        preview = ascii_png_preview(png) or f"PNG {frame.width}x{frame.height}"
+        data: dict[str, object] = {
+            "target": spec.canonical,
+            "protocol": spec.protocol,
+            "host": spec.host,
+            "port": spec.port,
+            "width": frame.width,
+            "height": frame.height,
+            "nudged": bool(nudge),
+            "content": preview,
+            "kind": "png_ascii",
+        }
+        if path:
+            try:
+                dest = _resolve_under(root, path, jailed=jailed)
+            except ValueError as exc:
+                return ToolResult(success=False, error=str(exc), needsFollowup=True)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(png)
+            data["path"] = str(dest)
+        blob = _image_blob(png)
+        if blob is not None:
+            data["_image"] = blob
+        return ToolResult(success=True, data=data)
+
+    router.register(
+        capture_display,
+        name="capture_display",
+        mode="read",
+        description=(
+            "Capture the client-visible remote display (RFB/VNC framebuffer). "
+            "Use this when a VM, noVNC page, or grader will look at VNC — "
+            "not QEMU screendump or another hypervisor-private screenshot. "
+            "The PNG is attached as an image you can look at; the JSON is "
+            "only an ASCII preview. Optional path writes the PNG."
+        ),
+        schema=_CAPTURE_DISPLAY_SCHEMA,
+        require_consent=False,
+    )
+
     # web_search / web_fetch: the network-read pair. Registered here so the
     # headless and ACP surfaces carry the same implementation the desktop
     # delegates to; web_search only registers when a search backend is
@@ -996,8 +1166,13 @@ def _read_images_enabled() -> bool:
 
 
 def _image_blob(raw: bytes) -> dict[str, str] | None:
-    """PNG/JPEG bytes for the next LLM request; None when the run is text-only."""
-    if not _read_images_enabled() or len(raw) > _IMAGE_ATTACH_MAX_BYTES:
+    """PNG/JPEG bytes for the next LLM request; None if too large or not those types.
+
+    ``read_file`` decides whether to call this. ``capture_display`` and
+    ``view_image`` always do: both exist so the model can look at something,
+    and neither has a job left once the pixels are dropped.
+    """
+    if len(raw) > _IMAGE_ATTACH_MAX_BYTES:
         return None
     if raw.startswith(b"\x89PNG"):
         media = "image/png"
@@ -1009,6 +1184,20 @@ def _image_blob(raw: bytes) -> dict[str, str] | None:
         "b64": base64.b64encode(raw).decode("ascii"),
         "media_type": media,
     }
+
+
+def _attachable_pixels(raw: bytes) -> bytes | None:
+    """Bytes a vision endpoint accepts: PNG/JPEG as they are, BMP re-encoded.
+
+    ``None`` when the bytes are not an image this module can hand to a model.
+    """
+    if raw.startswith(b"\x89PNG") or raw[:2] == b"\xff\xd8":
+        return raw
+    decoded = decode_bmp_rgb(raw)
+    if decoded is None:
+        return None
+    width, height, rgb = decoded
+    return encode_png_rgb(width, height, rgb)
 
 
 def _binary_read_result(target: Path, raw: bytes) -> ToolResult:
@@ -1027,9 +1216,13 @@ def _binary_read_result(target: Path, raw: bytes) -> ToolResult:
                 else "png_ascii"
             ),
         }
-        blob = _image_blob(raw)
+        blob = _image_blob(raw) if _read_images_enabled() else None
         if blob is not None:
             data["_image"] = blob
+        else:
+            data["pixels"] = (
+                f"ASCII preview only. Call view_image on {target} to see the image."
+            )
         return ToolResult(success=True, data=data)
     kind = (
         "PNG"
@@ -1040,12 +1233,16 @@ def _binary_read_result(target: Path, raw: bytes) -> ToolResult:
         if raw[:2] == b"BM"
         else "binary"
     )
+    hint = (
+        "Decode it with Python (PIL/numpy) or `file`"
+        if kind == "binary"
+        else "Call view_image to look at it, or decode it with Python (PIL/numpy)"
+    )
     return ToolResult(
         success=False,
         error=(
-            f"{target} is {kind} ({len(raw)} bytes), not UTF-8 text. "
-            "Decode it with Python (PIL/numpy) or `file`; do not guess "
-            "contents from the filename."
+            f"{target} is {kind} ({len(raw)} bytes), not UTF-8 text. {hint}; "
+            "do not guess contents from the filename."
         ),
         needsFollowup=True,
     )
@@ -1085,6 +1282,19 @@ def short_timeout_wrap(command: str) -> bool:
         if int(match.group(1)) <= _SHORT_TIMEOUT_MAX_SEC:
             return True
     return False
+
+
+def follow_log_wait(command: str) -> bool:
+    """True when ``command`` follows a file with ``tail -f`` / ``--follow``.
+
+    A one-shot ``tail -n 20`` is fine. ``tail -f … | grep -m1`` is not:
+    bash holds the loop until the compile finishes or Harbor kills the trial.
+    """
+    text = command or ""
+    return any(
+        _FOLLOW_LOG_FLAG.search(chunk.group(0))
+        for chunk in _FOLLOW_LOG_CMD.finditer(text)
+    )
 
 
 def _resolve_under(root: Path, path: str, *, jailed: bool = False) -> Path:

@@ -80,8 +80,10 @@ becomes a registered handler.
 class ToolExecutor(Protocol):
     async def execute(
         self, call: ToolCall, ctx: LoopContext
-    ) -> AsyncIterator[LoopEvent | ToolResult]: ...
+    ) -> ToolResult: ...
 ```
+
+The executor returns one `ToolResult`. Optional duck-typed `concurrency_safe(call) -> bool` lets consecutive safe calls in a round run in parallel when `LoopConfig.parallel_tools` is on.
 
 The ten branches map to handlers the product registers:
 
@@ -145,3 +147,28 @@ Recorded here so they are a decision, not a surprise:
 - **Token budget defaults differ by design.** api 120k (server models, large
   context), agent 60k (local models, small context). Keep configurable; do
   not force one number.
+
+## Rust migration gates
+
+The executable catalog (P0 marks, PyO3 import surface, sidecar RPC names,
+per-product `pythonRuntime`) lives in
+[coreloop-rust-test-catalog.md](coreloop-rust-test-catalog.md).
+`test_replay_crosslang` is not a CoreLoop behavior gate.
+
+The Rust CoreLoop is the `steerable-agent-runtime-native` wheel, pinned to
+the same lockstep version and installed from PyPI. This repository keeps
+the public `CoreLoop` facade and `native_bridge.py`. It does not contain
+the Rust implementation. The sidecar/API entry always runs that wheel.
+A missing native wheel is an install error; there is no Python engine
+fallback. Historical Python six-run Harbor numbers stay in
+[evals.md](../evals.md) as a superseded baseline only.
+
+The published wheel must preserve stream timing as well as final values:
+`content_delta`/`reasoning_delta` are emitted while the provider is still
+running, partial text survives provider or budget failure, and each
+`llm_request` has one `llm_response`. The published Rust sidecar reads
+control RPCs while a turn is active; cancel and steer mutate that turn,
+and manual compact folds old tool observations. The native-wheel pin
+participates in the same lockstep gate as the Python and TypeScript
+packages. The sidecar binary for that version is attached to the matching
+GitHub Release.

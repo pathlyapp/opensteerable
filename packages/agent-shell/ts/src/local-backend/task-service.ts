@@ -25,7 +25,6 @@
  */
 
 import path from 'node:path';
-import os from 'node:os';
 
 import { llmService, getSidecarSupervisor } from '../llm/index.js';
 import { sidecarWireProvider } from '../storage/llm-settings.js';
@@ -38,6 +37,7 @@ import {
 } from './coreloop-stream.js';
 import { builtinSubagentParam } from './subagent-profiles.js';
 import { buildExecSandbox } from '../sidecar/exec-sandbox.js';
+import { resolveTurnApproval } from '../host-tools-runtime.js';
 import type { WorktreeService } from './worktree-service.js';
 import {
   readSidecarHistoryEntries,
@@ -49,7 +49,7 @@ import {
   type PersistedTurnBlock,
 } from './turn-timeline.js';
 
-/** 任务表的最小读写面（生产 = localStore；测试注入内存实现）。 */
+/** 任务表的最小异步读写面（生产注入 scoped store；测试注入内存实现）。 */
 export interface TaskStore {
   createTask(input: {
     chatId: string;
@@ -59,23 +59,28 @@ export interface TaskStore {
     recordId?: string | null;
     dependsOn?: string[] | null;
     initialStatus?: 'blocked' | 'running';
-  }): TaskRecord;
-  getTask(taskId: string): TaskRecord | null;
-  listTasks(chatId?: string, limit?: number): TaskRecord[];
+  }): Promise<TaskRecord>;
+  getTask(taskId: string): Promise<TaskRecord | null>;
+  listTasks(chatId?: string, limit?: number): Promise<TaskRecord[]>;
   updateTask(
     taskId: string,
     updates: Partial<Pick<TaskRecord, 'status' | 'answer' | 'error' | 'worktreeState' | 'traceId' | 'recordId'>>,
-  ): TaskRecord | null;
+  ): Promise<TaskRecord | null>;
   /** 回写推理时间线；缺省实现可为空（测试假 store 内存覆盖）。 */
-  saveTaskProcess?(taskId: string, processJson: string): void;
+  saveTaskProcess?(taskId: string, processJson: string): Promise<void>;
 }
 
 export interface TaskServiceDeps {
-  store: TaskStore;
+  store: TaskStore | (() => TaskStore);
   toolRouter: ToolRouter;
   worktreeService: WorktreeService;
   /** chatId → 绑定项目（无项目对话返回 null）。与 router.resolveChatProject 同源。 */
-  resolveChatProject: (chatId: string) => { name: string; folderPath: string } | null;
+  resolveChatProject: (chatId: string) => Promise<{ name: string; folderPath: string } | null>;
+  /**
+   * 无项目对话的可写根（Documents/<应用>/conversations/<chatId>）。
+   * 测试可不传，围栏回落为仅 scratch。
+   */
+  resolveChatWorkspaceRoot?: (chatId: string) => Promise<string>;
   /** 任务终态 / 推理过程广播（renderer 任务面板与右侧过程栏）。 */
   broadcast?: (
     eventName: 'task-updated' | 'task-process',
@@ -133,6 +138,10 @@ export class TaskService {
 
   constructor(private readonly deps: TaskServiceDeps) {}
 
+  private get store(): TaskStore {
+    return typeof this.deps.store === 'function' ? this.deps.store() : this.deps.store;
+  }
+
   /**
    * task_run 工具的实现：落任务表 + 点火独立流，立即返回。
    * 任何同步可知的失败（无 sidecar、worktree 建不起来）都抛给工具层，
@@ -160,13 +169,13 @@ export class TaskService {
     const dependsOn = input.dependsOn?.length ? input.dependsOn : null;
     let blockedBy: string[] = [];
     if (dependsOn) {
-      const deps = dependsOn.map((id) => {
-        const dep = this.deps.store.getTask(id);
+      const deps = await Promise.all(dependsOn.map(async (id) => {
+        const dep = await this.store.getTask(id);
         if (!dep || dep.chatId !== input.chatId) {
           throw new Error(`task_run: 依赖任务不存在或不属于本会话：${id}`);
         }
         return dep;
-      });
+      }));
       const failed = deps.filter((d) => d.status === 'failed');
       if (failed.length) {
         throw new Error(
@@ -198,7 +207,7 @@ export class TaskService {
     }
 
     const blocked = blockedBy.length > 0;
-    const record = this.deps.store.createTask({
+    const record = await this.store.createTask({
       chatId: input.chatId,
       task,
       worktreePath,
@@ -207,7 +216,7 @@ export class TaskService {
       initialStatus: blocked ? 'blocked' : 'running',
     });
     const recordId = `task:${record.id}`;
-    this.deps.store.updateTask(record.id, { recordId });
+    await this.store.updateTask(record.id, { recordId });
     if (!blocked) {
       this.ignite(record.id, input.chatId, task, recordId, worktreePath);
     }
@@ -231,7 +240,7 @@ export class TaskService {
   ): Promise<Record<string, unknown>> {
     const text = message.trim();
     if (!text) return { success: false, error: 'task_send: message 不能为空' };
-    const task = this.deps.store.getTask(taskId);
+    const task = await this.store.getTask(taskId);
     if (!task || task.chatId !== chatId) {
       return { success: false, error: `任务不存在：${taskId}` };
     }
@@ -273,15 +282,17 @@ export class TaskService {
    * completed 的点火；任一依赖 failed 的标 failed（fail fast，错误
    * 指明是哪个依赖挂了）。
    */
-  private maybeUnblock(chatId: string): void {
-    const blocked = this.deps.store
-      .listTasks(chatId, 100)
+  private async maybeUnblock(chatId: string): Promise<void> {
+    const blocked = (await this.store
+      .listTasks(chatId, 100))
       .filter((t) => t.status === 'blocked' && t.dependsOn?.length);
     for (const task of blocked) {
-      const deps = task.dependsOn!.map((id) => this.deps.store.getTask(id));
+      const deps = await Promise.all(
+        task.dependsOn!.map((id) => this.store.getTask(id)),
+      );
       const failedDep = deps.find((d) => d?.status === 'failed');
       if (failedDep) {
-        this.deps.store.updateTask(task.id, {
+        await this.store.updateTask(task.id, {
           status: 'failed',
           error: `依赖任务失败：${failedDep.id.slice(0, 8)}（${failedDep.error ?? '无错误信息'}）`,
         });
@@ -290,7 +301,7 @@ export class TaskService {
       }
       const allCompleted = deps.every((d) => d?.status === 'completed');
       if (allCompleted) {
-        this.deps.store.updateTask(task.id, { status: 'running' });
+        await this.store.updateTask(task.id, { status: 'running' });
         this.ignite(task.id, task.chatId, task.task, task.recordId ?? `task:${task.id}`, task.worktreePath);
         this.deps.broadcast?.('task-updated', { chatId, taskId: task.id });
       }
@@ -319,7 +330,7 @@ export class TaskService {
       .finally(() => {
         this.running.delete(taskId);
         // 一个任务到终态，可能让同 chat 的 blocked 任务依赖就绪——调度点火。
-        this.maybeUnblock(chatId);
+        void this.maybeUnblock(chatId);
       });
     this.running.set(taskId, entry);
   }
@@ -344,7 +355,7 @@ export class TaskService {
         timeline: entry.timeline,
         live: true,
       });
-      this.deps.store.saveTaskProcess?.(taskId, JSON.stringify(entry.timeline));
+      void this.store.saveTaskProcess?.(taskId, JSON.stringify(entry.timeline));
     };
     if (when === 'immediate') {
       this.cancelProcessFlush(taskId);
@@ -378,7 +389,7 @@ export class TaskService {
     const getSupervisor = this.deps.getSupervisor ?? getSidecarSupervisor;
     const supervisor = getSupervisor();
     if (!supervisor) {
-      this.deps.store.updateTask(taskId, {
+      await this.store.updateTask(taskId, {
         status: 'failed',
         error: 'sidecar 未运行',
       });
@@ -387,19 +398,17 @@ export class TaskService {
     }
 
     const settings = llmService.getSettings();
-    const project = this.deps.resolveChatProject(chatId);
+    const project = await this.deps.resolveChatProject(chatId);
     // 4.6b 整合：worktree 任务的围栏根 = worktree 路径（更紧——任务摸不到
-    // 主检出）；否则沿用项目根。writableRoots 同理收窄。
-    const fenceRoot = worktreePath ?? project?.folderPath ?? null;
+    // 主检出）；否则项目家目录，再否则对话工作区。
+    const fenceRoot =
+      worktreePath ??
+      project?.folderPath ??
+      (this.deps.resolveChatWorkspaceRoot
+        ? await this.deps.resolveChatWorkspaceRoot(chatId)
+        : null);
     const execSandbox = buildExecSandbox(fenceRoot ? [fenceRoot] : []);
-    const approval: SidecarChatStreamRequest['approval'] =
-      process.env.STEERABLE_APPROVAL === '0'
-        ? undefined
-        : {
-            mode: 'host',
-            timeoutMs: 120_000,
-            storePath: path.join(os.homedir(), '.steerable', 'approvals.json'),
-          };
+    const approval: SidecarChatStreamRequest['approval'] = resolveTurnApproval();
 
     // depth-1：任务回合没有 task_run（不能再派生任务），其余工具面与
     // 普通回合一致；task_status / task_result 保留（任务可以自查/互查）。
@@ -518,14 +527,14 @@ export class TaskService {
       }
     }
 
-    this.deps.store.updateTask(taskId, {
+    await this.store.updateTask(taskId, {
       status,
       answer: answer.trim() || null,
       error,
       ...(traceId ? { traceId } : {}),
     });
     this.cancelProcessFlush(taskId);
-    this.deps.store.saveTaskProcess?.(taskId, JSON.stringify(entry.timeline));
+    await this.store.saveTaskProcess?.(taskId, JSON.stringify(entry.timeline));
     this.deps.broadcast?.('task-updated', { chatId, taskId });
     this.deps.broadcast?.('task-process', {
       chatId,
@@ -536,15 +545,15 @@ export class TaskService {
   }
 
   /** task_status 工具：单任务或本 chat 全部任务的快照。 */
-  status(chatId: string, taskId?: string): Record<string, unknown> {
+  async status(chatId: string, taskId?: string): Promise<Record<string, unknown>> {
     if (taskId) {
-      const task = this.deps.store.getTask(taskId);
+      const task = await this.store.getTask(taskId);
       if (!task || task.chatId !== chatId) {
         return { success: false, error: `任务不存在：${taskId}` };
       }
       return { success: true, task: this.toModelView(task) };
     }
-    const tasks = this.deps.store.listTasks(chatId, 50);
+    const tasks = await this.store.listTasks(chatId, 50);
     return {
       success: true,
       total: tasks.length,
@@ -553,8 +562,8 @@ export class TaskService {
   }
 
   /** task_result 工具：取终态任务的完整结果。 */
-  result(chatId: string, taskId: string): Record<string, unknown> {
-    const task = this.deps.store.getTask(taskId);
+  async result(chatId: string, taskId: string): Promise<Record<string, unknown>> {
+    const task = await this.store.getTask(taskId);
     if (!task || task.chatId !== chatId) {
       return { success: false, error: `任务不存在：${taskId}` };
     }
@@ -598,13 +607,13 @@ export class TaskService {
    * 右侧过程栏：当前推理时间线。running 且进程内有流 = live；
    * 表上 running 但本进程没流 = 上次崩溃残留（stale）。
    */
-  getProcess(taskId: string): {
+  async getProcess(taskId: string): Promise<{
     task: TaskRecord;
     timeline: PersistedTurnBlock[];
     live: boolean;
     stale: boolean;
-  } | null {
-    const task = this.deps.store.getTask(taskId);
+  } | null> {
+    const task = await this.store.getTask(taskId);
     if (!task) return null;
     const entry = this.running.get(taskId);
     if (entry) {
@@ -639,7 +648,7 @@ export class TaskService {
 
   /** 合并任务 worktree 到主仓（UI「合并到主仓」按钮的路由实现）。 */
   async mergeTaskWorktree(taskId: string): Promise<TaskRecord> {
-    const task = this.deps.store.getTask(taskId);
+    const task = await this.store.getTask(taskId);
     if (!task) throw new Error(`任务不存在：${taskId}`);
     if (!task.worktreePath || !task.worktreeBranch) {
       throw new Error('该任务没有关联的 worktree');
@@ -656,14 +665,14 @@ export class TaskService {
       name,
       `task(${taskId.slice(0, 8)}): ${task.task.slice(0, 60)}`,
     );
-    const updated = this.deps.store.updateTask(taskId, { worktreeState: 'merged' });
+    const updated = await this.store.updateTask(taskId, { worktreeState: 'merged' });
     this.deps.broadcast?.('task-updated', { chatId: task.chatId, taskId });
     return updated as TaskRecord;
   }
 
   /** 丢弃任务 worktree（UI「丢弃」按钮的路由实现）。 */
   async discardTaskWorktree(taskId: string): Promise<TaskRecord> {
-    const task = this.deps.store.getTask(taskId);
+    const task = await this.store.getTask(taskId);
     if (!task) throw new Error(`任务不存在：${taskId}`);
     if (!task.worktreePath) {
       throw new Error('该任务没有关联的 worktree');
@@ -678,7 +687,7 @@ export class TaskService {
     await this.deps.worktreeService.removeWorktree(task.chatId, name, {
       deleteBranch: true,
     });
-    const updated = this.deps.store.updateTask(taskId, { worktreeState: 'discarded' });
+    const updated = await this.store.updateTask(taskId, { worktreeState: 'discarded' });
     this.deps.broadcast?.('task-updated', { chatId: task.chatId, taskId });
     return updated as TaskRecord;
   }

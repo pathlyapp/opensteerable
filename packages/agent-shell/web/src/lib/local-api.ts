@@ -353,7 +353,7 @@ export interface ResolvedLocalPath {
 
 /**
  * 批量确认正文里提到的路径是否真实存在（用于决定行内代码要不要变成可点击）。
- * 相对路径由后端按对话绑定的项目根解析，无项目时按 home；不存在的候选不回。
+ * 相对路径由后端按对话绑定的项目根解析，无项目时按对话工作区；不存在的候选不回。
  */
 export async function resolveLocalPaths(candidates: string[], chatId?: string | null) {
   return bridge().localBackend.request<{ resolved: ResolvedLocalPath[] }>({
@@ -369,6 +369,8 @@ export interface LocalProject {
   id: string;
   name: string;
   folderPath: string;
+  /** 附加源文件夹（只读）。缺省空。 */
+  sourceFolders?: string[];
   /** W6-5: 信任后该项目目录里的规则文件才会注入模型上下文。缺省 false。 */
   trusted?: boolean;
   createdAt: string;
@@ -439,6 +441,17 @@ export async function getTaskProcess(taskId: string) {
   });
 }
 
+/**
+ * 子代理（`delegate_subagent`）的推理过程：子回合写自己的 durable record，
+ * 这里按 record 读回它的思考与工具调用。
+ */
+export async function getChildProcess(recordId: string) {
+  return bridge().localBackend.request<{ recordId: string; timeline: unknown[] }>({
+    method: 'GET',
+    path: `/api/v2/child-process?recordId=${encodeURIComponent(recordId)}`,
+  });
+}
+
 /** 把已完成 worktree 任务的分支合并回主仓当前分支（4.6c）。 */
 export async function mergeTaskWorktree(taskId: string) {
   return bridge().localBackend.request<{ success: boolean; task: LocalTask }>({
@@ -462,7 +475,11 @@ export async function listProjects() {
   });
 }
 
-export async function createProject(input: { name: string; folderPath: string }) {
+export async function createProject(input: {
+  name: string;
+  folderPath?: string;
+  sourceFolders?: string[];
+}) {
   return bridge().localBackend.request<{ success: boolean; project: LocalProject }>({
     method: 'POST',
     path: '/api/v2/projects',
@@ -472,7 +489,7 @@ export async function createProject(input: { name: string; folderPath: string })
 
 export async function updateProject(
   projectId: string,
-  updates: { name?: string; folderPath?: string },
+  updates: { name?: string; folderPath?: string; sourceFolders?: string[] },
 ) {
   return bridge().localBackend.request<{ success: boolean; project: LocalProject }>({
     method: 'PUT',

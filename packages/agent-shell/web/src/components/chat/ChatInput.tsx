@@ -32,6 +32,7 @@ import {
 } from 'react-icons/lu';
 import type { LocalChat, LocalChatAgent } from '@/lib/local-api';
 import type { ExecPolicy } from '@/lib/exec-policy';
+import { getWebChatModes, hostToolCapability, settingsChrome } from '@/lib/host-tools';
 import type { AttachmentFile } from '@/lib/attachments';
 import type { SteerOutcome } from '@steerable/agent-ui';
 import {
@@ -81,7 +82,7 @@ export type { ExecPolicy, McpToolItem, SkillItem };
  *   - Compact-mode responsive layout.
  */
 
-const MIN_HEIGHT_PX = 44;
+const MIN_HEIGHT_PX = 36;
 const MAX_HEIGHT_PX = 220;
 const MENTION_PATTERN = /(@[^\s@]+)/g;
 const MAX_MENTION_SUGGESTIONS = 8;
@@ -141,6 +142,8 @@ export interface ChatInputProps {
   /** Slot in the composer meta row above the input box, before the agent
    * picker (e.g. the project badge). */
   leadingChrome?: ReactNode;
+  /** Slot in the composer meta row above the input box, right-aligned (e.g. SessionTodoList). */
+  trailingChrome?: ReactNode;
   /** Current chat mode. When unset the toggle is hidden (defaults to 'agent'). */
   mode?: ChatMode;
   /** Called when the user switches between Agent / Plan mode. */
@@ -696,6 +699,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       onOpenSettings,
       toolbarExtras,
       leadingChrome,
+      trailingChrome,
       mode,
       onModeChange,
       execPolicy,
@@ -1109,8 +1113,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const trimmed = value.trim();
     const canSend = (trimmed.length > 0 || actualFiles.length > 0) && !disabled && !isStreaming;
 
+    const allowFileAttach = hostToolCapability('local-fs');
+
     const handleDragOver = (event: React.DragEvent) => {
       event.preventDefault();
+      if (!allowFileAttach) return;
       if (event.dataTransfer.types.includes('Files') && !disabled) {
         setIsDragging(true);
       }
@@ -1140,7 +1147,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     // 按钮点击 → 触发隐藏的 <input type="file" multiple>，由浏览器/Electron
     // 直接弹出系统文件选择框（不依赖 IPC，避免「点击无反应」）。
     const handlePickFiles = () => {
-      if (disabled) return;
+      if (disabled || !allowFileAttach) return;
       fileInputRef.current?.click();
     };
     const handleFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1155,7 +1162,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       event.preventDefault();
       setIsDragging(false);
 
-      if (disabled) return;
+      if (disabled || !allowFileAttach) return;
 
       const droppedFiles = Array.from(event.dataTransfer.files);
       if (droppedFiles.length > 0) {
@@ -1512,7 +1519,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
 
     if (approvalPrompt?.current) {
       return (
-        <div className="chat-input-container @container relative px-3 pb-3 pt-1">
+        <div className="chat-input-container @container relative px-2.5 pb-2 pt-0.5">
           <ApprovalPromptMenu
             key={approvalPrompt.current.requestId}
             request={approvalPrompt.current}
@@ -1527,7 +1534,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       const request = askUserPrompt.current;
       return (
         <div
-          className="chat-input-container @container relative px-3 pb-3 pt-1"
+          className="chat-input-container @container relative px-2.5 pb-2 pt-0.5"
           data-testid="ask-user-composer"
         >
           <AskUserQuestionMenu
@@ -1549,10 +1556,10 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     return (
       // @container：底栏元素的显隐/宽度用容器查询（@sm = 384px）而不是
       // 视口断点——侧边栏占宽后，视口够宽但输入框本身可能已经很窄。
-      <div className="chat-input-container @container relative px-3 pb-3 pt-1">
-        {(leadingChrome || selectedAgent) && (
+      <div className="chat-input-container @container relative px-2.5 pb-2.5 pt-1">
+        {(leadingChrome || selectedAgent || trailingChrome) && (
           <div
-            className="relative mb-1 flex min-w-0 items-center gap-1.5"
+            className="relative mb-1.5 flex min-w-0 items-center gap-1.5"
             data-testid="composer-meta-row"
           >
             {leadingChrome}
@@ -1567,6 +1574,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                 onSelect={handleSelectAgent}
                 mentionReferences={mentionReferences}
               />
+            )}
+            {trailingChrome && (
+              <div className="ml-auto flex items-center min-w-0">
+                {trailingChrome}
+              </div>
             )}
           </div>
         )}
@@ -1712,7 +1724,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           onDrop={handleDrop}
         >
           {pendingFollowUps.length > 0 && (
-            <div className="flex flex-col gap-1 border-b border-agent-border bg-agent-muted/30 px-3 py-2">
+            <div className="flex flex-col gap-1 border-b border-agent-border bg-agent-muted/30 px-2.5 py-1.5">
               <div className="text-[11px] font-medium text-agent-muted-foreground">
                 排队中（{pendingFollowUps.length}）· 本轮结束后自动发出 · 停止将丢弃
               </div>
@@ -1739,14 +1751,14 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           {steerNotice && (
             <div
               role="status"
-              className="border-b border-agent-border bg-agent-muted/20 px-3 py-1.5 text-[11px] text-agent-muted-foreground"
+              className="border-b border-agent-border bg-agent-muted/20 px-2.5 py-1 text-[11px] text-agent-muted-foreground"
             >
               {steerNotice}
             </div>
           )}
           <div className="chat-input-surface relative overflow-hidden">
             <div
-              className="chat-input-placeholder pointer-events-none absolute inset-x-0 top-0 px-3 pt-3 text-sm text-agent-muted-foreground"
+              className="chat-input-placeholder pointer-events-none absolute inset-x-0 top-0 px-2.5 pt-2 text-xs text-agent-muted-foreground"
               style={{ visibility: value ? 'hidden' : undefined }}
             >
               {placeholder}
@@ -1769,7 +1781,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
               onCompositionStart={handleCompositionStart}
               onCompositionEnd={handleCompositionEnd}
               onScroll={handleEditorScroll}
-              className="chat-input-editor relative z-10 block w-full overflow-y-auto whitespace-pre-wrap break-words border-0 bg-transparent px-3 pt-3 text-sm text-agent-foreground caret-agent-foreground outline-none selection:bg-agent-foreground/20"
+              className="chat-input-editor relative z-10 block w-full overflow-y-auto whitespace-pre-wrap break-words border-0 bg-transparent px-2.5 pt-2 text-xs text-agent-foreground caret-agent-foreground outline-none selection:bg-agent-foreground/20"
               style={{
                 minHeight: MIN_HEIGHT_PX,
                 maxHeight: MAX_HEIGHT_PX,
@@ -1777,7 +1789,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             />
           </div>
           {actualFiles.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 px-3 pb-2 pt-0.5">
+            <div className="flex flex-wrap gap-1.5 px-2.5 pb-1.5 pt-0.5">
               {actualFiles.map((file, idx) => (
                 <div
                   key={idx}
@@ -1802,13 +1814,13 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           )}
           <div
             ref={toolbarRowRef}
-            className="flex items-center justify-between gap-2 px-2 pb-2 pt-1"
+            className="flex items-center justify-between gap-1.5 px-2 py-1 text-[12px] leading-[1.45]"
           >
             {/* Left toolbar: mode + exec sandbox + host extras + settings.
                 Agent picker lives in the meta row above the box, next to
                 the project badge. min-w-0 允许窄屏时胶囊截断收缩。 */}
             <div ref={toolbarLeftRef} className="flex min-w-0 items-center gap-1">
-              {mode && onModeChange && (
+              {mode && onModeChange && getWebChatModes().length > 1 && (
                 <ModeToggle
                   mode={mode}
                   disabled={disabled || isStreaming}
@@ -1823,15 +1835,18 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                 />
               )}
               {toolbarExtras}
+              {allowFileAttach && (
+                <>
               <button
                 type="button"
                 onClick={handlePickFiles}
                 disabled={disabled || isStreaming}
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-agent-muted-foreground transition-colors hover:bg-agent-foreground/5 hover:text-agent-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-agent-muted-foreground transition-colors hover:bg-agent-foreground/5 hover:text-agent-foreground disabled:cursor-not-allowed disabled:opacity-50"
                 title="上传文件（可多选）"
                 aria-label="上传文件"
+                data-testid="chat-attach"
               >
-                <LuPaperclip className="h-3.5 w-3.5" />
+                <LuPaperclip className="h-3 w-3" />
               </button>
               {/* 隐藏的原生多选文件输入：点击回形针按钮触发系统选择框。 */}
               <input
@@ -1843,16 +1858,18 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                 tabIndex={-1}
                 onChange={handleFileInputChange}
               />
+                </>
+              )}
               {onOpenSettings && (
                 <button
                   type="button"
                   onClick={onOpenSettings}
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-agent-muted-foreground transition-colors hover:bg-agent-foreground/5 hover:text-agent-foreground"
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-agent-muted-foreground transition-colors hover:bg-agent-foreground/5 hover:text-agent-foreground"
                   title="LLM 设置"
                   aria-label="LLM 设置"
                   data-testid="chat-llm-settings"
                 >
-                  <LuSettings className="h-3.5 w-3.5" />
+                  <LuSettings className="h-3 w-3" />
                 </button>
               )}
             </div>
@@ -1921,10 +1938,10 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                 disabled={!isStreaming && !canSend}
                 className={
                   isStreaming
-                    ? 'flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-agent-destructive text-white transition hover:opacity-90'
+                    ? 'flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-agent-destructive text-white transition hover:opacity-90'
                     : canSend
-                      ? 'flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-agent-foreground text-agent-canvas transition hover:opacity-90'
-                      : 'flex h-8 w-8 shrink-0 cursor-not-allowed items-center justify-center rounded-full bg-agent-muted text-agent-muted-foreground'
+                      ? 'flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-agent-foreground text-agent-canvas transition hover:opacity-90'
+                      : 'flex h-6 w-6 shrink-0 cursor-not-allowed items-center justify-center rounded-full bg-agent-muted text-agent-muted-foreground'
                 }
                 title={
                   isStreaming
@@ -1937,9 +1954,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                 data-testid="chat-send"
               >
                 {isStreaming ? (
-                  <LuSquare className="h-3.5 w-3.5 fill-current" />
+                  <LuSquare className="h-3 w-3 fill-current" />
                 ) : (
-                  <LuArrowUp className="h-4 w-4" />
+                  <LuArrowUp className="h-3.5 w-3.5" />
                 )}
               </button>
             </div>
@@ -1971,7 +1988,7 @@ function ModeToggle({
     // shrink-0：分段控件被 flex 压缩会压扁文字；极窄容器（<@sm）退化为
     // 纯图标（title 兜底语义），把收缩量让给可截断的选择器。
     <div
-      className="inline-flex h-7 shrink-0 items-center rounded-full border border-agent-border bg-agent-canvas p-0.5"
+      className="inline-flex h-6 shrink-0 items-center rounded-full border border-agent-border bg-agent-canvas p-0.5"
       role="radiogroup"
       aria-label="对话模式"
       data-testid="mode-toggle"
@@ -1985,13 +2002,13 @@ function ModeToggle({
         title="Agent 模式：直接执行任务"
         data-testid="mode-agent"
         className={[
-          'inline-flex h-6 items-center gap-1 rounded-full px-2 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-70',
+          'inline-flex h-5 items-center gap-1 rounded-full px-1.5 text-[12px] leading-[1.45] transition-colors disabled:cursor-not-allowed disabled:opacity-70',
           mode === 'agent'
             ? 'bg-agent-foreground/10 text-agent-foreground'
             : 'text-agent-muted-foreground hover:text-agent-foreground',
         ].join(' ')}
       >
-        <LuInfinity className="h-3.5 w-3.5" />
+        <LuInfinity className="h-3 w-3" />
         <span className="@max-sm:hidden">Agent</span>
       </button>
       <button
@@ -2003,13 +2020,13 @@ function ModeToggle({
         title="Plan 模式：先制定计划，只读不执行"
         data-testid="mode-plan"
         className={[
-          'inline-flex h-6 items-center gap-1 rounded-full px-2 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-70',
+          'inline-flex h-5 items-center gap-1 rounded-full px-1.5 text-[12px] leading-[1.45] transition-colors disabled:cursor-not-allowed disabled:opacity-70',
           mode === 'plan'
             ? 'bg-amber-400/20 text-amber-600 dark:text-amber-400'
             : 'text-agent-muted-foreground hover:text-agent-foreground',
         ].join(' ')}
       >
-        <LuListChecks className="h-3.5 w-3.5" />
+        <LuListChecks className="h-3 w-3" />
         <span className="@max-sm:hidden">Plan</span>
       </button>
     </div>
@@ -2134,6 +2151,7 @@ function AgentSelect({
               </button>
             );
           })}
+          {settingsChrome('agents') && (
           <button
             type="button"
             role="menuitem"
@@ -2147,6 +2165,7 @@ function AgentSelect({
             <LuBot className="h-3.5 w-3.5 shrink-0" />
             <span className="text-xs font-medium">管理智能体</span>
           </button>
+          )}
         </div>
       )}
     </div>

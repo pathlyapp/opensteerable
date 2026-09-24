@@ -125,7 +125,9 @@ def _derive_header(text: str) -> str:
     return truncated
 
 
-def _normalize_questions(questions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def normalize_ask_user_questions(
+    questions: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     """Map known alias keys onto the canonical payload fields, enforce the
     Claude Code ``AskUserQuestion`` bounds (1-4 questions, 2-4 options per
     select, ``header`` <=12 chars, ``multiSelect`` explicit), and require the
@@ -238,7 +240,7 @@ def make_ask_user_tool(handler: AskUserHandler) -> Callable[..., Awaitable[dict[
     async def ask_user(
         intro: str, questions: list[dict[str, Any]], outro: str | None = None
     ) -> dict[str, Any]:
-        normalized = _normalize_questions(questions)
+        normalized = normalize_ask_user_questions(questions)
         answers = await handler(intro, normalized)
         return {
             "intro": intro,

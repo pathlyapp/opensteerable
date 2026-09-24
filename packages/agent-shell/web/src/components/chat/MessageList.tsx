@@ -15,11 +15,13 @@ import { InterruptedTurnCard } from './InterruptedTurnCard';
 import { TaskOutcomeCards } from './TaskOutcomeCards';
 import { SuggestedReplies } from './SuggestedReplies';
 import type { ExecutedAction } from './ExecutedActionsCard';
+import type { InspectTaskInput } from './executed-actions-model';
 import type { ChildInfo } from './OrchestrationChildrenCard';
 import type { ChatMode } from './ChatInput';
 import type { TurnBlock } from './turn-timeline';
 import type { TurnFile } from './turn-files';
 import { inferDurationMs, readPersistedDurationMs } from './elapsed';
+import type { LlmSpeedSnapshot } from './process-status';
 
 /**
  * MessageList — scrolling viewport that renders user/assistant message
@@ -80,6 +82,10 @@ interface MessageListProps {
   currentTurnStartedAtMs?: number;
   /** Frozen duration keyed by assistant message id (live freeze + history). */
   durationByMessageId?: Record<string, number>;
+  /** Live model-request speed for the in-flight assistant turn. */
+  currentLlmSpeed?: LlmSpeedSnapshot;
+  /** Frozen model-request speed keyed by assistant message id. */
+  llmSpeedByMessageId?: Record<string, LlmSpeedSnapshot>;
   /**
    * 回合产物文件列表，按落库消息 id 键控（live 回合在 message_id 事件时
    * 归档；历史回合从 messageMetadata.turnFiles 水合）。
@@ -129,7 +135,7 @@ interface MessageListProps {
    */
   finishedTasks?: LocalTask[];
   /** 点「查看过程」：在右侧栏打开该任务的推理过程。 */
-  onInspectTask?: (task: LocalTask) => void;
+  onInspectTask?: (task: InspectTaskInput) => void;
   /** 点「忽略」：隐藏这条终态通知（本次挂载内，不落库）。 */
   onDismissFinishedTask?: (taskId: string) => void;
   /** 分享当前对话（截图）。只画在最近一条助手消息的时间戳行上。 */
@@ -155,6 +161,8 @@ export function MessageList({
   currentTurnTimeline,
   currentTurnStartedAtMs,
   durationByMessageId,
+  currentLlmSpeed,
+  llmSpeedByMessageId,
   turnFilesByMessageId,
   currentTurnFiles,
   currentTurnChildren,
@@ -173,8 +181,8 @@ export function MessageList({
   onSelectSuggestion,
 }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const endRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const isAtBottomRef = useRef(true);
 
   const visibleMessages = messages.filter(
     (m) => m.role === 'user' || m.role === 'assistant',
@@ -192,13 +200,18 @@ export function MessageList({
     if (!el) return;
     const atBottom =
       el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_THRESHOLD_PX;
+    isAtBottomRef.current = atBottom;
     setIsAtBottom(atBottom);
   }, []);
 
-  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
-    const el = endRef.current;
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
+    const el = containerRef.current;
     if (!el) return;
-    el.scrollIntoView({ behavior, block: 'end' });
+    if (behavior === 'smooth') {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+      return;
+    }
+    el.scrollTop = el.scrollHeight;
   }, []);
 
   useEffect(() => {
@@ -213,33 +226,35 @@ export function MessageList({
   // Snap to bottom on first paint, regardless of whether the user "was" at
   // the bottom — there's no "before" on mount.
   useLayoutEffect(() => {
-    scrollToBottom('instant' as ScrollBehavior);
+    isAtBottomRef.current = true;
+    scrollToBottom('auto');
     setIsAtBottom(true);
   }, [scrollToBottom]);
 
-  // Subsequent auto-scroll only when the user is already near the bottom,
-  // so reading old messages doesn't get yanked.
+  // Stick to the bottom *before paint* while the user is still anchored.
+  // Smooth `scrollIntoView` on every reasoning token paints a frame mid-list
+  // then animates down — on Windows the classic scrollbar visibly jumps.
   const lastMessageId = visibleMessages[visibleMessages.length - 1]?.id;
   const lastContentLen = visibleMessages[visibleMessages.length - 1]?.content?.length ?? 0;
   const lastTimelineSig = currentTurnTimeline
     ?.map((block) => (block.type === 'tools' ? `t${block.actions.length}` : `c${block.content.length}`))
     .join('|') ?? '';
   const suggestedSig = suggestedReplies?.join('\0') ?? '';
-  useEffect(() => {
-    if (!isAtBottom) return;
-    scrollToBottom('smooth');
-  }, [lastMessageId, lastContentLen, lastTimelineSig, suggestedSig, isAtBottom, scrollToBottom]);
+  useLayoutEffect(() => {
+    if (!isAtBottomRef.current) return;
+    scrollToBottom('auto');
+  }, [lastMessageId, lastContentLen, lastTimelineSig, suggestedSig, scrollToBottom]);
 
   return (
     <div className="relative flex-1 overflow-hidden">
       <div
         ref={containerRef}
-        className="h-full overflow-y-auto px-3 py-3"
+        className="h-full overflow-y-auto overflow-anchor-none px-3 pt-3 pb-6"
       >
         {visibleMessages.length === 0 ? (
           emptyState ?? null
         ) : (
-          <div className="mx-auto w-full space-y-1.5">
+          <div className="mx-auto w-full max-w-3xl space-y-4">
             {visibleMessages.map((message, index) => {
               const isLast = index === visibleMessages.length - 1;
               if (message.role === 'user') {
@@ -292,10 +307,12 @@ export function MessageList({
                 typeof message.messageMetadata === 'string'
                   ? message.messageMetadata
                   : undefined;
+              let previousUser: ChatMessage | undefined;
               let previousUserCreatedAt: string | undefined;
               for (let i = index - 1; i >= 0; i -= 1) {
                 if (visibleMessages[i].role === 'user') {
-                  previousUserCreatedAt = visibleMessages[i].createdAt;
+                  previousUser = visibleMessages[i];
+                  previousUserCreatedAt = previousUser.createdAt;
                   break;
                 }
               }
@@ -304,6 +321,11 @@ export function MessageList({
                 : durationByMessageId?.[message.id]
                   ?? readPersistedDurationMs(metadataJson)
                   ?? inferDurationMs(previousUserCreatedAt, message.createdAt);
+              const persistedSpeed = llmSpeedByMessageId?.[message.id];
+              const isSpeedTail = isLast && currentLlmSpeed !== undefined;
+              const llmSpeed =
+                persistedSpeed
+                ?? (isStreamingTail || isSpeedTail ? currentLlmSpeed : undefined);
 
               return (
                 <div key={message.id}>
@@ -317,13 +339,16 @@ export function MessageList({
                     executedActions={actions}
                     timeline={turnTimeline}
                     orchestrationChildren={childList}
+                    previousUser={previousUser}
                     currentRound={isStreamingTail ? currentRound : undefined}
                     isPlanMode={isPlanMode}
                     onRegenerate={onRegenerate}
                     startedAtMs={isStreamingTail ? currentTurnStartedAtMs : undefined}
                     durationMs={durationMs}
+                    llmSpeed={llmSpeed}
                     turnFiles={turnFiles}
                     onShare={message.id === lastAssistantId ? onShare : undefined}
+                    onInspectTask={onInspectTask}
                   />
                   {!isStreaming &&
                   message.id === lastAssistantId &&
@@ -359,14 +384,17 @@ export function MessageList({
             ) : null}
           </div>
         )}
-        <div ref={endRef} />
       </div>
 
       {!isAtBottom && visibleMessages.length > 0 && (
         <button
           type="button"
-          onClick={() => scrollToBottom('smooth')}
-          className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-full border border-agent-border bg-agent-canvas text-agent-foreground shadow-md transition-colors hover:bg-agent-foreground/5"
+          onClick={() => {
+            isAtBottomRef.current = true;
+            setIsAtBottom(true);
+            scrollToBottom('smooth');
+          }}
+          className="absolute bottom-2 right-2 flex h-7 w-7 items-center justify-center rounded-full border border-agent-border bg-agent-canvas text-agent-foreground shadow-md transition-colors hover:bg-agent-foreground/5"
           title="回到底部"
           aria-label="回到底部"
         >

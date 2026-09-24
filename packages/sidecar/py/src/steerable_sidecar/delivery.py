@@ -457,9 +457,26 @@ _SYNTAX_RETRY = (
 # named outputs are still missing and the script is already on disk.
 _MAX_ENTRY_RUNS = 1
 _ENTRY_TIMEOUT_SEC = 180
+_CLEAN_ENTRY_FAIL = (
+    "Re-ran `{cmd}` from a clean output state before accepting the turn. "
+    "It exited {code} or did not recreate these outputs: {paths}.\n{output}\n"
+    "Fix the entrypoint itself, then run it again from a clean process. An old "
+    "output file does not prove the current entrypoint works."
+)
+_CLEAN_ENTRY_TIMEOUT = (
+    "Re-ran `{cmd}` from a clean output state, but it did not finish within "
+    f"{_ENTRY_TIMEOUT_SEC}s or recreate these outputs: {{paths}}. Fix the "
+    "entrypoint or its termination; an old output file is not a valid result."
+)
 _SIDE_EFFECT_SUFFIXES = frozenset(
     {".bmp", ".png", ".ppm", ".txt", ".npy", ".csv", ".json", ".fasta", ".fa"}
 )
+_SIDE_EFFECT_OUTPUT_VERB = re.compile(
+    r"\b(?:write|save|output|produce|create|generate|emit)\b"
+    r"|\bwritten\s+to\b",
+    re.IGNORECASE,
+)
+_INSTRUCTION_SENTENCE = re.compile(r"(?<=[.!?])\s+|\s*;\s*|\n+")
 # Named sources are written by the agent, not produced by ``make``. Treating
 # ``vm.js`` / ``ars.R`` as make targets burned the one make shot and skipped
 # the backtick entrypoint that actually writes /tmp/frame.bmp.
@@ -633,6 +650,9 @@ class DeliveryHooks(NoopHooks):
         self._example_wrong: bool | None = None
         self._validate_retries = 0
         self._entry_runs = 0
+        self._clean_entry_runs = 0
+        self._clean_entry_verified = False
+        self._clean_entry_failure: str | None = None
         self._make_runs = 0
         self._verify_retries = 0
         self._wrapping = False
@@ -641,6 +661,7 @@ class DeliveryHooks(NoopHooks):
         self._wrap_up_shown_nudges = 0
         self._wrap_up_prefix_nudges = 0
         self._wrap_up_example_nudges = 0
+        self._wrap_up_clean_nudges = 0
         self._force_tool = False
         self._forced_empty_streak = 0
         self._livelock_nudged = False
@@ -801,6 +822,8 @@ class DeliveryHooks(NoopHooks):
         if self._named_prefix_mismatch() is not None:
             return False
         if self._example_is_wrong():
+            return False
+        if self._clean_entry_failure is not None:
             return False
         if self._livelock_nudged and self.writes == 0:
             return False
@@ -966,6 +989,25 @@ class DeliveryHooks(NoopHooks):
                     tool_choice="required",
                     append_action="delivery_nudge",
                 )
+        if wrapping and self._wrap_up_clean_nudges < 1:
+            clean = self._run_clean_named_entrypoint()
+            if clean is not None:
+                self._wrap_up_clean_nudges += 1
+                return PreStepAction(
+                    kind="proceed",
+                    appends=[
+                        TranscriptAppend(
+                            message=LLMMessage.text_of(
+                                "user",
+                                clean.message or _NO_ARTIFACT_RETRY,
+                            ),
+                            kind="delivery.wrap_up_clean_entrypoint",
+                        )
+                    ],
+                    reason="wrap_up_clean_entrypoint",
+                    tool_choice="required",
+                    append_action="delivery_nudge",
+                )
         # Wrap-up quality gates (prefix / raster / example / missing) must
         # re-assert required every remaining round. ``post_tool_result``
         # clears ``_force_tool`` on every call, including a blocked inspect,
@@ -1062,6 +1104,9 @@ class DeliveryHooks(NoopHooks):
         name = call.name
         if call.name in _MUTATING or (name == "bash" and _bash_writes(call)):
             self._example_wrong = None
+            self._clean_entry_runs = 0
+            self._clean_entry_verified = False
+            self._clean_entry_failure = None
         # Ordered before the write branches so a call that both runs and
         # delivers — `python3 gen.py`, `make` — ends up unverified: what it
         # produced is exactly what nothing has been run against yet.
@@ -1693,22 +1738,7 @@ class DeliveryHooks(NoopHooks):
         """
         if self._entry_runs >= _MAX_ENTRY_RUNS or not missing:
             return None
-        pairs: list[tuple[str, Path]] = []
-        for command in (
-            match.group(1)
-            for pattern in (_RUN_COMMAND, _COMPILE_AND_RUN)
-            for match in pattern.finditer(self._instruction or "")
-        ):
-            script = _resolve_run_script(command, (*self._named, *self._required))
-            if script is None:
-                continue
-            if script.name.lower() in _CHECKER_FILENAMES:
-                continue
-            pairs.append((command, script))
-        if not pairs:
-            pairs.extend(
-                _named_side_effect_scripts((*self._named, *self._required), missing)
-            )
+        pairs = self._named_entrypoint_pairs(missing)
         for command, script in pairs:
             if _entrypoint_needs_missing_input(missing, script):
                 continue
@@ -1753,6 +1783,117 @@ class DeliveryHooks(NoopHooks):
                 )
             return None
         return None
+
+    def _named_entrypoint_pairs(
+        self, side_effects: tuple[str, ...]
+    ) -> list[tuple[str, Path]]:
+        pairs: list[tuple[str, Path]] = []
+        for command in (
+            match.group(1)
+            for pattern in (_RUN_COMMAND, _COMPILE_AND_RUN)
+            for match in pattern.finditer(self._instruction or "")
+        ):
+            script = _resolve_run_script(command, (*self._named, *self._required))
+            if script is None or script.name.lower() in _CHECKER_FILENAMES:
+                continue
+            pairs.append((command, script))
+        if not pairs:
+            pairs.extend(
+                _named_side_effect_scripts(
+                    (*self._named, *self._required), side_effects
+                )
+            )
+        return pairs
+
+    def _run_clean_named_entrypoint(self) -> CompletionAction | None:
+        """Recreate declared side effects so stale files cannot mask a broken entrypoint."""
+        if self._clean_entry_verified:
+            return None
+        if self._clean_entry_failure is not None:
+            self._force_tool = True
+            return CompletionAction(
+                kind="retry",
+                message=self._clean_entry_failure,
+                reason="named_entrypoint_clean",
+            )
+        if self._clean_entry_runs >= _MAX_ENTRY_RUNS:
+            return None
+        outputs = tuple(
+            dict.fromkeys(
+                [
+                    path
+                    for path in self._required
+                    if Path(path).suffix.lower() in _SIDE_EFFECT_SUFFIXES
+                    and _file_ready(path)
+                ]
+                + list(
+                    named_side_effect_output_paths(
+                        self._instruction,
+                        self._named,
+                    )
+                )
+            )
+        )
+        if not outputs:
+            return None
+        pairs = self._named_entrypoint_pairs(outputs)
+        if not pairs:
+            return None
+        command, script = pairs[0]
+        argv = _run_command_argv(command, script)
+        if argv is None:
+            return None
+        backups: list[tuple[Path, Path]] = []
+        try:
+            for raw in outputs:
+                output = Path(raw)
+                backup = output.with_name(f".{output.name}.steerable-backup")
+                if backup.exists():
+                    backup.unlink()
+                output.replace(backup)
+                backups.append((output, backup))
+            self._clean_entry_runs += 1
+            code, output_text = _run_cmd(
+                argv,
+                cwd=str(script.parent),
+                timeout=_ENTRY_TIMEOUT_SEC,
+            )
+            missing = tuple(path for path in outputs if not _file_ready(path))
+            if code == 0 and not missing:
+                for _output, backup in backups:
+                    backup.unlink(missing_ok=True)
+                self._clean_entry_verified = True
+                self.ran_since_write = True
+                return None
+            for output, _backup in backups:
+                if output.exists():
+                    output.unlink()
+            for output, backup in backups:
+                if backup.exists():
+                    backup.replace(output)
+            listed = ", ".join((missing or outputs)[:8])
+            message = (
+                _CLEAN_ENTRY_TIMEOUT.format(cmd=command, paths=listed)
+                if code is None
+                else _CLEAN_ENTRY_FAIL.format(
+                    cmd=command,
+                    code=code,
+                    paths=listed,
+                    output=output_text,
+                )
+            )
+            self._clean_entry_failure = message
+            self._force_tool = True
+            return CompletionAction(
+                kind="retry",
+                message=message,
+                reason="named_entrypoint_clean",
+            )
+        except OSError:
+            for output, backup in backups:
+                if not output.exists() and backup.exists():
+                    backup.replace(output)
+            return None
 
     def _listen_unsatisfied(self) -> bool:
         for host, port, kind in _instruction_listen_targets(self._instruction):
@@ -1907,6 +2048,9 @@ class DeliveryHooks(NoopHooks):
         artifact_retry = self._named_artifact_retry()
         if artifact_retry is not None:
             return artifact_retry
+        clean_entry_retry = self._run_clean_named_entrypoint()
+        if clean_entry_retry is not None:
+            return clean_entry_retry
         check_retry = self._named_checker_retry()
         if check_retry is not None:
             return check_retry
@@ -2249,6 +2393,31 @@ def _named_side_effect_scripts(
         interp = "python3" if suffix == ".py" else "node"
         pairs.append((f"{interp} {path.name}", path))
     return pairs
+
+
+def named_side_effect_output_paths(
+    instruction: str, named: Iterable[str]
+) -> tuple[str, ...]:
+    """Ready image/data/text paths explicitly described as produced outputs.
+
+    Paths absent when ``DeliveryHooks`` starts already live in ``_required``.
+    This semantic pass covers stale outputs that predate the hook without
+    treating a provided input image or dataset as disposable.
+    """
+    sentences = tuple(_INSTRUCTION_SENTENCE.split(instruction or ""))
+    found: list[str] = []
+    for raw in named:
+        path = Path(raw)
+        if path.suffix.lower() not in _SIDE_EFFECT_SUFFIXES or not _file_ready(raw):
+            continue
+        labels = {raw, path.name}
+        if any(
+            _SIDE_EFFECT_OUTPUT_VERB.search(sentence)
+            and any(label and label in sentence for label in labels)
+            for sentence in sentences
+        ):
+            found.append(raw)
+    return tuple(dict.fromkeys(found))
 
 
 def _json_has_blank_split_row(value: object) -> bool:

@@ -24,7 +24,7 @@ Plus the plumbing you'd otherwise rewrite: typed wire protocol · pluggable LLM 
 
 [Docs](https://steerableframework.com/) · [Storybook](https://steerableframework.com/storybook/) · [Live demo](https://steerableframework.com/demo/) · [Examples](./examples) · [Releases](https://github.com/pathlyapp/opensteerable/releases) · [Discussions](https://github.com/pathlyapp/opensteerable/discussions)
 
-> **80.7% on [Terminal-Bench 2.1](https://snorkel.ai/leaderboard/terminal-bench-2-1/)** with GLM-5.3-Flash — same band as Claude Code + Opus 4.8 (78.9%) and Codex CLI + GPT-5.5 (83.1%). Harbor hidden tests, 89-task catalog, six-run mean. [Numbers and protocol](#terminal-bench-21).
+> **79.0% on [Terminal-Bench 2.1](https://snorkel.ai/leaderboard/terminal-bench-2-1/)** with GLM-5.3-Flash — same band as Claude Code + Opus 4.8 (78.9%) and Codex CLI + GPT-5.5 (83.1%). Harbor hidden tests, 89-task catalog, three-run mean. [Numbers and protocol](#terminal-bench-21).
 
 > **Want to see it running before reading anything?**
 > Open the [hosted live demo](https://steerableframework.com/demo/) — the real Tier 5 agent shell UI running in your browser on mock data, no backend or API key required.
@@ -71,15 +71,15 @@ Every layer is independently published. Use just the protocol types, just the UI
 
 ## Terminal-Bench 2.1
 
-A Flash-cost model on OpenSteerable. Harbor hidden tests, 89-task catalog, six independent full runs: mean **80.7%** (SD 2.9 points). We report the mean, not the 86.5 high-water mark. Cost per solved task **~$0.146** (~$10.50 per catalog run). Protocol and run list: [`docs/evals.md`](./docs/evals.md).
+A Flash-cost model on OpenSteerable. Harbor hidden tests, 89-task catalog, three independent full runs: mean **79.0%** (SD 3.4 points). The runs average **229.9M input tokens**, down 15.4% from the superseded six-run baseline. Provider prices changed between measurement windows, so we do not publish a cross-date dollar conversion. Protocol and run list: [`docs/evals.md`](./docs/evals.md).
 
 **Same model · GLM-5.3-Flash** — identical cheap model, same Harbor catalog-89 protocol:
 
-| Agent | TB 2.1 | Cost / solved | Notes |
-| ----- | ------ | ------------- | ----- |
-| **OpenSteerable** | **80.7%** | **$0.146** | this repo, 6× catalog-89 · **+7.3 vs Pi** |
-| Claude Code | 83.1% | $0.162 | this repo, 1 catalog run |
-| Pi | 73.4% | $0.061 | this repo, 3 catalog runs |
+| Agent | TB 2.1 | Input tokens / run | Notes |
+| ----- | ------ | ------------------ | ----- |
+| **OpenSteerable** | **79.0% ±3.4** | **229.9M** | this repo, 3× catalog-89 · **+5.6 vs Pi** |
+| Claude Code | 83.1% | 299.2M | this repo, 1 catalog run |
+| Pi | 73.4% ±2.2 | 138.9M | this repo, 3 catalog runs |
 
 Z.AI's own Claude Code run of the same Flash model is 84.3% under a 6-hour timeout (Claude Code 2.1.207) — a different protocol; we wrap at 170 minutes.
 
@@ -219,7 +219,7 @@ flowchart TB
 **The rules:**
 - Tier N never imports Tier N+1. Adopting any layer means inheriting only the layers below it.
 - TS↔Py for `agent-protocol` is **codegen, not parallel implementation** — `spec/*.schema.json` is the single source of truth.
-- All 11 published packages — 6 on npm (protocol, harness, UI, pack-sdk, agent-shell, agent-shell-web) + 5 on PyPI (protocol, harness, runtime, sidecar, egress-proxy) — release **lockstep** (same `X.Y.Z` everywhere), gated by CI on every tag push. Tier 5 (`agent-shell` / `agent-shell-web` / `pack-sdk`) is published to npm (compiled `dist`, source, and pure-types respectively); the TS sidecar wrapper `@steerable/agent-runtime` is versioned in lockstep but source-consumed.
+- All 13 published packages — 6 on npm (protocol, harness, UI, pack-sdk, agent-shell, agent-shell-web) + 7 on PyPI (protocol, harness, runtime, plugin-sdk, sidecar, egress-proxy, **runtime-native**) — release **lockstep** (same `X.Y.Z` everywhere), gated by CI on every tag push. The Rust crates stay unpublished on crates.io (`publish = false`) but their versions are lockstep-gated so the PyO3 wheel filename matches `CARGO_PKG_VERSION`. Tier 5 (`agent-shell` / `agent-shell-web` / `pack-sdk`) is published to npm (compiled `dist`, source, and pure-types respectively); the TS sidecar wrapper `@steerable/agent-runtime` is versioned in lockstep but source-consumed.
 - Tier 5 is **product-neutral**: brand, telemetry endpoints, help links, and data-directory names are injected by the consuming product's assembly root (`setProductBrand` / `setProductConfig`), enforced by the `shell:neutral` gate in CI.
 
 ---
@@ -349,7 +349,7 @@ Full open-follow-up list: [`TODO.md`](./TODO.md). Pre-1.0 contract: minor (`0.X`
 ## Documentation
 
 - **[Getting Started](./docs/getting-started.md)** — full walkthrough, ~5 minutes
-- **[Evals](./docs/evals.md)** — Terminal-Bench 2.1 catalog-89 score of record (OpenSteerable + GLM-5.3-Flash **80.7%**) plus Harbor cheap-12 (`claude-code` / `codex` / `pi`)
+- **[Evals](./docs/evals.md)** — Terminal-Bench 2.1 catalog-89 score of record (OpenSteerable + GLM-5.3-Flash **79.0%**) plus Harbor cheap-12 (`claude-code` / `codex` / `pi`)
 - **[Specs](./docs/spec/)** — wire-level reference for every event/envelope shape
 - **[Examples](./examples)** — 3 runnable end-to-end smoke tests:
   - [`py-minimal`](./examples/py-minimal) — protocol + harness + tool dispatch
@@ -396,7 +396,7 @@ Cutting a release? See [`RELEASING.md`](./RELEASING.md). Short version:
 ./scripts/release/bump_to.sh 0.3.0
 git add -A && git commit -m "chore(release): v0.3.0"
 git tag v0.3.0
-git push origin main v0.3.0   # CI lockstep-validates, creates Release, publishes to npm + PyPI
+git push origin develop v0.3.0   # CI lockstep-validates, creates Release, publishes to npm + PyPI + native wheels
 ```
 
 All commits must be DCO-signed (`git commit -s`); the [DCO check](.github/workflows/dco.yml) runs on every PR.

@@ -1,0 +1,30 @@
+name: Verify native CoreLoop wheels
+
+# The public repository does not build the Rust CoreLoop. Before the
+# pure-Python runtime is published, this job checks that PyPI already
+# has a binary wheel for every desktop platform at the lockstep version.
+# It never uploads a source distribution.
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+concurrency:
+  group: publish-native-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Require published native wheels
+    if: github.repository == 'pathlyapp/opensteerable'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Download and verify every platform wheel
+        run: python scripts/fetch_verified_artifacts.py verify-wheels --lockstep --out dist/native

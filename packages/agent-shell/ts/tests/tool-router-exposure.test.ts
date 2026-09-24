@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { resetProductConfigForTests, setProductConfig } from '../src/product-config.js';
 import { McpServerRegistry, type McpServerEntry } from '../src/mcp-server-registry.js';
 import {
   ToolRouter,
@@ -197,5 +198,26 @@ describe('tool-router / tool_search', () => {
     })) as { success: boolean; error?: string };
     expect(result.success).toBe(false);
     expect(result.error).toContain('definitely-not-a-real-command-xyz');
+  });
+});
+
+describe('产品宿主工具族 capability', () => {
+  afterEach(() => {
+    resetProductConfigForTests();
+  });
+
+  it('capability 关掉后模型看不到该族工具，分发也拒绝', async () => {
+    setProductConfig({ hostTools: { 'local-fs': false } });
+    const router = makeToolRouter();
+    expect(router.listModelSchemas().map((s) => s.name)).not.toContain('local_exec_shell');
+    await expect(
+      router.execute({ name: 'local_exec_shell', arguments: { command: 'pwd' } }),
+    ).rejects.toThrow('未在本产品引入');
+  });
+
+  it('只关 chrome 时 local_* 仍在模型可见列表', () => {
+    setProductConfig({ hostTools: { 'local-fs': { chrome: false } } });
+    const router = makeToolRouter();
+    expect(router.listModelSchemas().map((s) => s.name)).toContain('local_exec_shell');
   });
 });

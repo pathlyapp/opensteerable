@@ -7,9 +7,12 @@ import {
   LuFolderPlus,
   LuFolderX,
   LuLoaderCircle,
+  LuPlus,
 } from 'react-icons/lu';
+import { CreateProjectModal } from '@/components/CreateProjectModal';
 import { getElectronBridge, isElectron } from '@/lib/electron-bridge';
 import {
+  createProject,
   updateChatProject,
   updateProject,
   type LocalProject,
@@ -93,11 +96,44 @@ function MenuShell({
   );
 }
 
-function MenuSectionLabel({ children }: { children: ReactNode }) {
+function MenuSectionLabel({
+  children,
+  onAdd,
+}: {
+  children: ReactNode;
+  onAdd?: () => void;
+}) {
   return (
-    <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-agent-muted-foreground">
-      {children}
+    <div className="flex items-center justify-between gap-1 px-2 py-1">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-agent-muted-foreground">
+        {children}
+      </div>
+      {onAdd && (
+        <button
+          type="button"
+          onClick={onAdd}
+          className="flex h-5 w-5 items-center justify-center rounded-full text-agent-muted-foreground transition-colors hover:bg-agent-foreground/10 hover:text-agent-foreground"
+          title="新建项目"
+          aria-label="新建项目"
+        >
+          <LuPlus className="h-3 w-3" />
+        </button>
+      )}
     </div>
+  );
+}
+
+function CreateProjectMenuItem({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={onClick}
+      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-agent-foreground transition-colors hover:bg-agent-foreground/5"
+    >
+      <LuFolderPlus className="h-3.5 w-3.5 shrink-0 text-agent-muted-foreground" />
+      新建项目
+    </button>
   );
 }
 
@@ -147,8 +183,14 @@ export function ChatProjectBadge({
   onChatProjectChanged: () => void | Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const openCreate = () => {
+    setOpen(false);
+    setCreateOpen(true);
+  };
 
   const otherProjects = project
     ? projects.filter((p) => p.id !== project.id)
@@ -226,7 +268,7 @@ export function ChatProjectBadge({
               </div>
             </>
           ) : (
-            <MenuSectionLabel>关联到项目</MenuSectionLabel>
+            <MenuSectionLabel onAdd={openCreate}>关联到项目</MenuSectionLabel>
           )}
 
           {otherProjects.length > 0 && (
@@ -247,9 +289,12 @@ export function ChatProjectBadge({
             </>
           )}
           {!project && projects.length === 0 && (
-            <div className="px-2 py-1.5 text-[11px] text-agent-muted-foreground/70">
-              还没有项目——先在侧边栏「会话」旁点 📁+ 新建。
-            </div>
+            <>
+              <div className="px-2 py-1.5 text-[11px] text-agent-muted-foreground/70">
+                还没有项目
+              </div>
+              <CreateProjectMenuItem onClick={openCreate} />
+            </>
           )}
 
           {project && (
@@ -283,6 +328,22 @@ export function ChatProjectBadge({
           )}
         </MenuShell>
       )}
+
+      <CreateProjectModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreate={async (input) => {
+          const res = await createProject({
+            name: input.name,
+            ...(input.sourceFolders.length > 0 ? { sourceFolders: input.sourceFolders } : {}),
+          });
+          await onProjectsChanged();
+          if (res.project?.id) {
+            await updateChatProject(chatId, res.project.id);
+            await onChatProjectChanged();
+          }
+        }}
+      />
     </div>
   );
 }
@@ -293,14 +354,23 @@ export function ProjectPickerButton({
   projects,
   value,
   onChange,
+  onProjectsChanged,
 }: {
   projects: LocalProject[];
   /** 当前选中的 projectId；null = 无项目。 */
   value: string | null;
   onChange: (projectId: string | null) => void;
+  /** 新建项目后刷新列表。 */
+  onProjectsChanged: () => void | Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const selected = value ? (projects.find((p) => p.id === value) ?? null) : null;
+
+  const openCreate = () => {
+    setOpen(false);
+    setCreateOpen(true);
+  };
 
   return (
     <div className="relative">
@@ -313,13 +383,13 @@ export function ProjectPickerButton({
         title={
           selected
             ? `${selected.folderPath}\n新对话将绑定到此项目`
-            : '为新对话选择项目（可不选）'
+            : '为新对话选择项目。不选则在文稿/<应用名>/conversations/ 下建立本对话工作区'
         }
       />
 
       {open && (
         <MenuShell onClose={() => setOpen(false)}>
-          <MenuSectionLabel>新对话所属项目</MenuSectionLabel>
+          <MenuSectionLabel onAdd={openCreate}>新对话所属项目</MenuSectionLabel>
           <button
             type="button"
             role="menuitem"
@@ -349,12 +419,28 @@ export function ProjectPickerButton({
             ))}
           </div>
           {projects.length === 0 && (
-            <div className="px-2 py-1.5 text-[11px] text-agent-muted-foreground/70">
-              还没有项目——先在侧边栏「会话」旁点 📁+ 新建。
-            </div>
+            <>
+              <div className="px-2 py-1.5 text-[11px] text-agent-muted-foreground/70">
+                还没有项目
+              </div>
+              <CreateProjectMenuItem onClick={openCreate} />
+            </>
           )}
         </MenuShell>
       )}
+
+      <CreateProjectModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreate={async (input) => {
+          const res = await createProject({
+            name: input.name,
+            ...(input.sourceFolders.length > 0 ? { sourceFolders: input.sourceFolders } : {}),
+          });
+          await onProjectsChanged();
+          if (res.project?.id) onChange(res.project.id);
+        }}
+      />
     </div>
   );
 }

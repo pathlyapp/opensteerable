@@ -8,6 +8,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  composeAttachmentUserContent,
   fileToBase64,
   isImageFile,
   saveChatAttachments,
@@ -55,6 +56,29 @@ describe('fileToBase64', () => {
     const file = new File([bytes], 'big.bin');
     const expected = Buffer.from(bytes).toString('base64');
     expect(await fileToBase64(file)).toBe(expected);
+  });
+});
+
+describe('composeAttachmentUserContent', () => {
+  it('有路径写关联文件列表，无路径退回文件名', () => {
+    expect(
+      composeAttachmentUserContent('这是什么文件', [
+        { name: '纪要.docx', path: '/stored/纪要.docx' },
+        { name: '草稿.txt', path: '' },
+      ]),
+    ).toEqual({
+      content: '这是什么文件\n\n---\n关联文件:\n- `/stored/纪要.docx`\n- `草稿.txt`',
+      images: [],
+    });
+  });
+
+  it('只有附件时正文从关联文件起笔；图像进 metadata', () => {
+    expect(
+      composeAttachmentUserContent('', [{ name: '封面.png', path: '/stored/封面.png' }]),
+    ).toEqual({
+      content: '关联文件:\n- `/stored/封面.png`',
+      images: [{ path: '/stored/封面.png', name: '封面.png' }],
+    });
   });
 });
 

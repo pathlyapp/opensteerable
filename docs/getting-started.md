@@ -100,7 +100,7 @@ bounded auto-restart, graceful drain) and exposes the CoreLoop-level API over
 on npm):
 
 ```bash
-pnpm add link:../steerable-framework/packages/agent-runtime/ts
+pnpm add link:../opensteerable/packages/agent-runtime/ts
 ```
 
 ```ts

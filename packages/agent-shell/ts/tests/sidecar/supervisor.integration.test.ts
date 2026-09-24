@@ -14,7 +14,7 @@
  * Run locally:
  *
  *   STEERABLE_SIDECAR_TEST=1 \
- *   STEERABLE_SIDECAR_PYTHON=/path/to/steerable-framework/.venv/bin/python3 \
+ *   STEERABLE_SIDECAR_PYTHON=/path/to/opensteerable/.venv/bin/python3 \
  *     pnpm test tests/sidecar/supervisor.integration.test.ts
  */
 
@@ -136,7 +136,7 @@ guard('SidecarSupervisor (real subprocess)', () => {
     const here = path.dirname(url.fileURLToPath(import.meta.url));
     const frameworkTests = path.resolve(
       here,
-      '../../../steerable-framework/packages/sidecar/py/tests',
+      '../../../opensteerable/packages/sidecar/py/tests',
     );
 
     const supervisor = await SidecarSupervisor.start({

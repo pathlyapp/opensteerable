@@ -1,5 +1,10 @@
 {
   "version": 1,
+  "compatibility": {
+    "coreloopApi": 1,
+    "sidecarProtocol": "0.1.0",
+    "egressCli": 1
+  },
   "pyo3Surface": {
     "steerable_agent_runtime": [
       "CoreLoop",

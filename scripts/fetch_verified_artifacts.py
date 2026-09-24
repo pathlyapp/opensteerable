@@ -282,6 +282,27 @@ def release_asset_url(version: str, filename: str) -> str:
     )
 
 
+def download_license(
+    version: str,
+    out: Path,
+    *,
+    bundle: dict | None,
+    opener=urllib.request.urlopen,
+) -> Path:
+    if bundle is None:
+        raise SystemExit("engine license download requires --artifact-lock")
+    filename = bundle.get("licenseFile")
+    expected = bundle.get("licenseSha256")
+    if not isinstance(filename, str) or not isinstance(expected, str):
+        raise SystemExit(f"Rust bundle {version} has no downloadable license")
+    blob = fetch_bytes(release_asset_url(version, filename), opener)
+    verify_bytes(blob, expected, filename)
+    out.mkdir(parents=True, exist_ok=True)
+    destination = out / filename
+    destination.write_bytes(blob)
+    return destination
+
+
 def component_from_bundle(bundle: dict | None, kind: str) -> dict | None:
     if bundle is None:
         return None
@@ -424,6 +445,10 @@ def main(argv: list[str] | None = None) -> None:
     egress.add_argument("--target", choices=[*SIDECAR_TARGETS, "host"], default="host")
     egress.add_argument("--out", required=True, type=Path)
 
+    license_parser = sub.add_parser("license", help="download the verified engine license")
+    license_parser.add_argument("--artifact-lock", action="store_true", required=True)
+    license_parser.add_argument("--out", required=True, type=Path)
+
     verify = sub.add_parser("verify-wheels", help="download every platform wheel and verify it")
     verify.add_argument("--version")
     verify.add_argument("--artifact-lock", "--lockstep", action="store_true")
@@ -447,6 +472,8 @@ def main(argv: list[str] | None = None) -> None:
         target = host_sidecar_target() if args.target == "host" else args.target
         path = download_egress(_resolve_version(args), target, args.out, bundle=bundle)
         print(path)
+    elif args.command == "license":
+        print(download_license(artifact_version(), args.out, bundle=bundle))
     elif args.command == "verify-wheels":
         version = _resolve_version(args)
         for wheel_platform in WHEEL_PLATFORMS:

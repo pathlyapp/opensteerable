@@ -82,6 +82,7 @@ nav:
       - Runtime: spec/runtime.md
       - Sidecar: spec/sidecar.md
       - CoreLoop: spec/core-loop.md
+      - Engine compatibility: spec/engine-compatibility.md
       - Compaction: spec/compaction.md
   - UI Components: ui/index.md
 

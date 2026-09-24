@@ -303,7 +303,7 @@ Same GLM-5.3-Flash and Harbor catalog-89 protocol: Claude Code 83.1%, OpenSteera
 
     ```bash
     # Bundle the sidecar binary into resources/python-runtime/<platform>/
-    # TS hosts: link:../steerable-framework/packages/agent-runtime/ts
+    # TS hosts: link:../opensteerable/packages/agent-runtime/ts
     ```
 
     ```ts

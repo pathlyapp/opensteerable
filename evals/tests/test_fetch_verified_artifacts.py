@@ -85,6 +85,32 @@ def test_download_wheel_rejects_a_bad_digest(tmp_path: Path) -> None:
         fetch.download_wheel("0.6.36", "musllinux-x64", tmp_path, opener=_opener(routes))
 
 
+def test_download_license_checks_bundle_digest(tmp_path: Path) -> None:
+    version = "0.6.39"
+    filename = "steerable-engine-LICENSE.txt"
+    blob = b"proprietary engine terms"
+    bundle = {
+        "licenseFile": filename,
+        "licenseSha256": hashlib.sha256(blob).hexdigest(),
+    }
+    routes = {fetch.release_asset_url(version, filename): blob}
+
+    path = fetch.download_license(
+        version,
+        tmp_path,
+        bundle=bundle,
+        opener=_opener(routes),
+    )
+
+    assert path.name == filename
+    assert path.read_bytes() == blob
+
+
+def test_download_license_requires_bundle_metadata(tmp_path: Path) -> None:
+    with pytest.raises(SystemExit, match="no downloadable license"):
+        fetch.download_license("0.6.39", tmp_path, bundle={}, opener=_opener({}))
+
+
 def test_download_sidecar_rejects_a_missing_release(tmp_path: Path) -> None:
     with pytest.raises(SystemExit, match="download failed \\(404\\)"):
         fetch.download_sidecar("0.6.36", "linux-x64", tmp_path, opener=_opener({}))

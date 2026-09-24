@@ -34,7 +34,7 @@ import { getResolvedHostTools } from './host-tools-runtime.js';
 export const MCP_DYNAMIC_TOOL_PREFIX = 'mcp__';
 
 /**
- * 工具曝光分层（steerable-framework Wave 2 同构）：`direct` 进模型可见列表；
+ * 工具曝光分层（OpenSteerable Wave 2 同构）：`direct` 进模型可见列表；
  * `deferred` 可分发、可经 `tool_search` 发现，但不占每轮工具列表的 token；
  * `hidden` 仅可分发。缺省 `direct`。
  *
@@ -1057,7 +1057,7 @@ export class ToolRouter {
   /**
    * `tool_search` 处理器：BM25 排序 deferred 名录（name 分词计两次），返回
    * 完整 schema，结果有界（默认 8，封顶 20）。算法、常量、默认上限与返回
-   * 文案都与 steerable-framework `tool_search.py` 对齐——同名工具在两侧给
+   * 文案都与 OpenSteerable `tool_search.py` 对齐——同名工具在两侧给
    * 出同样的名次；hidden 层不进搜索。
    *
    * 智能体工具策略在这里同样生效：否则每轮列表藏起来的工具会从这条发现缝

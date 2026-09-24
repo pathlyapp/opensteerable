@@ -324,7 +324,7 @@ prompt token 总量反而下降（light 68,605 → 61,360；heavy 281,748 →
 |---|---|---|
 | L1 机制 | 上述每条条款存在且行为正确：回放形状、原始区段、无截断、先剪后摘要、熔断、滞回、孤儿拓宽、括号三元组、图像 offload、策略解析。 | `packages/agent-runtime/py/tests/test_compaction.py`、`test_compaction_strategy.py`、`test_compaction_policy.py`、`test_history_persistence.py` |
 | L1.5 套件 | 标准本身有区分度且策略间排序正确：模拟器四臂（none / naive / fold_only / current）在针召回、缓存命中、token 成本上分开；known-bad 必须显著差。 | `evals/compaction/`（`standard.md`、`simulator.py`、`run_sim.py`），区分度自检钉在 `evals/tests/test_compaction_sim.py` |
-| L2 录制回放 | 真实运行中：闭合括号满足 `post < pre`、滞回余量内无压缩、summarizer 请求是上一轮请求的字节前缀。 | evals trace 断言（steerable-framework-evals） |
+| L2 录制回放 | 真实运行中：闭合括号满足 `post < pre`、滞回余量内无压缩、summarizer 请求是上一轮请求的字节前缀。 | OpenSteerable eval trace 断言 |
 | L3 行为 A/B | 压缩配置确实按预期方向移动任务成功率 / 缓存命中率 / 每轮成本——防止循环论证的那道检查。 | dogfood harness、Harbor 扫参 |
 
 套件当前读数（`python -m evals.compaction.run_sim`）：

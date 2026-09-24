@@ -46,7 +46,7 @@ Both wrappers run the steps below; pick whichever style fits your shell.
 ### Step-by-step
 
 ```bash
-cd /path/to/steerable-framework
+cd /path/to/opensteerable
 
 # 0. Clean install + sync workspaces
 pnpm install --frozen-lockfile
@@ -139,12 +139,12 @@ console.log({mode: decideToolMode('read_file'), done: isTerminalResult({success:
 ```jsonc
 {
   "dependencies": {
-    "@steerable/agent-protocol": "file:../steerable-framework/dist/npm/steerable-agent-protocol-0.1.0.tgz",
-    "@steerable/agent-ui":       "file:../steerable-framework/dist/npm/steerable-agent-ui-0.1.0.tgz"
+    "@steerable/agent-protocol": "file:../opensteerable/dist/npm/steerable-agent-protocol-0.1.0.tgz",
+    "@steerable/agent-ui":       "file:../opensteerable/dist/npm/steerable-agent-ui-0.1.0.tgz"
   },
   "pnpm": {
     "overrides": {
-      "@steerable/agent-protocol": "file:../steerable-framework/dist/npm/steerable-agent-protocol-0.1.0.tgz"
+      "@steerable/agent-protocol": "file:../opensteerable/dist/npm/steerable-agent-protocol-0.1.0.tgz"
     }
   }
 }
@@ -199,7 +199,7 @@ without a registry.
      - Go to <https://pypi.org/manage/account/publishing/> for each
        project (or the umbrella account if all four projects share an
        owner).
-     - Add a publisher: owner `pathlyapp`, repo `steerable-framework`,
+     - Add a publisher: owner `pathlyapp`, repo `opensteerable`,
        workflow `publish-pypi.yml`, environment `pypi`.
      - In the GitHub repo, create an Environment named `pypi`
        (Settings → Environments → New environment) and (optionally) gate

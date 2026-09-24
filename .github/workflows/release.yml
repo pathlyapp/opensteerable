@@ -87,6 +87,7 @@ jobs:
           # Use system python here (no uv install) for speed — the
           # checker only needs stdlib (json, tomllib in 3.11+, argparse).
           python scripts/check_lockstep_versions.py --expected "$EXPECTED"
+          python scripts/check_engine_compatibility.py
 
       - name: Create GitHub Release (idempotent)
         env:

@@ -377,7 +377,7 @@ Contributions are welcome — both small (typo fixes, examples) and structural (
 
 ```bash
 git clone https://github.com/pathlyapp/opensteerable
-cd steerable-framework
+cd opensteerable
 pnpm install
 uv sync --all-packages
 
@@ -420,5 +420,6 @@ OpenSteerable stands on the work of:
 The source in this repository is licensed under the
 [Apache License 2.0](./LICENSE). The separately built native CoreLoop wheel,
 Rust sidecar, and egress proxy pinned by `rust-artifacts.lock.json` are
-binary-only MIT-licensed artifacts; their source is not included here. See
-[`NOTICE`](./NOTICE) for third-party attributions and distribution details.
+source-unavailable binary artifacts licensed separately by their immutable
+Release. The lock records the reviewed license identifier. See
+[`NOTICE`](./NOTICE) for distribution terms and third-party attributions.

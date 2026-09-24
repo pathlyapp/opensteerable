@@ -51,6 +51,17 @@ def verify_bundle(version: str) -> tuple[dict[str, object], str]:
         or manifest.get("releaseTag") != f"rust-v{version}"
     ):
         raise SystemExit("Rust bundle manifest header mismatch")
+    license_id = manifest.get("license")
+    if license_id == "LicenseRef-DeepPath-Steerable-Engine":
+        license_name = manifest.get("licenseFile")
+        license_sha = manifest.get("licenseSha256")
+        if not isinstance(license_name, str) or not isinstance(license_sha, str):
+            raise SystemExit("proprietary engine bundle has no license file metadata")
+        license_blob = fetch(release_url(version, license_name))
+        if digest(license_blob) != license_sha:
+            raise SystemExit("engine license file mismatch")
+    elif license_id != "MIT":
+        raise SystemExit(f"unsupported engine license: {license_id!r}")
 
     pypi = json.loads(fetch(f"https://pypi.org/pypi/{NATIVE}/{version}/json"))
     wheels = [item for item in pypi["urls"] if item["packagetype"] == "bdist_wheel"]
@@ -98,7 +109,7 @@ def main() -> None:
     args = parser.parse_args()
     manifest, manifest_sha = verify_bundle(args.version)
     compatibility = manifest["compatibility"]
-    lock = {
+    lock: dict[str, object] = {
         "schemaVersion": 1,
         "artifactVersion": args.version,
         "license": str(manifest.get("license", "MIT")),
@@ -114,6 +125,9 @@ def main() -> None:
         },
         "compatibility": compatibility,
     }
+    if manifest.get("licenseFile"):
+        lock["licenseFile"] = manifest["licenseFile"]
+        lock["licenseSha256"] = manifest["licenseSha256"]
     (ROOT / "rust-artifacts.lock.json").write_text(
         json.dumps(lock, indent=2) + "\n", encoding="utf-8"
     )

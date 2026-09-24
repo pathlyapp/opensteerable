@@ -6,8 +6,9 @@ OpenSteerable project.
 
 The binary-only Rust artifacts selected by rust-artifacts.lock.json
 (steerable-agent-runtime-native, the Rust sidecar, and the egress proxy)
-are distributed under the MIT License. Their source is maintained
-separately and is not part of this Apache-2.0 source distribution.
+are maintained separately and are not part of this Apache-2.0 source
+distribution. Each immutable engine Release includes its license; the lock
+records the reviewed license identifier.
 
 The generated model catalog contains data derived from models.dev
 (https://github.com/anomalyco/models.dev):

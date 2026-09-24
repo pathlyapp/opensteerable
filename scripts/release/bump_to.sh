@@ -46,7 +46,7 @@ ts_pkgs = [
     "packages/agent-harness/ts",
     "packages/agent-runtime/ts",
     "packages/agent-ui/ts",
-    # private 包（不上 npm）也随 lockstep bump，保持跨仓 file: 引用一致。
+    # Shell 与 pack-sdk 也随 lockstep bump，并由 publish-npm.yml 发布。
     "packages/pack-sdk/ts",
     "packages/agent-shell/ts",
     "packages/agent-shell/web",

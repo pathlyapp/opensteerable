@@ -113,3 +113,5 @@ fallback.
 
 The repository publishes the facade, contracts and black-box compatibility
 tests. The native implementation source is not included in this repository.
+See [Engine compatibility](engine-compatibility.md) for the versioned interface
+identifiers and artifact adoption flow.

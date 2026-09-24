@@ -686,8 +686,13 @@ class CoreLoop:
         task = asyncio.create_task(self._executor.execute(call, ctx))
         try:
             return await _await_tool_deadline(task, clock, timeout_ms / 1000)
+        except asyncio.CancelledError:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+            raise
         except TimeoutError:
             task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
             return ToolResult(
                 success=False,
                 error="tool_timeout",

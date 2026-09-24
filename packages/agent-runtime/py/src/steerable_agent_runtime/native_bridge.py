@@ -688,7 +688,14 @@ async def run_native(
             for task in tuple(active_stream_tasks):
                 task.cancel()
 
-        aio_loop.call_soon_threadsafe(cancel_now)
+        try:
+            current_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            current_loop = None
+        if current_loop is aio_loop:
+            cancel_now()
+        else:
+            aio_loop.call_soon_threadsafe(cancel_now)
 
     def cancel() -> None:
         cancel_flag.set()
@@ -1009,6 +1016,11 @@ async def run_native(
             yield event
         finally:
             consumed.set()
+    remaining_tasks = tuple(active_tool_tasks | active_stream_tasks)
+    for task in remaining_tasks:
+        task.cancel()
+    if remaining_tasks:
+        await asyncio.gather(*remaining_tasks, return_exceptions=True)
     if worker_error:
         raise worker_error[0]
     raw_history = worker_result[0].get("history", []) if worker_result else []

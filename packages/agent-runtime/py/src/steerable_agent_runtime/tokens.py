@@ -4,7 +4,7 @@ Used where a real tokenizer is unavailable (compaction pressure trigger).
 Providers report true usage for the budget axis; this only needs to be
 proportionally right so thresholds trip at the same relative fill level.
 
-Base heuristic (parity with deeppath-agent's ``estimateTokens``):
+Base heuristic:
 - CJK unified ideographs + CJK punctuation + fullwidth forms ≈ 0.6 token/char
   (empirically close for modern BPE tokenizers on Chinese text);
 - everything else ≈ 0.25 token/char (the classic ~4 chars/token rule);
@@ -65,7 +65,7 @@ def estimate_text_tokens(text: str) -> int:
 #: earlier than intended. The cjk/other per-char split is NOT identifiable
 #: from day-level aggregates (corr(cjk, other) = 0.88), so the correction is
 #: applied as a single global factor; per-char refinement needs per-request
-#: estimated/observed pairs (sidecar self-recording, see CORELOOP_TODO P3).
+#: estimated/observed pairs from sidecar self-recording.
 MODEL_TOKEN_FACTORS: dict[str, float] = {"deepseek": 0.71}
 
 

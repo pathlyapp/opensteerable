@@ -3,7 +3,7 @@
  *
  * Used in two production contexts today:
  *   1. The "Trace" tab in `deeppath/apps/web` admin tooling.
- *   2. The mockCflog log window in `deeppath-agent`, where it doubles as a
+ *   2. A host application's mock log window, where it doubles as a
  *      dev console for the Electron app.
  *
  * The component is intentionally append-only; consumers feed it events via the

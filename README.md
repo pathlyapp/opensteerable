@@ -342,7 +342,7 @@ If you're using OpenSteerable in production, send a PR adding your project here.
 
 Where the architecture is headed, what's genuinely missing, and what's explicitly out of scope: **[Architecture Review & Roadmap](https://steerableframework.com/roadmap/)** — a gap scorecard against Codex and DeepSeek Harness, with the honest negatives.
 
-Full open-follow-up list: [`TODO.md`](./TODO.md). Pre-1.0 contract: minor (`0.X`) is the breaking-change axis.
+Public follow-up themes live in [`docs/roadmap.md`](./docs/roadmap.md). Pre-1.0 contract: minor (`0.X`) is the breaking-change axis.
 
 ---
 
@@ -417,4 +417,8 @@ OpenSteerable stands on the work of:
 
 ## License
 
-[Apache License 2.0](./LICENSE). See [`NOTICE`](./NOTICE) for third-party attributions baked into the sidecar binary.
+The source in this repository is licensed under the
+[Apache License 2.0](./LICENSE). The separately built native CoreLoop wheel,
+Rust sidecar, and egress proxy pinned by `rust-artifacts.lock.json` are
+binary-only MIT-licensed artifacts; their source is not included here. See
+[`NOTICE`](./NOTICE) for third-party attributions and distribution details.

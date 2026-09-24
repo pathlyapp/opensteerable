@@ -1,7 +1,9 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
+  apiKeyMatchesFingerprint,
   DEFAULT_LLM_SETTINGS,
-  EXPIRED_BAKED_API_KEY,
+  EXPIRED_BAKED_API_KEY_SHA256,
   OLLAMA_DEFAULTS,
   OPENAI_COMPAT_DEFAULTS,
   llmSettingsCarryExpiredBakedKey,
@@ -24,13 +26,11 @@ describe('factory defaults ship no baked-in apiKey', () => {
 });
 
 describe('llmSettingsCarryExpiredBakedKey', () => {
-  it('matches saved settings still carrying the expired factory key', () => {
-    expect(
-      llmSettingsCarryExpiredBakedKey({
-        ...OPENAI_COMPAT_DEFAULTS,
-        apiKey: EXPIRED_BAKED_API_KEY,
-      }),
-    ).toBe(true);
+  it('matches keys by one-way fingerprint without storing the original credential', () => {
+    const syntheticKey = 'synthetic-expired-key';
+    const fingerprint = createHash('sha256').update(syntheticKey).digest('hex');
+    expect(apiKeyMatchesFingerprint(syntheticKey, fingerprint)).toBe(true);
+    expect(EXPIRED_BAKED_API_KEY_SHA256).toMatch(/^[a-f0-9]{64}$/);
   });
 
   it('does not match a user-provided key', () => {

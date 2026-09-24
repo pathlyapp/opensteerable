@@ -2,6 +2,7 @@
 name = "steerable-plugin-sdk"
 version = "0.6.39"
 description = "Pure-Python authoring and RPC SDK for Steerable tool plugins"
+license = { text = "Apache-2.0" }
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

@@ -59,8 +59,7 @@ each tier is independently adoptable.
    server's ~114 emission sites, then adopted by the desktop. Transports
    render wire formats — including byte-compatible rendering onto an
    existing frontend contract — instead of the loop printing SSE.
-   See [CoreLoop spec](spec/core-loop.md) and the
-   [API SSE drift survey](migration/api-sse-drift.md).
+   See the [CoreLoop spec](spec/core-loop.md).
 3. **Cross-language contract as codegen, not parallel implementation.**
    `spec/*.schema.json` is the single source of truth; TypeScript types and
    Pydantic models are generated and drift-checked in CI. The conformance

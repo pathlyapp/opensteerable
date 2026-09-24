@@ -1,0 +1,131 @@
+{
+  "version": 1,
+  "pyo3Surface": {
+    "steerable_agent_runtime": [
+      "CoreLoop",
+      "LoopConfig",
+      "LoopEvent",
+      "LoopContext",
+      "LoopHooks",
+      "NoopHooks",
+      "CompletionAction",
+      "PreStepAction",
+      "RetryAction",
+      "LLMMessage",
+      "LLMStreamChunk",
+      "LLMUsage",
+      "ImagePart",
+      "load_history_transcript"
+    ],
+    "steerable_agent_runtime.llm": [
+      "LLMMessage",
+      "LLMStreamChunk",
+      "LLMUsage"
+    ],
+    "steerable_agent_runtime.llm.parts": [
+      "ImagePart",
+      "TextPart"
+    ],
+    "steerable_agent_runtime.hooks": [
+      "CompletionAction",
+      "NoopHooks",
+      "PreStepAction",
+      "RetryAction",
+      "LoopHooks"
+    ],
+    "steerable_agent_runtime.resume": [
+      "load_history_transcript"
+    ],
+    "steerable_agent_runtime.storage.in_memory": [
+      "InMemoryStorage"
+    ],
+    "steerable_agent_runtime.loop": [
+      "LoopEvent",
+      "LoopContext",
+      "LoopConfig",
+      "CoreLoop",
+      "ToolExecutor"
+    ]
+  },
+  "coreLoopInitParams": [
+    "provider",
+    "executor",
+    "config",
+    "hooks",
+    "history_store",
+    "record_id"
+  ],
+  "coreLoopRunKwargs": [
+    "tools",
+    "chat_id"
+  ],
+  "loopConfigFieldsUsedByApi": [
+    "max_rounds",
+    "max_tool_errors",
+    "tool_dedup",
+    "soft_timeout_ms",
+    "wrap_up_hard_cap_ms",
+    "reasoning_without_progress_chars"
+  ],
+  "loopEventKinds": [
+    "stage_start",
+    "stage_complete",
+    "error",
+    "content_delta",
+    "reasoning_delta",
+    "llm_request",
+    "llm_response",
+    "tool_call_start",
+    "tool_call_result",
+    "tool_error",
+    "budget_exhausted",
+    "soft_timeout",
+    "completion",
+    "steer",
+    "hook_action"
+  ],
+  "loopHooksMethods": [
+    "pre_step",
+    "post_tool_result",
+    "on_request_error",
+    "before_completion",
+    "on_stream_chunk",
+    "tool_made_progress"
+  ],
+  "sidecarRpcMethods": [
+    "system.ping",
+    "system.shutdown",
+    "system.shutdown_now",
+    "agent.session.create",
+    "agent.session.resume",
+    "agent.session.list",
+    "tool.list",
+    "tool.invoke",
+    "workspace.apply_edits",
+    "skills.list",
+    "trace.fetch",
+    "trace.export",
+    "config.get",
+    "config.set",
+    "compat.describe",
+    "sandbox.describe",
+    "plugin.list",
+    "plugin.enable",
+    "plugin.disable",
+    "plugin.reload",
+    "presets.describe",
+    "presets.resolve",
+    "catalog.describe",
+    "models.list",
+    "harness.describe",
+    "agent.chat.stream",
+    "agent.chat.cancel",
+    "agent.chat.steer",
+    "agent.chat.compact",
+    "agent.chat.fork",
+    "agent.session.fork",
+    "agent.session.branches",
+    "agent.session.tree",
+    "agent.session.messages"
+  ]
+}

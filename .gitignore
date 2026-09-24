@@ -75,10 +75,10 @@ _site/
 _site-preview/
 .venv-docs/
 
-# Local env
-.env
-.env.local
-.env.*.local
+# Local env and deployment-specific credentials. A documented synthetic
+# template may be committed explicitly.
+.env*
+!.env.example
 
 # Harbor job outputs and cloned task trees (evals/run.py)
 evals/jobs/

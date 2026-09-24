@@ -25,7 +25,7 @@ name: Release
 # Why tag-driven instead of release-please?
 #   * release-please opens per-component release PRs, which can
 #     desynchronise TS and Py copies of the same logical package and
-#     break the lockstep validator (see TODO.md history).
+#     break the lockstep validator.
 #   * Tag-driven lockstep means publishing a release is one explicit
 #     `git tag v0.X.Y && git push --tags` — easy to reason about,
 #     easy to rollback (delete the tag + Release before a publish

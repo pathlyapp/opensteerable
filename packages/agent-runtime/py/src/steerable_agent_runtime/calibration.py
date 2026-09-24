@@ -1,6 +1,6 @@
 """Usage calibration — per-request estimated-vs-observed token recording.
 
-The production aggregate regression (see CORELOOP_TODO P0) can only resolve
+The aggregate regression can only resolve
 one global factor per model family: day-level cjk/other character sums are
 collinear (r=0.88), so per-char coefficients are not identifiable from
 aggregates. Per-request pairs are. This module closes that loop:

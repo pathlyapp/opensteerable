@@ -51,9 +51,8 @@ covered:
 - `tracing.TraceSpan` — span data structure (storage is Tier 3)
 - `safety_patterns.classify_shell_command(...)` — shell command risk grading
 
-Why Python is canonical: the harness is consumed by the FastAPI server
-(`deeppath-api`), the sidecar runtime, and the optional in-process Tier 3
-runtime. The TypeScript facade exists so cross-language conformance
+Python is canonical because the harness is consumed by server and sidecar
+runtimes. The TypeScript facade exists so cross-language conformance
 tests can verify both SDKs answer identically against the
 `tests/conformance/cases/` golden inputs — but no production TS code
 needs the harness directly today.
@@ -71,26 +70,24 @@ Adapter interfaces and reference implementations:
 | `StorageAdapter`    | `InMemoryStorage`, `SqlAlchemyStorage` |
 | `TransportAdapter`  | `FastAPISseTransport`, `StdioJsonRpcTransport` |
 
-Tier 3 also owns the production **`CoreLoop`** (`loop.py`) — the
+Tier 3 exposes the production **`CoreLoop`** facade backed by the pinned native engine — the
 single-agent think → act → observe step loop with its structured
 `LoopEvent` taxonomy (15 kinds), pseudo tool-call recovery, compaction,
 approval/sandbox executor decorators, subagent pool, and MCP client.
 Multi-agent planning, DAGs, and groupchat stay **above** the loop: the
 framework provides the loop and the primitives; product-level
 orchestration semantics remain your business logic. See the
-[CoreLoop spec](core-loop.md) and the
-[Rust migration test catalog](coreloop-rust-test-catalog.md).
+[CoreLoop spec](core-loop.md).
 
 ## Tier 3 — Sidecar (executable)
 
 **Package:** `steerable-sidecar` (Python executable, packaged as portable
 CPython via `python-build-standalone`)
 
-A pre-wired JSON-RPC server that composes Tier 1 + 2 + 3 into a binary
+A pre-wired JSON-RPC server that composes Tier 1 + 2 + 3 into an executable
 that any UI shell can spawn. Wire format documented at
-[Sidecar spec](sidecar.md). Used today by the Electron desktop app
-(`deeppath-agent`) so it can share 100% of its agent business logic with
-the FastAPI backend without forking.
+[Sidecar spec](sidecar.md). Desktop and headless hosts can use the same
+runtime without duplicating agent business logic.
 
 Bundle size: < 300 MB per platform after stdlib stripping (CI enforced).
 
@@ -164,9 +161,7 @@ neutral web app) or `pnpm agent-shell:client` (Electron window).
 
 ## Why Python-only Tier 2 / 3
 
-This was a project pivot decision; see
-[Migration guide § all-py-sidecar](../migration/deeppath.md). Short
-version:
+The split avoids maintaining duplicate business logic:
 
 1. The web app and the FastAPI server already shared the protocol types.
 2. The desktop app needed to share **business logic**, not just types.

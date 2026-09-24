@@ -1,6 +1,7 @@
 {
   "schemaVersion": 1,
   "artifactVersion": "0.6.38",
+  "license": "MIT",
   "release": {
     "repository": "pathlyapp/opensteerable",
     "tag": "rust-v0.6.38",

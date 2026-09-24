@@ -1,4 +1,4 @@
-"""Freeze the CoreLoop calling surface deeppath-api already uses.
+"""Freeze the public CoreLoop calling surface.
 
 PyO3 must keep these imports, LoopEvent kinds, LoopHooks methods, and
 CoreLoop/LoopConfig constructor fields. A rename here is an API break.
@@ -16,26 +16,11 @@ import pytest
 from steerable_agent_runtime.loop import LoopEventKind, ToolExecutor
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-CATALOG_PATH = REPO_ROOT / "docs" / "spec" / "coreloop-rust-test-catalog.json"
+CATALOG_PATH = REPO_ROOT / "docs" / "spec" / "runtime-contract.json"
 
 
 def _catalog() -> dict:
     return json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
-
-
-def test_catalog_listed_framework_paths_exist() -> None:
-    catalog = _catalog()
-    missing: list[str] = []
-    for stage in catalog["stages"]:
-        for spec in stage.get("tests", []):
-            if spec.get("repo") != "steerable-framework":
-                continue
-            if spec.get("status") == "planned":
-                continue
-            path = REPO_ROOT / spec["path"]
-            if not path.exists():
-                missing.append(spec["path"])
-    assert missing == [], f"catalog paths missing: {missing}"
 
 
 def test_pyo3_required_imports_are_exported() -> None:

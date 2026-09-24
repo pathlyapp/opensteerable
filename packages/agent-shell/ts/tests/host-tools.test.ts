@@ -19,7 +19,7 @@ import {
   sanitizeRightPanelKind,
 } from '../src/host-tools.js';
 
-const product-bConfig = {
+const restrictedConfig = {
   terminal: false as const,
   'local-fs': { chrome: false },
 };
@@ -34,7 +34,7 @@ describe('resolveHostTools', () => {
   });
 
   it('false 关掉整族；对象可只关 chrome', () => {
-    const tools = resolveHostTools(product-bConfig);
+    const tools = resolveHostTools(restrictedConfig);
     expect(tools.terminal).toEqual({ capability: false, chrome: false });
     expect(tools['local-fs']).toEqual({ capability: true, chrome: false });
     expect(tools.mcp.chrome).toBe(true);
@@ -52,7 +52,7 @@ describe('resolveHostTools', () => {
 
 describe('clampExecPolicy', () => {
   it('入口关掉时无视客户端 full，钳死 workspace', () => {
-    const tools = resolveHostTools(product-bConfig);
+    const tools = resolveHostTools(restrictedConfig);
     expect(clampExecPolicy('full', tools)).toBe('workspace');
     expect(clampExecPolicy('workspace', tools)).toBe('workspace');
   });
@@ -65,25 +65,25 @@ describe('clampExecPolicy', () => {
 });
 
 describe('isHostRouteAllowed', () => {
-  const product-b = resolveHostTools(product-bConfig);
+  const restricted = resolveHostTools(restrictedConfig);
 
   it('公文：可见终端与本机打开拒绝；附件跟能力走，选目录留给项目/技能', () => {
-    expect(isHostRouteAllowed('/host/terminal/list', product-b)).toBe(false);
-    expect(isHostRouteAllowed('/host/terminal/exec', product-b)).toBe(false);
-    expect(isHostRouteAllowed('/host/local/open-path', product-b)).toBe(false);
-    expect(isHostRouteAllowed('/host/attachments/save', product-b)).toBe(true);
-    expect(isHostRouteAllowed('/host/local/select-directory', product-b)).toBe(true);
+    expect(isHostRouteAllowed('/host/terminal/list', restricted)).toBe(false);
+    expect(isHostRouteAllowed('/host/terminal/exec', restricted)).toBe(false);
+    expect(isHostRouteAllowed('/host/local/open-path', restricted)).toBe(false);
+    expect(isHostRouteAllowed('/host/attachments/save', restricted)).toBe(true);
+    expect(isHostRouteAllowed('/host/local/select-directory', restricted)).toBe(true);
   });
 
   it('公文：local-fs 能力路由仍开（模型侧读写/脚本）', () => {
-    expect(isHostRouteAllowed('/host/local/exec-shell', product-b)).toBe(true);
-    expect(isHostRouteAllowed('/host/local/read-file', product-b)).toBe(true);
-    expect(isHostRouteAllowed('/host/local/write-file', product-b)).toBe(true);
+    expect(isHostRouteAllowed('/host/local/exec-shell', restricted)).toBe(true);
+    expect(isHostRouteAllowed('/host/local/read-file', restricted)).toBe(true);
+    expect(isHostRouteAllowed('/host/local/write-file', restricted)).toBe(true);
   });
 
   it('审批与转向不受工具族拦截', () => {
-    expect(isHostRouteAllowed('/host/steer', product-b)).toBe(true);
-    expect(isHostRouteAllowed('/host/approval/decide', product-b)).toBe(true);
+    expect(isHostRouteAllowed('/host/steer', restricted)).toBe(true);
+    expect(isHostRouteAllowed('/host/approval/decide', restricted)).toBe(true);
   });
 });
 
@@ -98,22 +98,22 @@ describe('isHostToolCapabilityEnabled / familyForHostToolName', () => {
   it('族 capability 关掉后模型看不到该族工具；包工具不受影响', () => {
     const tools = resolveHostTools({ 'local-fs': false });
     expect(isHostToolCapabilityEnabled('local_read_file', tools)).toBe(false);
-    expect(isHostToolCapabilityEnabled('domain_tool_scan', tools)).toBe(true);
+    expect(isHostToolCapabilityEnabled('domain_scan', tools)).toBe(true);
   });
 
   it('公文关掉 chrome 仍保留 local_* 能力', () => {
-    const tools = resolveHostTools(product-bConfig);
+    const tools = resolveHostTools(restrictedConfig);
     expect(isHostToolCapabilityEnabled('local_exec_shell', tools)).toBe(true);
   });
 });
 
 describe('sanitizeRightPanelKind', () => {
   it('恢复持久化 terminal 时若产品没引入则丢掉', () => {
-    expect(sanitizeRightPanelKind('terminal', resolveHostTools(product-bConfig))).toBeNull();
+    expect(sanitizeRightPanelKind('terminal', resolveHostTools(restrictedConfig))).toBeNull();
     expect(sanitizeRightPanelKind('terminal', resolveHostTools({ terminal: true }))).toBe(
       'terminal',
     );
-    expect(sanitizeRightPanelKind('ppt', resolveHostTools(product-bConfig))).toBe('ppt');
+    expect(sanitizeRightPanelKind('ppt', resolveHostTools(restrictedConfig))).toBe('ppt');
   });
 });
 
@@ -189,20 +189,20 @@ describe('resolveSettingsChrome', () => {
 });
 
 describe('isHostIpcAllowed', () => {
-  const product-b = resolveHostTools(product-bConfig);
+  const restricted = resolveHostTools(restrictedConfig);
 
   it('可见终端通道跟 chrome 走', () => {
-    expect(isHostIpcAllowed('terminal:list', product-b)).toBe(false);
-    expect(isHostIpcAllowed('terminal:exec', product-b)).toBe(false);
+    expect(isHostIpcAllowed('terminal:list', restricted)).toBe(false);
+    expect(isHostIpcAllowed('terminal:exec', restricted)).toBe(false);
     expect(isHostIpcAllowed('terminal:list', resolveHostTools({ terminal: true }))).toBe(true);
   });
 
   it('本机打开跟 chrome 走；附件跟能力走；选目录与模型侧 local:* 仍开', () => {
-    expect(isHostIpcAllowed('local:open-path', product-b)).toBe(false);
-    expect(isHostIpcAllowed('attachments:save', product-b)).toBe(true);
-    expect(isHostIpcAllowed('local:select-directory', product-b)).toBe(true);
-    expect(isHostIpcAllowed('local:exec-shell', product-b)).toBe(true);
-    expect(isHostIpcAllowed('local:read-file', product-b)).toBe(true);
+    expect(isHostIpcAllowed('local:open-path', restricted)).toBe(false);
+    expect(isHostIpcAllowed('attachments:save', restricted)).toBe(true);
+    expect(isHostIpcAllowed('local:select-directory', restricted)).toBe(true);
+    expect(isHostIpcAllowed('local:exec-shell', restricted)).toBe(true);
+    expect(isHostIpcAllowed('local:read-file', restricted)).toBe(true);
   });
 
   it('整族关掉后附件入口也关', () => {

@@ -5,4 +5,4 @@
 
 ### Features
 
-* add json-schema-to-typescript dependency and enhance agent protocol models ([7c20f4f](https://github.com/pathlyapp/opensteerable/commit/7c20f4fea4f777583789c867653c8e9e5524d266))
+* add json-schema-to-typescript dependency and enhance agent protocol models

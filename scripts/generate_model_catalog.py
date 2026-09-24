@@ -5,7 +5,7 @@ Fetches ``https://models.dev/api.json`` (or reads a cached copy via
 ``--input``), applies our correction overlay, and writes
 ``packages/agent-runtime/py/src/steerable_agent_runtime/model_catalog.py``.
 
-Design notes (HARNESS_TODO.md W5):
+Design notes:
 
 - Build-time, checked in, auditable: "which catalog did this run use" is a
   git fact, not a runtime fetch. The artifact pins the fetch date and the

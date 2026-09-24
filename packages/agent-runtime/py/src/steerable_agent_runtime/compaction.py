@@ -1,8 +1,7 @@
 """Context compaction — a ``pre_step`` hook.
 
-Local models run on a small context window (deeppath-agent uses 60k); a few
-rounds of verbose tool output fill it. Modeled on dsh's ``compaction-basic``:
-check pressure before the request is derived, and when over threshold rewrite
+Local models often run with small context windows; a few rounds of verbose
+tool output can fill them. Check pressure before the request is derived, and when over threshold rewrite
 the transcript so the turn can continue.
 
 Strategy (deterministic first, LLM optional):

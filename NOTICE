@@ -3,3 +3,35 @@ Copyright (c) 2026 DeepPath
 
 This product includes software developed by contributors to the
 OpenSteerable project.
+
+The binary-only Rust artifacts selected by rust-artifacts.lock.json
+(steerable-agent-runtime-native, the Rust sidecar, and the egress proxy)
+are distributed under the MIT License. Their source is maintained
+separately and is not part of this Apache-2.0 source distribution.
+
+The generated model catalog contains data derived from models.dev
+(https://github.com/anomalyco/models.dev):
+
+Copyright (c) 2025 models.dev
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+Portable Python sidecar builds use python-build-standalone distributions.
+The generated runtime bundle retains the licenses shipped by that project
+and by CPython.

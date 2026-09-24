@@ -9,7 +9,7 @@ module keeps the public `CoreLoop` API, configuration, events, history
 seeding, and the Python I/O ports the engine calls back into (provider,
 executor, hooks).
 
-Implemented so far (see docs/spec/core-loop.md + CORELOOP_TODO.md A3):
+Implemented surface (see docs/spec/core-loop.md):
   * inner loop state machine and round control (Rust)
   * LLM stream consumption (via LLMProvider) with display hygiene:
     UTF-16 surrogate-pair carry and streaming pseudo/echo-block stripping
@@ -244,10 +244,7 @@ class LoopContext:
 class LoopConfig:
     """Tunables for one loop run.
 
-    `max_tool_errors` uses CONSECUTIVE semantics (reset on success) — see
-    docs/spec/core-loop.md "Known semantic divergences": deeppath-agent counts
-    consecutive, deeppath-api counts cumulative; CoreLoop standardizes on
-    consecutive and makes the threshold configurable.
+    `max_tool_errors` uses consecutive semantics and resets on success.
     """
 
     max_rounds: int = 32
@@ -309,9 +306,8 @@ class LoopConfig:
     reasoning_without_progress_chars: int | None = None
     #: Block re-issuing an identical ``(name, args)`` call within one run.
     #: Deterministic tools return identical output for identical input, so a
-    #: repeat only burns tokens and can push the model into a retry loop
-    #: (ported from deeppath-api's P0.3 guard; counts toward the consecutive
-    #: tool-error breaker). No write/destructive exemption — idempotency of
+    #: repeat only burns tokens and can push the model into a retry loop. It
+    #: counts toward the consecutive tool-error breaker. No write/destructive exemption — idempotency of
     #: side effects belongs to the action layer below.
     tool_dedup: bool = True
     #: Include the full tool result in ``tool_call_result`` events (not just

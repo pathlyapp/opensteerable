@@ -95,7 +95,9 @@ export function createProductViteConfig(options: ProductViteConfigOptions) {
       // 映射为包内 web-dist/）。
       outDir: 'dist',
       emptyOutDir: true,
-      sourcemap: true,
+      // Release bundles omit source maps; explicit opt-in is for local
+      // diagnostics where publishing original product sources is not a risk.
+      sourcemap: process.env.STEERABLE_SOURCE_MAPS === '1',
       target: 'chrome120',
     },
   });

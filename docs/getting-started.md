@@ -191,4 +191,3 @@ transport that replays the 14 rich chat cards — zero external services.
 - Read the [Spec Overview](spec/overview.md) to understand the cross-language contract pipeline
 - Read the [Architecture](spec/architecture.md) page to understand the Tier 1–5 boundary
 - Browse [`examples/`](https://github.com/pathlyapp/opensteerable/tree/main/examples) for runnable starter projects
-- Migrating an existing DeepPath-internal agent? See the [migration guide](migration/deeppath.md)

@@ -5,5 +5,5 @@
 
 ### Features
 
-* add json-schema-to-typescript dependency and enhance agent protocol models ([7c20f4f](https://github.com/pathlyapp/opensteerable/commit/7c20f4fea4f777583789c867653c8e9e5524d266))
-* **release:** wire autonomous publish pipeline (npm + PyPI) ([d245304](https://github.com/pathlyapp/opensteerable/commit/d24530439ae56dbdc8f0d4c27fc58136117b2d06))
+* add json-schema-to-typescript dependency and enhance agent protocol models
+* **release:** wire autonomous publish pipeline (npm + PyPI)

@@ -50,7 +50,7 @@ jobs:
             && '[{"letter":"a","harness":"minimal"}]'
           || '[{"letter":"d","harness":"minimal"},{"letter":"e","harness":"default"}]') }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
       - run: uv sync
       - uses: ./.github/actions/setup-harbor
@@ -107,7 +107,7 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
       - run: uv sync
       - uses: actions/download-artifact@v4

@@ -27,7 +27,7 @@ jobs:
             os_kind: windows
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Download build artifact
         uses: actions/download-artifact@v5

@@ -10,7 +10,7 @@ jobs:
   ts:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v5
       - uses: actions/setup-node@v5
         with:
@@ -43,7 +43,7 @@ jobs:
   rust:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Public source gate
         run: python scripts/check_no_public_coreloop_source.py
       - name: Public exposure gate
@@ -52,7 +52,7 @@ jobs:
   py:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
       - run: uv sync
       - name: Native CoreLoop import smoke
@@ -87,7 +87,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
       - run: uv sync
       # -s: measurements print on pass too — the recorded medians are the
@@ -97,7 +97,7 @@ jobs:
   lockstep:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - run: python scripts/check_lockstep_versions.py
 
   examples:
@@ -107,7 +107,7 @@ jobs:
     # a refactor that silently breaks an example would still pass CI.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v5
       - uses: actions/setup-node@v5
         with:
@@ -158,7 +158,7 @@ jobs:
   sidecar-bin:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -189,7 +189,7 @@ jobs:
     #   an 800 MB gate; the variant switch reclaimed ~400 MB.)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
       - uses: actions/setup-python@v6
         with:

@@ -31,7 +31,7 @@ jobs:
         # on Windows the default pwsh parses `\`-continuations as errors.
         shell: bash
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
       - uses: actions/setup-python@v6
         with:

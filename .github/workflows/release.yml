@@ -51,7 +51,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.value }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           # For workflow_dispatch we explicitly check out the tag the
           # operator named, so the version-validation step compares

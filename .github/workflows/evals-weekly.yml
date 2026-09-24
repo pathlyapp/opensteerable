@@ -88,7 +88,7 @@ jobs:
         agent: [steerable, claude-code, codex, pi, pi-glm]
     steps:
       - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
       - run: uv sync
       - uses: ./.github/actions/setup-harbor
       - run: docker info
@@ -176,7 +176,7 @@ jobs:
           fi
       - uses: actions/checkout@v5
         if: steps.gate.outputs.skip != '1'
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         if: steps.gate.outputs.skip != '1'
       - run: uv sync
         if: steps.gate.outputs.skip != '1'
@@ -287,7 +287,7 @@ jobs:
         shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
     steps:
       - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
       - run: uv sync
       - uses: ./.github/actions/setup-harbor
       - run: docker info
@@ -354,7 +354,7 @@ jobs:
           fi
       - uses: actions/checkout@v5
         if: steps.gate.outputs.skip != '1'
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         if: steps.gate.outputs.skip != '1'
       - run: uv sync
         if: steps.gate.outputs.skip != '1'
@@ -505,7 +505,7 @@ jobs:
         shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26]
     steps:
       - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
       - run: uv sync
       - uses: ./.github/actions/setup-harbor
       - run: docker info
@@ -586,7 +586,7 @@ jobs:
         shard: [0, 1]
     steps:
       - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
       - run: uv sync
       - uses: ./.github/actions/setup-harbor
       - run: docker info
@@ -844,7 +844,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
       - run: uv sync
       - uses: actions/download-artifact@v4
         with:

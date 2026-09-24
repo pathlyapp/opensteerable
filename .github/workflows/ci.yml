@@ -53,7 +53,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
       - run: uv sync
       - name: Native CoreLoop import smoke
         run: uv run python -c "import steerable_agent_runtime_native as n; assert n.run_turn"
@@ -88,7 +88,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
       - run: uv sync
       # -s: measurements print on pass too — the recorded medians are the
       # evidence for recalibrating CI_TIME_SCALE and spotting slow drift.
@@ -113,7 +113,7 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm gen          # ts examples consume generated types
@@ -190,7 +190,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"

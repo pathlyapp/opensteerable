@@ -449,8 +449,9 @@ export interface SidecarChatStreamRequest {
    * `mode: 'host'` asks the host UI over the reverse channel
    * (`approval.request`); `storePath` enables the durable scope
    * (`allow_always` / `deny_always` persisted per category);
-   * `timeoutMs` fails closed as `timed_out` (a denial) when the UI does
-   * not answer in time. Absent → no approval layer (legacy behavior).
+   * `timeoutMs`, when set, fails closed as `timed_out` (a denial) when the
+   * UI does not answer in time. Omitted, the prompt waits until the user
+   * decides. Absent `approval` → no approval layer (legacy behavior).
    */
   approval?: {
     mode: 'host' | 'auto';

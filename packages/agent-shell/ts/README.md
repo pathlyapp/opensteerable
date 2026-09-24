@@ -1,6 +1,21 @@
 # @steerable/agent-shell
 
-Product-neutral Electron and headless HTTP host for Steerable Framework.
+Product-neutral Node HostRuntime and headless HTTP host for Steerable Framework.
+
+## Desktop composition
+
+Tauri desktop products supervise the same BS executable used by browser mode,
+bind it to an ephemeral loopback port, and load its web UI in a WebView. The
+renderer uses `HostBridge`: HTTP/SSE carries agent, storage, PTY, approval,
+attachment, and pack traffic; narrow Tauri commands provide native dialogs,
+menus, screenshots, and updates. `STEERABLE_HOST_READY` on stdout is the
+machine-readable startup record. `STEERABLE_HOST_PARENT_PID` makes the Node
+host shut down if its desktop supervisor disappears.
+
+The reusable Rust host source is published as
+`@steerable/agent-shell-tauri`. Product `src-tauri` crates depend on its
+installed npm path and only supply product configuration plus
+`tauri::generate_context!()`.
 
 ## BS composition
 

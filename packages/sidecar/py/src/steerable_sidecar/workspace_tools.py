@@ -12,14 +12,17 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import math
 import os
 import re
 import signal
 import subprocess
 from collections.abc import Iterable
+from io import BytesIO
 from pathlib import Path
 from typing import Awaitable, Callable
 
+from PIL import Image, UnidentifiedImageError
 from steerable_agent_harness.safety import CommandSafetyConfig
 from steerable_agent_protocol.generated import ToolResult
 from steerable_agent_runtime import ToolRouter
@@ -40,7 +43,10 @@ _BASH_TIMEOUT_SEC = 3600
 # sets ``STEERABLE_READ_IMAGES=1``. ``capture_display`` always attaches
 # (same size cap). ASCII preview stays either way. BMP stays ASCII:
 # vision endpoints accept PNG/JPEG, not BMP.
+_IMAGE_MAX_SOURCE_BYTES = 10 * 1024 * 1024
 _IMAGE_ATTACH_MAX_BYTES = 400_000
+_VIEW_IMAGE_MAX_ENCODED_BYTES = 5 * 1024 * 1024
+_IMAGE_DEFAULT_MAX_EDGE = 1568
 
 #: One-shot bash execution behind the tool: (command, cwd) → result.
 #: The local default spawns a subprocess; the ACP terminal bridge runs the
@@ -127,10 +133,37 @@ _VIEW_IMAGE_SCHEMA = {
     "properties": {
         "path": {
             "type": "string",
-            "description": "Image file path: PNG, JPEG, or uncompressed BMP.",
+            "description": "Image file path: PNG, JPEG, WebP, or BMP.",
+        },
+        "region": {
+            "type": "object",
+            "description": (
+                "Optional crop {x,y,w,h}; use either pixels or all-normalized "
+                "0–1 values."
+            ),
+            "properties": {
+                "x": {"type": "number"},
+                "y": {"type": "number"},
+                "w": {"type": "number"},
+                "h": {"type": "number"},
+            },
+            "required": ["x", "y", "w", "h"],
+            "additionalProperties": False,
+        },
+        "maxEdge": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096,
+            "description": "Maximum longest output edge (default 1568).",
+        },
+        "format": {
+            "type": "string",
+            "enum": ["png", "jpeg"],
+            "description": "Output encoding. JPEG usually uses fewer bytes/tokens.",
         },
     },
     "required": ["path"],
+    "additionalProperties": False,
 }
 _WRITE_SCHEMA = {
     "type": "object",
@@ -614,7 +647,12 @@ def workspace_tools_for_cwd(
             },
         )
 
-    async def view_image(path: str) -> ToolResult:
+    async def view_image(
+        path: str,
+        region: dict[str, float] | None = None,
+        maxEdge: int = _IMAGE_DEFAULT_MAX_EDGE,
+        format: str | None = None,
+    ) -> ToolResult:
         try:
             target = _resolve_under(root, path, jailed=jailed)
         except ValueError as exc:
@@ -623,30 +661,91 @@ def workspace_tools_for_cwd(
             raw = target.read_bytes()
         except (OSError, ValueError) as exc:
             return ToolResult(success=False, error=str(exc), needsFollowup=True)
-        pixels = _attachable_pixels(raw)
-        if pixels is None:
+        if len(raw) > _IMAGE_MAX_SOURCE_BYTES:
             return ToolResult(
                 success=False,
                 error=(
-                    f"{target} is not a PNG, JPEG, or uncompressed BMP image "
-                    f"({len(raw)} bytes). Convert it with ffmpeg or PIL and "
-                    "view the converted file."
+                    f"{target} is {len(raw)} bytes, over the "
+                    f"{_IMAGE_MAX_SOURCE_BYTES}-byte source limit."
                 ),
                 needsFollowup=True,
             )
-        blob = _image_blob(pixels)
-        if blob is None:
+        if (
+            isinstance(maxEdge, bool)
+            or not isinstance(maxEdge, int)
+            or maxEdge < 1
+            or maxEdge > 4096
+        ):
+            return ToolResult(
+                success=False,
+                error="maxEdge must be an integer from 1 through 4096",
+                needsFollowup=True,
+            )
+        if format not in (None, "png", "jpeg"):
+            return ToolResult(
+                success=False,
+                error="format must be png or jpeg",
+                needsFollowup=True,
+            )
+        try:
+            with Image.open(BytesIO(raw)) as opened:
+                opened.load()
+                source_format = (opened.format or "").upper()
+                image = opened.copy()
+        except (OSError, UnidentifiedImageError):
+            return ToolResult(
+                success=False,
+                error=(
+                    f"{target} is not a readable PNG, JPEG, WebP, or BMP image "
+                    f"({len(raw)} bytes)."
+                ),
+                needsFollowup=True,
+            )
+
+        if region is not None:
+            try:
+                crop = _resolve_image_region(region, image.width, image.height)
+            except ValueError as exc:
+                return ToolResult(success=False, error=str(exc), needsFollowup=True)
+            image = image.crop(crop)
+
+        if max(image.size) > maxEdge:
+            image.thumbnail((maxEdge, maxEdge), Image.Resampling.LANCZOS)
+
+        output_format = format or ("jpeg" if source_format in {"JPEG", "JPG"} else "png")
+        encoded = BytesIO()
+        if output_format == "jpeg":
+            image.convert("RGB").save(encoded, format="JPEG", quality=85, optimize=True)
+            media_type = "image/jpeg"
+        else:
+            image.save(encoded, format="PNG", optimize=True)
+            media_type = "image/png"
+        pixels = encoded.getvalue()
+        if (
+            len(pixels) > _VIEW_IMAGE_MAX_ENCODED_BYTES
+            and format is None
+            and output_format == "png"
+        ):
+            encoded = BytesIO()
+            image.convert("RGB").save(encoded, format="JPEG", quality=80, optimize=True)
+            pixels = encoded.getvalue()
+            media_type = "image/jpeg"
+        if len(pixels) > _VIEW_IMAGE_MAX_ENCODED_BYTES:
             return ToolResult(
                 success=False,
                 error=(
                     f"{target} is {len(pixels)} bytes, over the "
-                    f"{_IMAGE_ATTACH_MAX_BYTES}-byte attach limit. Re-encode it "
-                    "smaller (ffmpeg -vf scale, PIL thumbnail) and view that file."
+                    f"{_VIEW_IMAGE_MAX_ENCODED_BYTES}-byte attach limit. Reduce maxEdge "
+                    "or use format=jpeg."
                 ),
                 needsFollowup=True,
             )
+        blob = _image_blob(pixels, max_bytes=_VIEW_IMAGE_MAX_ENCODED_BYTES)
+        assert blob is not None
         data: dict[str, object] = {
-            "path": str(target),
+            "sourcePath": str(target),
+            "width": image.width,
+            "height": image.height,
             "mediaType": blob["media_type"],
             "_image": blob,
         }
@@ -826,10 +925,10 @@ def workspace_tools_for_cwd(
         name="view_image",
         mode="read",
         description=(
-            "Look at an image file (PNG, JPEG, or uncompressed BMP). The pixels "
-            "are attached as an image you can see; the JSON carries only an "
-            "ASCII preview. Call this whenever what the image shows decides "
-            "your next step — read_file returns the preview alone."
+            "Look at a PNG, JPEG, WebP, or BMP image. The result contains an "
+            "actual image part you can see, not a path or base64 text. Use "
+            "region for a pixel or normalized 0–1 crop, maxEdge to bound the "
+            "longest edge, and format=jpeg to reduce payload size."
         ),
         schema=_VIEW_IMAGE_SCHEMA,
         require_consent=False,
@@ -1165,14 +1264,16 @@ def _read_images_enabled() -> bool:
     return str(raw).strip().lower() not in {"0", "false", "no", "off"}
 
 
-def _image_blob(raw: bytes) -> dict[str, str] | None:
+def _image_blob(
+    raw: bytes, *, max_bytes: int = _IMAGE_ATTACH_MAX_BYTES
+) -> dict[str, str] | None:
     """PNG/JPEG bytes for the next LLM request; None if too large or not those types.
 
     ``read_file`` decides whether to call this. ``capture_display`` and
     ``view_image`` always do: both exist so the model can look at something,
     and neither has a job left once the pixels are dropped.
     """
-    if len(raw) > _IMAGE_ATTACH_MAX_BYTES:
+    if len(raw) > max_bytes:
         return None
     if raw.startswith(b"\x89PNG"):
         media = "image/png"
@@ -1184,6 +1285,40 @@ def _image_blob(raw: bytes) -> dict[str, str] | None:
         "b64": base64.b64encode(raw).decode("ascii"),
         "media_type": media,
     }
+
+
+def _resolve_image_region(
+    region: dict[str, float], width: int, height: int
+) -> tuple[int, int, int, int]:
+    """Resolve a pixel or all-normalized crop into Pillow's box coordinates."""
+    try:
+        values = tuple(float(region[key]) for key in ("x", "y", "w", "h"))
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("region requires finite numeric x, y, w, and h") from exc
+    if not all(math.isfinite(value) for value in values):
+        raise ValueError("region requires finite numeric x, y, w, and h")
+    x_value, y_value, w_value, h_value = values
+    normalized = all(0 <= value <= 1 for value in values)
+    if normalized:
+        x = int(x_value * width)
+        y = int(y_value * height)
+        crop_width = math.ceil(w_value * width)
+        crop_height = math.ceil(h_value * height)
+    else:
+        x = round(x_value)
+        y = round(y_value)
+        crop_width = round(w_value)
+        crop_height = round(h_value)
+    if (
+        x < 0
+        or y < 0
+        or crop_width < 1
+        or crop_height < 1
+        or x + crop_width > width
+        or y + crop_height > height
+    ):
+        raise ValueError(f"region exceeds image bounds {width}x{height}")
+    return x, y, x + crop_width, y + crop_height
 
 
 def _attachable_pixels(raw: bytes) -> bytes | None:

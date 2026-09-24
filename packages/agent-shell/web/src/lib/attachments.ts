@@ -1,8 +1,8 @@
 /**
  * 会话附件（文件上传）的 renderer 侧助手。
  *
- * ChatInput 只负责「收集」文件——通过隐藏的 `<input type="file" multiple>`
- * 或拖拽拿到 File，产出 `AttachmentFile`（{name, path, file?}）交给父组件。
+ * ChatInput 只负责「收集」文件——通过隐藏的 `<input type="file" multiple>`、
+ * 拖拽，或在输入框粘贴图片拿到 File，产出 `AttachmentFile`（{name, path, file?}）交给父组件。
  * 真正把文件落进会话空间（`<userDataDir>/attachments/<chatId>/`）由
  * `saveChatAttachments` 在提交时完成：
  *   - Electron：File 对象带真实 `path`，走 `attachments:save` IPC 拷贝；

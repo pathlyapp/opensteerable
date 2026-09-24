@@ -38,6 +38,24 @@ export interface ReverseToolDeps {
  * 2000 单字段，最坏情况纯 CJK 约 4.8k token）。
  */
 function capResultForModelContext(out: unknown): unknown {
+  if (out && typeof out === 'object') {
+    const record = out as Record<string, unknown>;
+    const data =
+      record.data && typeof record.data === 'object'
+        ? (record.data as Record<string, unknown>)
+        : null;
+    const image = data?._image;
+    if (image && typeof image === 'object') {
+      const textOnly = { ...record, data: { ...data } };
+      delete (textOnly.data as Record<string, unknown>)._image;
+      const capped = capResultForModelContext(textOnly) as Record<string, unknown>;
+      const cappedData =
+        capped.data && typeof capped.data === 'object'
+          ? (capped.data as Record<string, unknown>)
+          : {};
+      return { ...capped, data: { ...cappedData, _image: image } };
+    }
+  }
   const json = JSON.stringify(out);
   if (json.length <= 8000) return out;
   return JSON.parse(compactToolResultJson(json));

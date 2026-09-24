@@ -15,8 +15,9 @@ record and the model's next context. This mirrors dsh's ``ask_user_question``
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Awaitable, Callable
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from .errors import ToolDispatchError
 
@@ -220,6 +221,11 @@ class AskUserHandler(Protocol):
     mapping of question id → answer (a string, or a list of strings for a
     multi-select). Implementations must not raise on a user cancel — return
     an empty mapping so the loop records "no answer" and moves on.
+
+    A handler that declares ``context`` also receives the loop dispatch
+    context (``chat_id``, ``round``) so the product can scope the prompt to
+    the chat that asked. Handlers that omit the parameter are called without
+    it.
     """
 
     def __call__(
@@ -238,10 +244,13 @@ def make_ask_user_tool(handler: AskUserHandler) -> Callable[..., Awaitable[dict[
     """
 
     async def ask_user(
-        intro: str, questions: list[dict[str, Any]], outro: str | None = None
+        intro: str,
+        questions: list[dict[str, Any]],
+        outro: str | None = None,
+        context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         normalized = normalize_ask_user_questions(questions)
-        answers = await handler(intro, normalized)
+        answers = await _call_handler(handler, intro, normalized, context)
         return {
             "intro": intro,
             "outro": outro,
@@ -263,3 +272,32 @@ def make_ask_user_tool(handler: AskUserHandler) -> Callable[..., Awaitable[dict[
         "exposure": "direct",
     }
     return ask_user
+
+
+def _call_handler(
+    handler: AskUserHandler,
+    intro: str,
+    questions: list[dict[str, Any]],
+    context: dict[str, Any] | None,
+) -> Awaitable[dict[str, Any]]:
+    """Pass ``context`` only when the handler declares it.
+
+    Existing handlers take ``(intro, questions)``. The desktop host handler
+    also takes ``context`` so the question card can be scoped to ``chat_id``.
+    """
+    try:
+        signature = inspect.signature(handler)
+    except (TypeError, ValueError):
+        return handler(intro, questions)
+    accepts_context = any(
+        parameter.name == "context"
+        or parameter.kind is inspect.Parameter.VAR_KEYWORD
+        for parameter in signature.parameters.values()
+    )
+    if accepts_context:
+        contextual = cast(
+            Callable[..., Awaitable[dict[str, Any]]],
+            handler,
+        )
+        return contextual(intro, questions, context=context)
+    return handler(intro, questions)

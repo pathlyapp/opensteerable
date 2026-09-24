@@ -82,7 +82,10 @@ def _config_json(loop: CoreLoop) -> str:
         "persist_tool_results": config.persist_tool_results,
         "parallel_tools": config.parallel_tools,
         "tool_dedup": config.tool_dedup,
-        "tool_timeout_ms": config.tool_timeout_ms,
+        # Python `_execute_tool` owns this cap and exempts `ask_user` (it
+        # blocks until the user answers). The native loop would apply the
+        # same number to every call, including that wait.
+        "tool_timeout_ms": None,
         "soft_timeout_ms": config.soft_timeout_ms,
         "wrap_up_keeps_tools": config.wrap_up_keeps_tools,
         "wrap_up_max_tool_rounds": config.wrap_up_max_tool_rounds,
@@ -685,7 +688,14 @@ async def run_native(
             for task in tuple(active_stream_tasks):
                 task.cancel()
 
-        aio_loop.call_soon_threadsafe(cancel_now)
+        try:
+            current_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            current_loop = None
+        if current_loop is aio_loop:
+            cancel_now()
+        else:
+            aio_loop.call_soon_threadsafe(cancel_now)
 
     def cancel() -> None:
         cancel_flag.set()
@@ -1006,6 +1016,11 @@ async def run_native(
             yield event
         finally:
             consumed.set()
+    remaining_tasks = tuple(active_tool_tasks | active_stream_tasks)
+    for task in remaining_tasks:
+        task.cancel()
+    if remaining_tasks:
+        await asyncio.gather(*remaining_tasks, return_exceptions=True)
     if worker_error:
         raise worker_error[0]
     raw_history = worker_result[0].get("history", []) if worker_result else []

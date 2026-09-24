@@ -40,6 +40,7 @@ TS_PACKAGES: list[tuple[str, str]] = [
     ("@steerable/pack-sdk",       "packages/pack-sdk/ts/package.json"),
     ("@steerable/agent-shell",    "packages/agent-shell/ts/package.json"),
     ("@steerable/agent-shell-web", "packages/agent-shell/web/package.json"),
+    ("@steerable/agent-shell-tauri", "packages/agent-shell/tauri/package.json"),
 ]
 
 PY_PACKAGES: list[tuple[str, str]] = [

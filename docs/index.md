@@ -440,7 +440,7 @@ graph BT
 | [`steerable-agent-runtime`](https://pypi.org/project/steerable-agent-runtime/) · `@steerable/agent-runtime` (TS, source-only) | 3 | `CoreLoop` + `LLMProvider` adapters (OpenAI-compat / Responses / Anthropic / Gemini), `ToolRouter` + `@tool`, storage & transport adapters (FastAPI SSE, stdio JSON-RPC); the TS package owns the sidecar process lifecycle for pure-TypeScript hosts |
 | [`steerable-sidecar`](https://pypi.org/project/steerable-sidecar/) · [`steerable-egress-proxy`](https://pypi.org/project/steerable-egress-proxy/) | 3 | Portable CPython binary — boots in <1s, macOS notarised, Windows signed — plus the bundled per-host CONNECT allow-list egress proxy |
 | [`@steerable/agent-ui`](https://www.npmjs.com/package/@steerable/agent-ui) | 4 | `ChatPanel`, `MessageList`, `AgentSelector`, `ModelSelector`, `OrchestrationPlanCard`, `ToolCallRenderer`, `SSEStreamView` + 14-card `/cards` subpath + hooks + Tailwind preset |
-| `@steerable/agent-shell` · `agent-shell-web` · `pack-sdk` | 5 | Electron + headless host shell, local backend, sidecar supervision, product-neutral renderer — published to npm (`dist` / source / pure-types respectively) |
+| `@steerable/agent-shell` · `agent-shell-web` · `pack-sdk` | 5 | Tauri + headless host shell, shared Node HostRuntime, sidecar supervision, product-neutral renderer — published to npm (`dist` / source / pure-types respectively) |
 
 <h2 class="sf-section">How it compares</h2>
 
@@ -454,32 +454,11 @@ Steerable isn't the only way to ship an agent. The short, honest version against
 | **Loop / events** | `CoreLoop` + structured `LoopEvent` taxonomy; mid-turn `agent.chat.steer` | Session-owned turn loop; interrupt/abort; 12-event hooks | Inbox-driven ReactLoop; steer / inject / followup | Interrupts at node boundaries | Handoffs + guardrails; no mid-run steer | Mid-turn fold queue; hooks can veto continuation |
 | **Sandbox** | Seatbelt + bwrap/Landlock, fail-closed; command classifier; per-host egress proxy | Approvals + ExecPolicy + Seatbelt/Landlock + Guardian | `sandbox.confine`, fail-closed | None built-in | Guardrails; no sandbox | Permission modes; Seatbelt/bwrap opt-in, fail-open |
 | **Model quality** | Recovers malformed tool calls; completion veto; grounding; token calibration | Assumes structured `tool_calls` | Assumes structured `tool_calls` | Substrate — you own the loop | Built for frontier models | Built for frontier models |
-| **Maturity** | `0.6.x`; in production at DeepPath, Aroli, PetroChina, E-Town Holdings | Massive real-world usage | Pre-release (`0.1.x`); internal use | Widely adopted in production | Production, OpenAI-tied | Production; Anthropic models via first-party, Bedrock, Vertex, Foundry, Gateway |
+| **Maturity** | `0.6.x`; used in production deployments | Massive real-world usage | Pre-release (`0.1.x`); internal use | Widely adopted in production | Production, OpenAI-tied | Production; Anthropic models via first-party, Bedrock, Vertex, Foundry, Gateway |
 
 <p class="sf-lede" markdown>
 Where Steerable genuinely differs, where it lags, and how to choose: [Full comparison](comparison.md).
 </p>
-
-<h2 class="sf-section">Who's using it</h2>
-
-<div class="sf-users" markdown>
-<div class="sf-user" markdown>
-**[DeepPath](https://deeppath.cc)**
-<span>Web, API, and Electron desktop. Steerable was extracted from this codebase and is dogfooded back into it on every release.</span>
-</div>
-<div class="sf-user" markdown>
-**[Aroli](https://aroli.work)**
-<span>Agent workspace built on the Steerable Shell.</span>
-</div>
-<div class="sf-user" markdown>
-**中国石油 PetroChina**
-<span>Enterprise deployment.</span>
-</div>
-<div class="sf-user" markdown>
-**亦庄控股 E-Town Holdings**
-<span>Enterprise deployment.</span>
-</div>
-</div>
 
 <h2 class="sf-section">Explore</h2>
 

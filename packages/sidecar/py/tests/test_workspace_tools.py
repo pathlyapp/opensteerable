@@ -5,9 +5,11 @@ import base64
 import struct
 import time
 import zlib
+from io import BytesIO
 from pathlib import Path
 
 import pytest
+from PIL import Image
 from steerable_agent_protocol.generated import ToolCall
 from steerable_agent_runtime.errors import PolicyDeniedError
 
@@ -322,7 +324,10 @@ async def test_view_image_attaches_pixels_without_the_read_images_flag(
     viewed = await _call(router, "view_image", {"path": "code.png"})
     assert viewed.success is True
     assert viewed.data["mediaType"] == "image/png"
-    assert viewed.data["_image"]["b64"] == base64.b64encode(raw).decode("ascii")
+    assert viewed.data["width"] == 4
+    assert viewed.data["height"] == 2
+    assert viewed.data["sourcePath"] == str(tmp_path / "code.png")
+    assert base64.b64decode(viewed.data["_image"]["b64"]).startswith(b"\x89PNG")
     assert "PNG 4x2" in viewed.data["content"]
 
     # read_file still only previews, and says where the pixels are.
@@ -355,13 +360,109 @@ async def test_view_image_transcodes_bmp_and_refuses_non_images(
     text = await _call(router, "view_image", {"path": "notes.txt"})
     assert text.success is False
     assert text.needsFollowup is True
-    assert "not a PNG, JPEG, or uncompressed BMP" in (text.error or "")
+    assert "not a readable PNG, JPEG, WebP, or BMP" in (text.error or "")
 
     (tmp_path / "huge.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 400_001)
     oversize = await _call(router, "view_image", {"path": "huge.png"})
     assert oversize.success is False
     assert oversize.needsFollowup is True
-    assert "attach limit" in (oversize.error or "")
+    assert "not a readable" in (oversize.error or "")
+
+    (tmp_path / "source-too-large.png").write_bytes(
+        b"\x89PNG\r\n\x1a\n" + b"\x00" * (10 * 1024 * 1024)
+    )
+    source_too_large = await _call(
+        router, "view_image", {"path": "source-too-large.png"}
+    )
+    assert source_too_large.success is False
+    assert "source limit" in (source_too_large.error or "")
+
+
+@pytest.mark.asyncio
+async def test_view_image_crops_resizes_and_encodes_jpeg(tmp_path: Path) -> None:
+    router = workspace_tools_for_cwd(tmp_path)
+    raw = _gray_png(
+        8,
+        4,
+        [
+            [0, 0, 0, 0, 255, 255, 255, 255],
+            [0, 0, 0, 0, 255, 255, 255, 255],
+            [0, 0, 0, 0, 255, 255, 255, 255],
+            [0, 0, 0, 0, 255, 255, 255, 255],
+        ],
+    )
+    (tmp_path / "wide.png").write_bytes(raw)
+
+    viewed = await _call(
+        router,
+        "view_image",
+        {
+            "path": "wide.png",
+            "region": {"x": 0.5, "y": 0, "w": 0.5, "h": 1},
+            "maxEdge": 2,
+            "format": "jpeg",
+        },
+    )
+
+    assert viewed.success is True
+    assert viewed.data["width"] == 2
+    assert viewed.data["height"] == 2
+    assert viewed.data["mediaType"] == "image/jpeg"
+    assert base64.b64decode(viewed.data["_image"]["b64"]).startswith(b"\xff\xd8")
+
+    pixel_crop = await _call(
+        router,
+        "view_image",
+        {
+            "path": "wide.png",
+            "region": {"x": 2, "y": 1, "w": 3, "h": 2},
+        },
+    )
+    assert pixel_crop.success is True
+    assert (pixel_crop.data["width"], pixel_crop.data["height"]) == (3, 2)
+
+
+@pytest.mark.asyncio
+async def test_view_image_accepts_webp_and_preserves_jpeg_default(tmp_path: Path) -> None:
+    router = workspace_tools_for_cwd(tmp_path)
+    webp = BytesIO()
+    Image.new("RGB", (7, 5), (20, 40, 60)).save(webp, format="WEBP")
+    (tmp_path / "sample.webp").write_bytes(webp.getvalue())
+
+    viewed_webp = await _call(router, "view_image", {"path": "sample.webp"})
+    assert viewed_webp.success is True
+    assert viewed_webp.data["mediaType"] == "image/png"
+    assert (viewed_webp.data["width"], viewed_webp.data["height"]) == (7, 5)
+
+    (tmp_path / "sample.jpg").write_bytes(Path(__file__).with_name("half.jpg").read_bytes())
+    viewed_jpeg = await _call(router, "view_image", {"path": "sample.jpg"})
+    assert viewed_jpeg.success is True
+    assert viewed_jpeg.data["mediaType"] == "image/jpeg"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("extra", "error"),
+    [
+        ({"maxEdge": 0}, "maxEdge"),
+        ({"maxEdge": 4097}, "maxEdge"),
+        ({"format": "webp"}, "format"),
+        ({"region": {"x": 0, "y": 0, "w": 0, "h": 1}}, "region exceeds"),
+        ({"region": {"x": 0, "y": 0, "w": 1}}, "region requires"),
+        ({"region": {"x": 7, "y": 0, "w": 2, "h": 1}}, "region exceeds"),
+    ],
+)
+async def test_view_image_rejects_invalid_options(
+    tmp_path: Path, extra: dict, error: str
+) -> None:
+    router = workspace_tools_for_cwd(tmp_path)
+    (tmp_path / "sample.png").write_bytes(
+        _gray_png(8, 4, [[0] * 8 for _ in range(4)])
+    )
+    result = await _call(router, "view_image", {"path": "sample.png", **extra})
+    assert result.success is False
+    assert result.needsFollowup is True
+    assert error in (result.error or "")
 
 
 @pytest.mark.asyncio

@@ -50,6 +50,22 @@ jobs:
         run: python scripts/check_public_exposure.py
       - name: Engine compatibility gate
         run: python scripts/check_engine_compatibility.py
+      - name: Install Tauri compile dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libwebkit2gtk-4.1-dev
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Tauri host crate
+        working-directory: packages/agent-shell/tauri
+        run: |
+          cargo fmt --check
+          cargo test
+          cargo clippy --all-targets -- -D warnings
 
   py:
     runs-on: ubuntu-latest

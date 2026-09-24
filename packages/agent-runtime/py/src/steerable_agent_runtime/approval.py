@@ -24,6 +24,7 @@ invoker — instead of being baked into one registry.
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import json
 import logging
 import os
@@ -249,6 +250,41 @@ def _default_resolver(call: ToolCall, ctx: LoopContext) -> ApprovalRequest:
     )
 
 
+class ToolTimeoutClock:
+    """Pauses the loop's tool cap while an approval prompt is unanswered.
+
+    The cap still covers the command after the user decides. The object is
+    shared through a contextvar so the waiting tool and ``ApprovalExecutor``
+    see the same clock.
+    """
+
+    def __init__(self) -> None:
+        self._depth = 0
+        self.resumed = asyncio.Event()
+        self.resumed.set()
+        self.paused = asyncio.Event()
+
+    def suspend(self) -> None:
+        self._depth += 1
+        self.resumed.clear()
+        self.paused.set()
+
+    def resume(self) -> None:
+        self._depth = max(0, self._depth - 1)
+        if self._depth == 0:
+            self.paused.clear()
+            self.resumed.set()
+
+    @property
+    def suspended(self) -> bool:
+        return self._depth > 0
+
+
+tool_timeout_clock: contextvars.ContextVar[ToolTimeoutClock | None] = contextvars.ContextVar(
+    "tool_timeout_clock", default=None
+)
+
+
 class ApprovalExecutor:
     """``ToolExecutor`` decorator enforcing the approval algebra.
 
@@ -365,18 +401,27 @@ class ApprovalExecutor:
         return self._durable
 
     async def _ask(self, request: ApprovalRequest) -> ApprovalDecision:
-        if self._timeout_s is None:
-            return await self._approver.approve(request)
+        # No timeout means wait until the user decides. That wait is not
+        # part of the tool cap; the command after the decision still is.
+        clock = tool_timeout_clock.get() if self._timeout_s is None else None
+        if clock is not None:
+            clock.suspend()
         try:
-            return await asyncio.wait_for(
-                self._approver.approve(request), timeout=self._timeout_s
-            )
-        except (TimeoutError, asyncio.TimeoutError):
-            # Fail closed, keeping the variant for observability (codex's
-            # TimedOut semantics: no decision arrived, do not execute).
-            return ApprovalDecision(
-                "timed_out", f"approval request timed out after {self._timeout_s}s"
-            )
+            if self._timeout_s is None:
+                return await self._approver.approve(request)
+            try:
+                return await asyncio.wait_for(
+                    self._approver.approve(request), timeout=self._timeout_s
+                )
+            except (TimeoutError, asyncio.TimeoutError):
+                # Fail closed, keeping the variant for observability (codex's
+                # TimedOut semantics: no decision arrived, do not execute).
+                return ApprovalDecision(
+                    "timed_out", f"approval request timed out after {self._timeout_s}s"
+                )
+        finally:
+            if clock is not None:
+                clock.resume()
 
     def _persist(self, request: ApprovalRequest, decision: ApprovalDecision) -> None:
         if decision.kind in _SESSION_KINDS and self._session is not None:

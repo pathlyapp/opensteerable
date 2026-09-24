@@ -1,6 +1,7 @@
 packages:
   - "packages/*/ts"
   - "packages/*/web"
+  - "packages/*/tauri"
   - "tests/conformance/ts"
   - "examples/ts-minimal"
   - "examples/web-shell"

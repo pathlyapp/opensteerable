@@ -25,10 +25,11 @@ from steerable_agent_runtime.llm import LLMMessage, LLMStreamChunk
 from benchmarks.calibration import ci_time_budget
 from benchmarks.sampling import assert_within_budget, measure
 
-#: Reference-machine expectation (median of 5, arm64 Mac): measured 0.7ms,
-#: budgeted at 2ms to leave headroom for legitimate growth. Reviewed
+#: Reference-machine expectation (median of 5, arm64 Mac): measured 3.4ms
+#: after moving every turn through the native CoreLoop bridge, budgeted at
+#: 5ms to leave headroom for legitimate growth. Reviewed
 #: constant — recalibrate only with a recorded measurement.
-REFERENCE_MS = 2.0
+REFERENCE_MS = 5.0
 
 
 class _InstantProvider:

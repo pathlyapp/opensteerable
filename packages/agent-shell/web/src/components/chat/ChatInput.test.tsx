@@ -627,3 +627,48 @@ describe('ChatInput 命令沙箱选择器', () => {
     expect(screen.queryByTestId('exec-policy-picker')).toBeNull();
   });
 });
+
+function pasteClipboard(
+  clipboardData: {
+    items?: Array<{ kind: string; type: string; getAsFile: () => File | null }>;
+    files?: File[];
+    getData: (type: string) => string;
+  },
+) {
+  fireEvent.paste(screen.getByTestId('chat-composer'), { clipboardData });
+}
+
+describe('ChatInput 粘贴图片', () => {
+  it('截图（image.png）进入附件并改成唯一文件名，不写入正文', () => {
+    const onChange = vi.fn();
+    renderInput({ onChange });
+    const file = new File([new Uint8Array([1, 2, 3])], 'image.png', { type: 'image/png' });
+    pasteClipboard({
+      items: [{ kind: 'file', type: 'image/png', getAsFile: () => file }],
+      getData: () => '',
+    });
+    expect(screen.getByText(/^pasted-.*\.png$/)).toBeTruthy();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('带真实文件名的图片保留原名', () => {
+    renderInput();
+    const file = new File(['x'], '截图.png', { type: 'image/png' });
+    pasteClipboard({
+      items: [{ kind: 'file', type: 'image/png', getAsFile: () => file }],
+      getData: () => '',
+    });
+    expect(screen.getByText('截图.png')).toBeTruthy();
+  });
+
+  it('纯文本粘贴仍写入输入框', () => {
+    const onChange = vi.fn();
+    renderInput({ onChange });
+    pasteClipboard({
+      items: [],
+      getData: (type) => (type === 'text/plain' ? '你好' : ''),
+    });
+    expect(onChange).toHaveBeenCalledWith('你好');
+    expect(screen.queryByText(/^pasted-/)).toBeNull();
+  });
+});

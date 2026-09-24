@@ -7,8 +7,53 @@ import {
   isImagePath,
   parseImageAttachments,
   processImageAttachments,
+  processViewImage,
+  IMAGE_MAX_ENCODED_BYTES,
   IMAGE_MAX_SOURCE_BYTES,
 } from '../src/image-attachment.js';
+import type { NativeImageInstance, NativeImageLike } from '../src/runtime.js';
+
+function fakeNativeImage(
+  width: number,
+  height: number,
+  options: {
+    crops?: unknown[];
+    resizes?: unknown[];
+    png?: Buffer;
+    jpeg?: Buffer;
+    empty?: boolean;
+  } = {},
+): NativeImageInstance {
+  return {
+    isEmpty: () => options.empty ?? false,
+    getSize: () => ({ width, height }),
+    crop: (rect) => {
+      options.crops?.push(rect);
+      return fakeNativeImage(rect.width, rect.height, options);
+    },
+    resize: (resizeOptions) => {
+      options.resizes?.push(resizeOptions);
+      return fakeNativeImage(
+        resizeOptions.width ?? width,
+        resizeOptions.height ?? height,
+        options,
+      );
+    },
+    toPNG: () => options.png ?? Buffer.from('png'),
+    toJPEG: () => options.jpeg ?? Buffer.from('jpeg'),
+  };
+}
+
+function withImageFile(run: (imagePath: string) => void): void {
+  const dir = mkdtempSync(join(tmpdir(), 'view-image-'));
+  try {
+    const imagePath = join(dir, 'slide.png');
+    writeFileSync(imagePath, Buffer.from([137, 80, 78, 71]));
+    run(imagePath);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 describe('isImagePath', () => {
   it('按扩展名识别图片（大小写不敏感）', () => {
@@ -110,5 +155,116 @@ describe('processImageAttachments（非 Electron 宿主）', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('processViewImage', () => {
+  it('裁剪、缩放并把像素作为 _image 内容块返回', () => {
+    withImageFile((imagePath) => {
+      const crops: unknown[] = [];
+      const resizes: unknown[] = [];
+      const decoder: NativeImageLike = {
+        createFromPath: () => fakeNativeImage(2000, 1000, { crops, resizes }),
+      };
+
+      const result = processViewImage(
+        {
+          path: imagePath,
+          region: { x: 0.25, y: 0, w: 0.5, h: 1 },
+          maxEdge: 500,
+          format: 'jpeg',
+        },
+        decoder,
+      );
+
+      expect(crops).toEqual([{ x: 500, y: 0, width: 1000, height: 1000 }]);
+      expect(resizes).toEqual([{ width: 500, height: 500, quality: 'good' }]);
+      expect(result).toEqual({
+        success: true,
+        data: {
+          width: 500,
+          height: 500,
+          sourcePath: imagePath,
+          mediaType: 'image/jpeg',
+          _image: {
+            b64: Buffer.from('jpeg').toString('base64'),
+            media_type: 'image/jpeg',
+          },
+        },
+      });
+    });
+  });
+
+  it('拒绝越界裁剪', () => {
+    withImageFile((imagePath) => {
+      const image = fakeNativeImage(100, 100);
+      const result = processViewImage(
+        { path: imagePath, region: { x: 80, y: 0, w: 30, h: 10 } },
+        { createFromPath: () => image },
+      );
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('超出图片范围');
+    });
+  });
+
+  it('像素裁剪不与 0–1 比例裁剪混淆', () => {
+    withImageFile((imagePath) => {
+      const crops: unknown[] = [];
+      const result = processViewImage(
+        { path: imagePath, region: { x: 2, y: 3, w: 10, h: 20 } },
+        { createFromPath: () => fakeNativeImage(100, 100, { crops }) },
+      );
+      expect(result.success).toBe(true);
+      expect(crops).toEqual([{ x: 2, y: 3, width: 10, height: 20 }]);
+      expect(result.data).toMatchObject({ width: 10, height: 20 });
+    });
+  });
+
+  it('PNG 超过编码上限时自动回退 JPEG；显式 PNG 则给出可恢复错误', () => {
+    withImageFile((imagePath) => {
+      const decoder = {
+        createFromPath: () =>
+          fakeNativeImage(100, 100, {
+            png: Buffer.alloc(IMAGE_MAX_ENCODED_BYTES + 1),
+            jpeg: Buffer.from('small-jpeg'),
+          }),
+      };
+      const fallback = processViewImage({ path: imagePath }, decoder);
+      expect(fallback.success).toBe(true);
+      expect(fallback.data?.mediaType).toBe('image/jpeg');
+
+      const explicitPng = processViewImage({ path: imagePath, format: 'png' }, decoder);
+      expect(explicitPng.success).toBe(false);
+      expect(explicitPng.needsFollowup).toBe(true);
+      expect(explicitPng.error).toContain('maxEdge');
+    });
+  });
+
+  it.each([0, 4097, 1.5])('拒绝非法 maxEdge=%s', (maxEdge) => {
+    withImageFile((imagePath) => {
+      const result = processViewImage(
+        { path: imagePath, maxEdge },
+        { createFromPath: () => fakeNativeImage(100, 100) },
+      );
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('maxEdge');
+    });
+  });
+
+  it('拒绝非图片扩展、缺失文件、空图片和无解码器环境', () => {
+    const decoder = { createFromPath: () => fakeNativeImage(10, 10) };
+    expect(processViewImage({ path: '/tmp/a.txt' }, decoder).error).toContain('supports');
+    expect(processViewImage({ path: '/definitely/missing.png' }, decoder).error).toContain(
+      '不存在',
+    );
+    withImageFile((imagePath) => {
+      expect(processViewImage({ path: imagePath }, null).error).toContain('不支持图片解码');
+      expect(
+        processViewImage(
+          { path: imagePath },
+          { createFromPath: () => fakeNativeImage(10, 10, { empty: true }) },
+        ).error,
+      ).toContain('可识别');
+    });
   });
 });

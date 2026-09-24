@@ -451,6 +451,7 @@ async def test_ask_user_intercepted_under_tools_via_host() -> None:
                 "useCoreLoop": True,
                 "toolsViaHost": True,
                 "askUser": True,
+                "chatId": "chat-a",
             },
         )
     )
@@ -462,6 +463,7 @@ async def test_ask_user_intercepted_under_tools_via_host() -> None:
 
     # The question went over the ask_user reverse channel...
     assert host.asked[0]["intro"] == "Pick one"
+    assert host.asked[0]["chatId"] == "chat-a"
     # ...and nothing was forwarded to the host's tool.invoke.
     assert host.tool_invocations == []
     events = sidecar._transport.events  # type: ignore[attr-defined]

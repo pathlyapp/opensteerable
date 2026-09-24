@@ -1,0 +1,28 @@
+{
+  "name": "@steerable/agent-shell-tauri",
+  "version": "0.6.41",
+  "description": "Reusable Tauri Rust host source for @steerable/agent-shell",
+  "license": "Apache-2.0",
+  "homepage": "https://steerableframework.com/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pathlyapp/steerable.git",
+    "directory": "packages/agent-shell/tauri"
+  },
+  "files": [
+    "src",
+    "Cargo.toml",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "gen": "echo agent-shell-tauri",
+    "build": "echo agent-shell-tauri source package",
+    "test": "echo agent-shell-tauri tests run in the rust CI job",
+    "lint": "echo agent-shell-tauri lint runs in the rust CI job",
+    "check:drift": "echo ok"
+  }
+}

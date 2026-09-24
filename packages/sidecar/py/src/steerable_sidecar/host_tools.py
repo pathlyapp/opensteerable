@@ -183,12 +183,20 @@ class HostAskUserHandler:
         self._timeout = timeout
 
     async def __call__(
-        self, intro: str, questions: list[dict[str, Any]]
+        self,
+        intro: str,
+        questions: list[dict[str, Any]],
+        context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        params: dict[str, Any] = {"intro": intro, "questions": questions}
+        chat_id = _chat_id_from_context(context)
+        if chat_id:
+            # The renderer only shows the card in the chat that asked.
+            params["chatId"] = chat_id
         try:
             payload: Any = await self._server.call(
                 self._method,
-                {"intro": intro, "questions": questions},
+                params,
                 timeout=self._timeout,
             )
         except Exception as exc:  # noqa: BLE001 — no answer beats a hung turn
@@ -198,6 +206,19 @@ class HostAskUserHandler:
             return dict(payload["answers"])
         logger.warning("host returned an invalid ask_user reply: %r", payload)
         return {}
+
+
+def _chat_id_from_context(context: dict[str, Any] | None) -> str | None:
+    """Read the owning chat from loop dispatch context.
+
+    ``RunCodeBoundExecutor`` passes ``chat_id``; some callers use ``chatId``.
+    """
+    if not isinstance(context, dict):
+        return None
+    raw = context.get("chat_id") or context.get("chatId")
+    if isinstance(raw, str) and raw:
+        return raw
+    return None
 
 
 _KNOWN_RESULT_KEYS = frozenset(ToolResult.model_fields)

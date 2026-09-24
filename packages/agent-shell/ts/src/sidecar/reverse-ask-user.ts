@@ -19,6 +19,8 @@ export interface AskUserPromptRequest {
   requestId: string;
   intro: string;
   questions: Array<Record<string, unknown>>;
+  /** 发起提问的对话。renderer 只在这条会话的输入框展示卡片。 */
+  chatId?: string;
 }
 
 interface PendingAskUser {
@@ -51,6 +53,7 @@ export function createAskUserBridge(deps: AskUserBridgeDeps): AskUserBridge {
     handler: (params) => {
       const p = (params ?? {}) as Partial<AskUserPromptRequest>;
       const questions = Array.isArray(p.questions) ? p.questions : [];
+      const chatId = typeof p.chatId === 'string' && p.chatId ? p.chatId : undefined;
       if (questions.length === 0) {
         deps.onLog?.('ask_user: malformed request (no questions); answering empty');
         return Promise.resolve({ ...EMPTY_REPLY });
@@ -64,6 +67,7 @@ export function createAskUserBridge(deps: AskUserBridgeDeps): AskUserBridge {
         requestId,
         intro: typeof p.intro === 'string' ? p.intro : '',
         questions: questions as Array<Record<string, unknown>>,
+        ...(chatId ? { chatId } : {}),
       };
       return new Promise((resolve) => {
         pending.set(requestId, { prompt, resolve });

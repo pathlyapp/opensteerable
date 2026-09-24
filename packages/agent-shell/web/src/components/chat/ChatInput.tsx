@@ -162,6 +162,8 @@ export interface ChatInputProps {
   skills?: SkillItem[];
   /** MCP tools for slash command autocomplete and chip rendering. */
   mcpTools?: McpToolItem[];
+  /** Chat this composer belongs to. Ask-user cards for other chats stay hidden. */
+  chatId?: string | null;
 }
 
 export type MentionReference = {
@@ -677,6 +679,84 @@ function getMentionRanges(
   return ranges;
 }
 
+/** 截图粘贴常见的空名 / `image.png`，同一秒再贴会按文件名被去重掉。 */
+const GENERIC_CLIPBOARD_IMAGE_NAME =
+  /^(image|clipboard|pasted-image|blob)(\.[a-z0-9]+)?$/i;
+
+const IMAGE_MIME_EXT: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+  'image/bmp': 'bmp',
+};
+
+function clipboardFiles(data: DataTransfer | null): File[] {
+  if (!data) return [];
+  const fromItems: File[] = [];
+  for (const item of Array.from(data.items ?? [])) {
+    if (item.kind !== 'file') continue;
+    const file = item.getAsFile();
+    if (file) fromItems.push(file);
+  }
+  if (fromItems.length > 0) return fromItems;
+  return Array.from(data.files ?? []);
+}
+
+function namePastedImage(file: File, serial: number, now: Date): File {
+  if (!file.type.startsWith('image/')) return file;
+  if (file.name.trim() && !GENERIC_CLIPBOARD_IMAGE_NAME.test(file.name.trim())) return file;
+  const ext = IMAGE_MIME_EXT[file.type.toLowerCase()] ?? 'png';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  return new File([file], `pasted-${stamp}-${serial}.${ext}`, {
+    type: file.type,
+    lastModified: file.lastModified,
+  });
+}
+
+function AttachmentChip({
+  file,
+  onRemove,
+}: {
+  file: AttachmentFile;
+  onRemove: () => void;
+}) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  useEffect(() => {
+    const blob = file.file;
+    if (!blob?.type.startsWith('image/')) {
+      setPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file.file]);
+
+  return (
+    <div
+      className="group flex items-center gap-1.5 rounded border border-agent-border bg-agent-muted/60 px-2.5 py-1 text-xs text-agent-foreground transition-all duration-150 select-none hover:bg-agent-muted max-w-xs"
+      title={file.path || file.name}
+    >
+      {previewUrl ? (
+        <img src={previewUrl} alt="" className="h-8 w-8 shrink-0 rounded object-cover" />
+      ) : (
+        <LuFile className="h-3.5 w-3.5 shrink-0 text-agent-muted-foreground" />
+      )}
+      <span className="max-w-[160px] truncate font-medium">{file.name}</span>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="flex h-4 w-4 items-center justify-center rounded-full text-agent-muted-foreground transition-colors hover:bg-agent-foreground/10 hover:text-agent-foreground"
+        aria-label={`移除文件 ${file.name}`}
+      >
+        <LuX className="h-3 w-3" />
+      </button>
+    </div>
+  );
+}
+
 export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
   function ChatInput(
     {
@@ -709,10 +789,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       onMentionReferencesChange,
       skills: propSkills,
       mcpTools: propMcpTools,
+      chatId,
     },
     ref,
   ) {
-    const askUserPrompt = useAskUserPrompt();
+    const askUserPrompt = useAskUserPrompt(chatId);
     const approvalPrompt = useApprovalPrompt();
     const editorRef = useRef<HTMLDivElement>(null);
     const agentMenuRef = useRef<HTMLDivElement>(null);
@@ -741,6 +822,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const compositionEndAtRef = useRef<number>(0);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const pasteSerialRef = useRef(0);
     // 工具栏"空间不足时优先隐藏快捷键提示"的测量 refs，见下方 useLayoutEffect。
     const toolbarRowRef = useRef<HTMLDivElement>(null);
     const toolbarLeftRef = useRef<HTMLDivElement>(null);
@@ -1339,7 +1421,19 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
 
     const handlePaste = (event: ClipboardEvent<HTMLDivElement>) => {
       event.preventDefault();
-      replaceSelection(event.clipboardData.getData('text/plain'));
+      const data = event.clipboardData;
+      const pasted = !disabled && allowFileAttach ? clipboardFiles(data) : [];
+      if (pasted.length > 0) {
+        const now = new Date();
+        addFiles(
+          pasted.map((file) => {
+            pasteSerialRef.current += 1;
+            return toAttachment(namePastedImage(file, pasteSerialRef.current, now));
+          }),
+        );
+      }
+      const text = data?.getData('text/plain') ?? '';
+      if (text) replaceSelection(text);
     };
 
     const handleEditorScroll = () => {
@@ -1791,24 +1885,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           {actualFiles.length > 0 && (
             <div className="flex flex-wrap gap-1.5 px-2.5 pb-1.5 pt-0.5">
               {actualFiles.map((file, idx) => (
-                <div
-                  key={idx}
-                  className="group flex items-center gap-1.5 rounded bg-agent-muted/60 hover:bg-agent-muted px-2.5 py-1 text-xs border border-agent-border text-agent-foreground select-none max-w-xs transition-all duration-150"
-                  title={file.path}
-                >
-                  <LuFile className="h-3.5 w-3.5 shrink-0 text-agent-muted-foreground" />
-                  <span className="truncate max-w-[160px] font-medium">
-                    {file.name}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveFile(idx)}
-                    className="flex h-4 w-4 items-center justify-center rounded-full text-agent-muted-foreground hover:bg-agent-foreground/10 hover:text-agent-foreground transition-colors"
-                    aria-label={`移除文件 ${file.name}`}
-                  >
-                    <LuX className="h-3 w-3" />
-                  </button>
-                </div>
+                <AttachmentChip
+                  key={`${file.path || file.name}-${idx}`}
+                  file={file}
+                  onRemove={() => handleRemoveFile(idx)}
+                />
               ))}
             </div>
           )}
@@ -1842,7 +1923,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                 onClick={handlePickFiles}
                 disabled={disabled || isStreaming}
                 className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-agent-muted-foreground transition-colors hover:bg-agent-foreground/5 hover:text-agent-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                title="上传文件（可多选）"
+                title="上传文件，或在输入框粘贴图片"
                 aria-label="上传文件"
                 data-testid="chat-attach"
               >

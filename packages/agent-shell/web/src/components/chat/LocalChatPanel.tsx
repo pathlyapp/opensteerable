@@ -402,6 +402,7 @@ export function LocalChatPanel({
           if (attachmentError) setAttachmentError(null);
         }}
         onMentionReferencesChange={setMentionReferences}
+        chatId={chatId}
       />
     </>
   );

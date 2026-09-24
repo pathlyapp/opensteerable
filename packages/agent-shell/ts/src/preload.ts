@@ -314,6 +314,7 @@ const electronAPI = {
         requestId: string;
         intro: string;
         questions: Array<Record<string, unknown>>;
+        chatId?: string;
       }) => void,
     ) => {
       const handler = (_event: Electron.IpcRendererEvent, payload: unknown) => {
@@ -338,6 +339,7 @@ const electronAPI = {
         requestId: string;
         intro: string;
         questions: Array<Record<string, unknown>>;
+        chatId?: string;
       }>
     > => {
       return await ipcRenderer.invoke('ask-user:pending');

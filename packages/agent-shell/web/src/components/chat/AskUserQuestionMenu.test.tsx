@@ -143,7 +143,7 @@ describe('AskUserQuestionMenu · 分步与提交契约', () => {
     expect(screen.getByText('密码输入')).toBeTruthy();
   });
 
-  it('「交给我决定」按钮透传 onAutoContinue', () => {
+  it('「交给AI决定」按钮透传 onAutoContinue', () => {
     const onAutoContinue = vi.fn();
     render(
       <AskUserQuestionMenu
@@ -153,7 +153,7 @@ describe('AskUserQuestionMenu · 分步与提交契约', () => {
         onAutoContinue={onAutoContinue}
       />,
     );
-    fireEvent.click(screen.getByText('交给我决定'));
+    fireEvent.click(screen.getByText('交给AI决定'));
     expect(onAutoContinue).toHaveBeenCalledOnce();
   });
 });
@@ -174,7 +174,8 @@ describe('AskUserQuestionMenu · 归一化韧性', () => {
   it('有选项的题强制 select 形态（即便声明了 text）', () => {
     const questions = [{ id: 'q1', text: 't', type: 'text', options: ['a'] }];
     render(<AskUserQuestionMenu intro="" questions={questions} onSubmit={vi.fn()} />);
-    expect(screen.getByText('菜单选择')).toBeTruthy();
+    expect(screen.getByText('a')).toBeTruthy();
+    expect(screen.queryByText('菜单选择')).toBeNull();
   });
 
   it('已有答案是选项外的自定义值：进入自定义模式并预填', () => {

@@ -542,6 +542,258 @@
   color: #86efac;
 }
 
+/* ---- one-command band ---------------------------------------------------- */
+
+.sf-run {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 1.4rem;
+  align-items: center;
+  max-width: 58rem;
+  margin: 0.4rem auto 2rem;
+  padding: 1.4rem 1.5rem;
+  border-radius: 0.9rem;
+  border: 0.05rem solid rgba(92, 107, 192, 0.4);
+  background: linear-gradient(135deg, rgba(92, 107, 192, 0.12), rgba(38, 166, 154, 0.06));
+  box-shadow: 0 0.5rem 1.6rem rgba(92, 107, 192, 0.14);
+}
+
+[data-md-color-scheme="slate"] .sf-run {
+  border-color: rgba(129, 140, 248, 0.45);
+  background: linear-gradient(135deg, rgba(129, 140, 248, 0.16), rgba(38, 166, 154, 0.07));
+}
+
+@media (max-width: 52rem) {
+  .sf-run {
+    grid-template-columns: 1fr;
+  }
+}
+
+.md-typeset .sf-run-title {
+  margin: 0.3rem 0 0.5rem;
+  font-size: 1.45rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--md-default-fg-color);
+}
+
+.md-typeset .sf-run-text {
+  margin: 0 0 0.9rem;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: var(--md-default-fg-color--light);
+}
+
+.sf-run .md-button {
+  border-radius: 2rem;
+  padding: 0.35rem 1rem;
+  font-size: 0.72rem;
+}
+
+.sf-run-term {
+  border-radius: 0.6rem;
+  background: #0f1020;
+  box-shadow: 0 0.4rem 1.2rem rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.sf-run-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.45rem 0.6rem 0;
+}
+
+.sf-run-dots {
+  display: flex;
+  gap: 0.3rem;
+  margin-right: 0.6rem;
+}
+
+.sf-run-radio {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sf-run-bar label {
+  padding: 0.12rem 0.6rem;
+  border-radius: 0.35rem;
+  font-size: 0.66rem;
+  font-weight: 650;
+  color: #8b8ba7;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.sf-run-bar label:hover {
+  color: #e4e4f0;
+}
+
+#sf-run-web:checked ~ .sf-run-bar label[for="sf-run-web"],
+#sf-run-desktop:checked ~ .sf-run-bar label[for="sf-run-desktop"] {
+  color: #e4e4f0;
+  background: rgba(129, 140, 248, 0.22);
+}
+
+#sf-run-web:focus-visible ~ .sf-run-bar label[for="sf-run-web"],
+#sf-run-desktop:focus-visible ~ .sf-run-bar label[for="sf-run-desktop"] {
+  outline: 0.1rem solid #a5b4fc;
+}
+
+.sf-run-pane {
+  display: none;
+}
+
+#sf-run-web:checked ~ .sf-run-pane--web,
+#sf-run-desktop:checked ~ .sf-run-pane--desktop {
+  display: block;
+}
+
+.sf-run-dots span {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: #3f3f5a;
+}
+
+.md-typeset .sf-run-term pre {
+  margin: 0;
+}
+
+.md-typeset .sf-run-term pre > code {
+  display: block;
+  padding: 0.6rem 0.9rem 0.9rem;
+  background: transparent;
+  color: #e4e4f0;
+  font-size: 0.74rem;
+  line-height: 1.75;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.sf-run-term b {
+  color: #a5b4fc;
+}
+
+.sf-cmd::before {
+  content: "$ ";
+  color: #26a69a;
+}
+
+.sf-out {
+  padding: 0 0.9rem 0.9rem;
+  font-family: var(--md-code-font-family);
+  font-size: 0.72rem;
+  color: #8b8ba7;
+}
+
+.md-typeset .sf-run-term pre > code {
+  padding-bottom: 0.3rem;
+}
+
+/* ---- four pillars -------------------------------------------------------- */
+
+.sf-pills {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 0.2rem 0 0.8rem;
+}
+
+.sf-pill {
+  padding: 0.18rem 0.75rem;
+  border-radius: 2rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #5c6bc0;
+  background: rgba(92, 107, 192, 0.12);
+  border: 0.05rem solid rgba(92, 107, 192, 0.35);
+}
+
+[data-md-color-scheme="slate"] .sf-pill {
+  color: #c7d2fe;
+  background: rgba(129, 140, 248, 0.16);
+  border-color: rgba(129, 140, 248, 0.4);
+}
+
+.sf-pillars {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 1.1rem 0 1.4rem;
+}
+
+@media (max-width: 64rem) {
+  .sf-pillars {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 38rem) {
+  .sf-pillars {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sf-pillar {
+  position: relative;
+  border: 0.05rem solid var(--md-default-fg-color--lightest);
+  border-radius: 0.7rem;
+  padding: 1.05rem 1rem 0.95rem;
+  background: var(--md-default-bg-color);
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.sf-pillar::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 0.2rem;
+  background: linear-gradient(90deg, #5c6bc0, #7e57c2 55%, #26a69a);
+}
+
+.sf-pillar:hover {
+  transform: translateY(-2px);
+  border-color: var(--md-accent-fg-color);
+  box-shadow: 0 0.4rem 1.25rem rgba(92, 107, 192, 0.14);
+}
+
+.sf-pillar-kicker {
+  display: block;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #5c6bc0;
+}
+
+[data-md-color-scheme="slate"] .sf-pillar-kicker {
+  color: #a5b4fc;
+}
+
+.md-typeset .sf-pillar h3 {
+  margin: 0.3rem 0 0.4rem;
+  font-size: 0.98rem;
+  font-weight: 750;
+  line-height: 1.3;
+}
+
+.md-typeset .sf-pillar h3 .headerlink {
+  display: none;
+}
+
+.md-typeset .sf-pillar p {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.55;
+  color: var(--md-default-fg-color--light);
+}
+
 /* ---- feature grid ------------------------------------------------------- */
 
 .sf-grid {
@@ -603,6 +855,47 @@
 .sf-tabs {
   max-width: 44rem;
   margin: 0 auto 1.4rem;
+}
+
+/* ---- who's using it -------------------------------------------------------- */
+
+.sf-users {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+  max-width: 48rem;
+  margin: 0.8rem auto 1.4rem;
+}
+
+@media (max-width: 44rem) {
+  .sf-users {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sf-user {
+  border: 0.05rem solid var(--md-default-fg-color--lightest);
+  border-radius: 0.6rem;
+  padding: 0.85rem 1rem;
+  text-align: center;
+  background: var(--md-default-bg-color);
+}
+
+.md-typeset .sf-user p {
+  margin: 0;
+}
+
+.md-typeset .sf-user strong {
+  display: block;
+  font-size: 0.95rem;
+  margin-bottom: 0.3rem;
+}
+
+.sf-user span {
+  display: block;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--md-default-fg-color--light);
 }
 
 /* ---- footer link row ------------------------------------------------------- */

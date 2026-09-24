@@ -32,7 +32,7 @@ dev = [
   "steerable-agent-protocol",
   "steerable-agent-harness",
   "steerable-agent-runtime",
-  "steerable-agent-runtime-native==0.6.37",
+  "steerable-agent-runtime-native==0.6.38",
   "steerable-plugin-sdk",
   "steerable-sidecar",
 ]

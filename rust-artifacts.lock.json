@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
-  "artifactVersion": "0.6.37",
+  "artifactVersion": "0.6.38",
   "release": {
     "repository": "pathlyapp/opensteerable",
-    "tag": "rust-v0.6.37",
-    "manifest": "steerable-rust-artifacts-0.6.37-manifest.json",
-    "sha256": "f6a7a20e1037196ff1476a62e9756dc2730d2d70addb1817fe01d120439809f1"
+    "tag": "rust-v0.6.38",
+    "manifest": "steerable-rust-artifacts-0.6.38-manifest.json",
+    "sha256": "9600ebbbb17ad7ef265b1432448767390d975d812be23090fe7a4a1bd127afd6"
   },
   "native": {
     "package": "steerable-agent-runtime-native",
-    "version": "0.6.37"
+    "version": "0.6.38"
   },
   "compatibility": {
     "coreloopApi": 1,

@@ -150,6 +150,7 @@ pub fn run(context: tauri::Context<tauri::Wry>, config: DesktopConfig) {
         } if label == "main" && !cfg!(target_os = "macos") => {
             app.exit(0);
         }
+        #[cfg(target_os = "macos")]
         RunEvent::Reopen { .. } => {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();

@@ -2771,7 +2771,7 @@ export class LocalBackendRouter {
         `如确需读取项目外的文件，可请用户在项目里附加为源文件夹。\n` +
         `例外：本会话的用户上传附件目录 ${chatAttachmentsDirPath(chatId)} 也在项目家目录外，` +
         `但它已作为**只读放行根**开放给 local_read_file（用绝对路径可直接读取，不会被项目围栏拒绝）。` +
-        `用户附到本条消息的文件都放在那里；需要转换（docx / pdf / xlsx / pptx 等）时，` +
+        /* shell-neutral:allow generic document extensions, not product identity */ `用户附到本条消息的文件都放在那里；需要转换（docx / pdf / xlsx / pptx 等）时，` +
         `把该绝对路径交给 local_exec_shell 的转换脚本处理即可，**不要**因为它在项目家目录外就拒绝读取或要求用户重新拷贝。`;
 
       // W6-5 + W6-7a：项目级规则文件（AGENTS.md / CLAUDE.md）是不可信输入，

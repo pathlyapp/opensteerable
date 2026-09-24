@@ -19,10 +19,14 @@
  */
 
 import { spawn, type ChildProcessByStdio } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
 import { connect, createServer } from 'node:net';
+import os from 'node:os';
+import path from 'node:path';
 import type { Readable } from 'node:stream';
 import { defaultSearchBaseUrl } from '../storage/web-search-settings.js';
+import { resolveSidecarPython } from './supervisor.js';
 
 type EgressProxyChild = ChildProcessByStdio<null, Readable, Readable>;
 
@@ -95,8 +99,133 @@ export function egressAllowEntry(
  * 框架侧也会 fail loud）。
  */
 export function resolveEgressProxyExecutable(): string | null {
-  const fromEnv = process.env.STEERABLE_EGRESS_PROXY_BIN;
-  return fromEnv && fromEnv.trim() ? fromEnv.trim() : null;
+  const fromEnv = process.env.STEERABLE_EGRESS_PROXY_BIN?.trim();
+  return fromEnv && existsSync(fromEnv) ? fromEnv : null;
+}
+
+/** Walk up from a compiled file until the repo that owns the fetch script. */
+export function findFrameworkRoot(startDir: string): string | null {
+  let dir = path.resolve(startDir);
+  for (let i = 0; i < 8; i += 1) {
+    if (existsSync(path.join(dir, 'scripts', 'fetch_verified_artifacts.py'))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+  return null;
+}
+
+function localBuiltEgress(repoRoot: string): string | null {
+  const exe = process.platform === 'win32' ? 'steerable-egress-proxy.exe' : 'steerable-egress-proxy';
+  for (const kind of ['release', 'debug']) {
+    const candidate = path.join(repoRoot, 'packages', 'egress-proxy', 'rs', 'target', kind, exe);
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+/**
+ * 下载缓存目录。egress 代理跑在沙箱外，所以这里绝不能落在 sidecar 沙箱
+ * 可写的根（`~/.steerable`、storage path、scratch）之下——否则沙箱内
+ * 代码可以替换这个二进制，下次启动即在沙箱外执行。
+ */
+export function egressBinaryCacheDir(
+  platform: NodeJS.Platform = process.platform,
+  env: NodeJS.ProcessEnv = process.env,
+  home: string = os.homedir(),
+): string {
+  if (platform === 'darwin') return path.join(home, 'Library', 'Caches', 'steerable', 'egress-proxy');
+  if (platform === 'win32') {
+    return path.join(env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'), 'steerable', 'egress-proxy');
+  }
+  return path.join(env.XDG_CACHE_HOME || path.join(home, '.cache'), 'steerable', 'egress-proxy');
+}
+
+function hostEgressTarget(): string | null {
+  if (process.platform === 'darwin') return process.arch === 'arm64' ? 'darwin-arm64' : 'darwin-x64';
+  if (process.platform === 'win32') return process.arch === 'x64' ? 'win32-x64' : null;
+  if (process.platform === 'linux') return process.arch === 'x64' ? 'linux-x64' : null;
+  return null;
+}
+
+function lockstepVersion(repoRoot: string): string | null {
+  try {
+    const pkg = JSON.parse(readFileSync(path.join(repoRoot, 'package.json'), 'utf8')) as { version?: unknown };
+    return typeof pkg.version === 'string' ? pkg.version : null;
+  } catch {
+    // 读不到根 package.json 就无法定位缓存文件，交给下载步骤处理。
+    return null;
+  }
+}
+
+/**
+ * 缓存命中且与同目录 `.sha256` 一致时返回路径。每次启动都重新计算哈希，
+ * 被截断或替换的文件不会被执行。
+ */
+export function verifiedCachedEgress(cacheDir: string, version: string, target: string): string | null {
+  const name = `steerable-egress-proxy-bin-${version}-${target}${target === 'win32-x64' ? '.exe' : ''}`;
+  const binary = path.join(cacheDir, name);
+  const digestFile = `${binary}.sha256`;
+  if (!existsSync(binary) || !existsSync(digestFile)) return null;
+  const expected = readFileSync(digestFile, 'utf8').trim().split(/\s+/)[0]?.toLowerCase();
+  const actual = createHash('sha256').update(readFileSync(binary)).digest('hex');
+  return expected && expected === actual ? binary : null;
+}
+
+const EGRESS_DOWNLOAD_TIMEOUT_MS = 60_000;
+
+/** Download the lockstep egress binary. Returns the printed path, or null. */
+export function downloadPublishedEgress(repoRoot: string, cacheDir: string): Promise<string | null> {
+  const script = path.join(repoRoot, 'scripts', 'fetch_verified_artifacts.py');
+  // 与 sidecar 同一解释器：系统 python3 可能不带 SSL，下载不了 https。
+  const python = resolveSidecarPython();
+  return new Promise((resolve) => {
+    const child = spawn(python, [script, 'egress', '--lockstep', '--target', 'host', '--out', cacheDir], {
+      cwd: repoRoot,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const timer = setTimeout(() => child.kill(), EGRESS_DOWNLOAD_TIMEOUT_MS);
+    let stdout = '';
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', (chunk: string) => {
+      stdout += chunk;
+    });
+    child.on('error', () => {
+      clearTimeout(timer);
+      resolve(null);
+    });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      const printed = stdout.trim().split('\n').pop()?.trim();
+      if (code === 0 && printed && existsSync(printed)) resolve(printed);
+      else resolve(null);
+    });
+  });
+}
+
+/**
+ * Env override, then a locally built private binary, then a cached copy
+ * whose SHA-256 still matches, then the verified public Release asset.
+ * A missing binary stays null so boot can fall back to port-level rules.
+ */
+export async function ensureEgressProxyExecutable(
+  startDir: string,
+  download: (repoRoot: string, cacheDir: string) => Promise<string | null> = downloadPublishedEgress,
+  cacheDir: string = egressBinaryCacheDir(),
+): Promise<string | null> {
+  const fromEnv = resolveEgressProxyExecutable();
+  if (fromEnv) return fromEnv;
+  const repoRoot = findFrameworkRoot(startDir);
+  if (!repoRoot) return null;
+  const built = localBuiltEgress(repoRoot);
+  if (built) return built;
+  const version = lockstepVersion(repoRoot);
+  const target = hostEgressTarget();
+  if (!version || !target) return null;
+  const cached = verifiedCachedEgress(cacheDir, version, target);
+  if (cached) return cached;
+  const downloaded = await download(repoRoot, cacheDir);
+  return downloaded && verifiedCachedEgress(cacheDir, version, target);
 }
 
 export function buildEgressProxyPlan(options: {

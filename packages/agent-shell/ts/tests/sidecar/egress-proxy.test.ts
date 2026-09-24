@@ -1,3 +1,7 @@
+import { createHash } from 'node:crypto';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   allowEgressForBaseUrl,
@@ -5,6 +9,9 @@ import {
   decideEgressProxy,
   deriveWebEgressHosts,
   egressAllowEntry,
+  egressBinaryCacheDir,
+  ensureEgressProxyExecutable,
+  resolveEgressProxyExecutable,
 } from '../../src/sidecar/egress-proxy';
 
 describe('buildEgressProxyPlan (W1.3.3)', () => {
@@ -338,5 +345,130 @@ describe('deriveWebEgressHosts (3.1b/3.1d)', () => {
         env: { STEERABLE_WEB_ALLOWED_DOMAINS: 'exa mple.com,ok.com,"evil.com"' },
       }),
     ).toEqual(['ok.com']);
+  });
+});
+
+describe('ensureEgressProxyExecutable', () => {
+  function frameworkFixture(): string {
+    const root = mkdtempSync(path.join(tmpdir(), 'egress-root-'));
+    mkdirSync(path.join(root, 'scripts'), { recursive: true });
+    writeFileSync(path.join(root, 'scripts', 'fetch_verified_artifacts.py'), '# fixture\n');
+    return root;
+  }
+
+  it('uses STEERABLE_EGRESS_PROXY_BIN when that file exists', async () => {
+    const root = frameworkFixture();
+    const bin = path.join(root, 'from-env');
+    writeFileSync(bin, '');
+    const previous = process.env.STEERABLE_EGRESS_PROXY_BIN;
+    process.env.STEERABLE_EGRESS_PROXY_BIN = bin;
+    try {
+      const download = async () => {
+        throw new Error('download should not run');
+      };
+      await expect(ensureEgressProxyExecutable(root, download)).resolves.toBe(bin);
+      expect(resolveEgressProxyExecutable()).toBe(bin);
+    } finally {
+      if (previous === undefined) delete process.env.STEERABLE_EGRESS_PROXY_BIN;
+      else process.env.STEERABLE_EGRESS_PROXY_BIN = previous;
+    }
+  });
+
+  it('prefers a locally built binary over the public download', async () => {
+    const root = frameworkFixture();
+    const exe = process.platform === 'win32' ? 'steerable-egress-proxy.exe' : 'steerable-egress-proxy';
+    const built = path.join(root, 'packages', 'egress-proxy', 'rs', 'target', 'debug', exe);
+    mkdirSync(path.dirname(built), { recursive: true });
+    writeFileSync(built, '');
+    const previous = process.env.STEERABLE_EGRESS_PROXY_BIN;
+    delete process.env.STEERABLE_EGRESS_PROXY_BIN;
+    try {
+      const download = async () => {
+        throw new Error('download should not run');
+      };
+      await expect(ensureEgressProxyExecutable(root, download)).resolves.toBe(built);
+    } finally {
+      if (previous === undefined) delete process.env.STEERABLE_EGRESS_PROXY_BIN;
+      else process.env.STEERABLE_EGRESS_PROXY_BIN = previous;
+    }
+  });
+
+  const target =
+    process.platform === 'darwin'
+      ? process.arch === 'arm64'
+        ? 'darwin-arm64'
+        : 'darwin-x64'
+      : process.platform === 'win32'
+        ? 'win32-x64'
+        : 'linux-x64';
+  const cachedName = `steerable-egress-proxy-bin-9.9.9-${target}${target === 'win32-x64' ? '.exe' : ''}`;
+
+  function writeCached(dir: string, bytes: string, digestOf = bytes): string {
+    mkdirSync(dir, { recursive: true });
+    const binary = path.join(dir, cachedName);
+    writeFileSync(binary, bytes);
+    const digest = createHash('sha256').update(digestOf).digest('hex');
+    writeFileSync(`${binary}.sha256`, `${digest}  ${cachedName}\n`);
+    return binary;
+  }
+
+  async function withoutEnvBin<T>(run: () => Promise<T>): Promise<T> {
+    const previous = process.env.STEERABLE_EGRESS_PROXY_BIN;
+    delete process.env.STEERABLE_EGRESS_PROXY_BIN;
+    try {
+      return await run();
+    } finally {
+      if (previous === undefined) delete process.env.STEERABLE_EGRESS_PROXY_BIN;
+      else process.env.STEERABLE_EGRESS_PROXY_BIN = previous;
+    }
+  }
+
+  function versionedFixture(): { root: string; cacheDir: string } {
+    const root = frameworkFixture();
+    writeFileSync(path.join(root, 'package.json'), JSON.stringify({ version: '9.9.9' }));
+    return { root, cacheDir: path.join(root, 'cache') };
+  }
+
+  it('reuses a cached binary whose digest matches without downloading', async () => {
+    const { root, cacheDir } = versionedFixture();
+    const binary = writeCached(cacheDir, 'proxy-bytes');
+    const download = async () => {
+      throw new Error('download should not run');
+    };
+    await withoutEnvBin(async () => {
+      await expect(ensureEgressProxyExecutable(root, download, cacheDir)).resolves.toBe(binary);
+    });
+  });
+
+  it('refuses a cached binary whose bytes no longer match the digest', async () => {
+    const { root, cacheDir } = versionedFixture();
+    writeCached(cacheDir, 'tampered', 'proxy-bytes');
+    await withoutEnvBin(async () => {
+      await expect(ensureEgressProxyExecutable(root, async () => null, cacheDir)).resolves.toBeNull();
+    });
+  });
+
+  it('downloads into the cache and verifies the result', async () => {
+    const { root, cacheDir } = versionedFixture();
+    const download = async (_repo: string, dir: string) => writeCached(dir, 'fresh-bytes');
+    await withoutEnvBin(async () => {
+      await expect(ensureEgressProxyExecutable(root, download, cacheDir)).resolves.toBe(
+        path.join(cacheDir, cachedName),
+      );
+    });
+  });
+});
+
+describe('egressBinaryCacheDir', () => {
+  it('stays outside the sidecar sandbox writable root ~/.steerable', () => {
+    const home = path.join(path.sep, 'home', 'u');
+    const sandboxRoot = path.join(home, '.steerable');
+    for (const platform of ['darwin', 'linux', 'win32'] as const) {
+      const dir = egressBinaryCacheDir(platform, {}, home);
+      expect(dir.startsWith(sandboxRoot)).toBe(false);
+    }
+    expect(egressBinaryCacheDir('darwin', {}, home)).toBe(
+      path.join(home, 'Library', 'Caches', 'steerable', 'egress-proxy'),
+    );
   });
 });

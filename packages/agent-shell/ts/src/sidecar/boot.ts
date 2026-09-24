@@ -7,6 +7,7 @@
  * 由宿主的退出钩子调用（Electron before-quit / BS SIGTERM）。
  */
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import log from 'electron-log';
 import { SidecarSupervisor, type SidecarBootFailure } from './supervisor.js';
 import { setSidecarSupervisor, setSidecarSupervisorPending, llmService } from '../llm/index.js';
@@ -22,7 +23,7 @@ import { collectAmbientProxyEndpoints } from './proxy-detect.js';
 import {
   buildEgressProxyPlan,
   decideEgressProxy,
-  resolveEgressProxyExecutable,
+  ensureEgressProxyExecutable,
   deriveWebEgressHosts,
   pickFreePort,
   recordEgressPosture,
@@ -127,7 +128,7 @@ async function startEgressProxyIfEnabled(store: ScopedStore): Promise<{
       storedProvider: searchSettings?.provider,
       llmBaseUrl: settings.baseUrl,
     });
-    const executable = resolveEgressProxyExecutable();
+    const executable = await ensureEgressProxyExecutable(path.dirname(fileURLToPath(import.meta.url)));
     if (!executable) {
       log.warn('[egress-proxy] steerable-egress-proxy binary was not found; staying on port-level enforcement');
       recordEgressPosture({

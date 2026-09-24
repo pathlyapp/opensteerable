@@ -241,7 +241,6 @@ def test_install_sidecar_from_wheels_validates_inventory(
         "steerable_agent_protocol",
         "steerable_agent_harness",
         "steerable_sidecar",
-        "steerable_egress_proxy",
     ):
         (wheels / f"{stem}-0.1.0-py3-none-any.whl").write_bytes(b"PK\x03\x04stub\n")
 
@@ -266,7 +265,6 @@ def test_install_sidecar_from_wheels_picks_latest(
         "steerable_agent_harness",
         "steerable_agent_runtime",
         "steerable_sidecar",
-        "steerable_egress_proxy",
         "steerable_agent_runtime_native",
     ):
         (wheels / f"{stem}-0.1.0-py3-none-any.whl").write_bytes(b"stub")
@@ -289,7 +287,7 @@ def test_install_sidecar_from_wheels_picks_latest(
     pip_install_targets = [
         cmd[-1] for cmd in invocations if "install" in cmd and cmd[-1].endswith(".whl")
     ]
-    assert len(pip_install_targets) == 6
+    assert len(pip_install_targets) == 5
     for path in pip_install_targets:
         assert "0.2.0" in path
         assert "0.1.0" not in path
@@ -307,7 +305,6 @@ def test_install_sidecar_from_wheels_installs_native_coreloop(
         "steerable_agent_harness",
         "steerable_agent_runtime",
         "steerable_sidecar",
-        "steerable_egress_proxy",
         "steerable_agent_runtime_native",
     ):
         (wheels / f"{stem}-0.6.26-py3-none-any.whl").write_bytes(b"stub")
@@ -346,7 +343,6 @@ def test_install_sidecar_from_wheels_requires_native(
         "steerable_agent_harness",
         "steerable_agent_runtime",
         "steerable_sidecar",
-        "steerable_egress_proxy",
     ):
         (wheels / f"{stem}-0.1.0-py3-none-any.whl").write_bytes(b"stub")
 

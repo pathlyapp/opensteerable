@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE_DIRS = (
     Path(_join("packages/", "agent-runtime/rs")),
     Path(_join("packages/", "sidecar/rs")),
+    Path(_join("packages/", "egress-proxy")),
 )
 SKIP_PARTS = {
     ".git",
@@ -50,6 +51,7 @@ TEXT_SUFFIXES = {
 FORBIDDEN_SNIPPETS = (
     _join("packages/", "agent-runtime/rs"),
     _join("packages/", "sidecar/rs"),
+    _join("packages/", "egress-proxy"),
     _join("PyO3/", "maturin-action"),
     _join("maturin ", "build"),
     _join("maturin ", "develop"),
@@ -90,7 +92,7 @@ def main() -> int:
         for finding in findings:
             print(f"  {finding}", file=sys.stderr)
         return 1
-    print("OK: public tree has no CoreLoop or Rust sidecar source")
+    print("OK: public tree has no CoreLoop, Rust sidecar, or egress proxy source")
     return 0
 
 

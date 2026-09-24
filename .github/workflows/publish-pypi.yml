@@ -66,7 +66,7 @@ jobs:
           set -euo pipefail
           mkdir -p dist/upload
           published_any=0
-          for project in steerable-agent-protocol steerable-agent-harness steerable-agent-runtime steerable-plugin-sdk steerable-sidecar steerable-egress-proxy; do
+          for project in steerable-agent-protocol steerable-agent-harness steerable-agent-runtime steerable-plugin-sdk steerable-sidecar; do
             # Local artefact filename uses underscores (PEP 427).
             wheel_glob="dist/py/${project//-/_}-*.whl"
             sdist_glob="dist/py/${project//-/_}-*.tar.gz"

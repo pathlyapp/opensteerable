@@ -249,18 +249,6 @@
       "tests": [
         {
           "repo": "steerable-framework",
-          "path": "packages/egress-proxy/rs/tests/test_proxy.rs"
-        },
-        {
-          "repo": "steerable-framework",
-          "path": "packages/egress-proxy/rs/tests/test_forward.rs"
-        },
-        {
-          "repo": "steerable-framework",
-          "path": "packages/egress-proxy/rs/tests/test_control.rs"
-        },
-        {
-          "repo": "steerable-framework",
           "path": "packages/agent-shell/ts/tests/sidecar/supervisor-sandbox.test.ts"
         },
         {

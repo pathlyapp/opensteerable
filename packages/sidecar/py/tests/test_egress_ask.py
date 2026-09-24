@@ -57,45 +57,29 @@ class _StubServer:
         return {"kind": self.kind, "reason": "test"}
 
 
-async def _start_control_plane() -> tuple[Any, asyncio.Task, int, Any]:
-    from steerable_egress_proxy import AllowList, EgressProxyServer, ProxyConfig
+def _start_control_plane():
+    from egress_bin import start_egress_proxy
 
-    server = EgressProxyServer(
-        ProxyConfig(
-            allow=AllowList(["api.github.com"]),
-            bind_host="127.0.0.1",
-            bind_port=0,
-            control_token="tok-test",
-            control_port=0,
-        )
-    )
-    task = asyncio.create_task(server.serve())
-    for _ in range(100):
-        if server.bound_control_port is not None:
-            break
-        await asyncio.sleep(0.01)
-    return server, task, server.bound_control_port or 0, server.config.allow
+    return start_egress_proxy(["api.github.com"])
 
 
 class TestAsker:
     @pytest.mark.asyncio
     async def test_allow_relays_to_the_control_endpoint(self) -> None:
-        proxy, task, control_port, allow = await _start_control_plane()
+        proxy = _start_control_plane()
         try:
             stub = _StubServer("allow_for_session")
             asker = EgressApprovalAsker(
-                stub, control_port=control_port, control_token="tok-test"  # type: ignore[arg-type]
+                stub, control_port=proxy.control_port, control_token="tok-test"  # type: ignore[arg-type]
             )
             assert await asker.ask_and_allow("example.com", 443, "https://example.com/") is True
-            assert allow.allows("example.com", 443)
             # The prompt names the target and carries the egress category.
             params = stub.calls[0]["params"]
             assert params["category"] == "network_egress"
             assert params["arguments"]["host"] == "example.com"
             assert params["arguments"]["port"] == 443
         finally:
-            await proxy.close()
-            task.cancel()
+            proxy.stop()
 
     @pytest.mark.asyncio
     async def test_relay_ignores_proxy_environment(self, monkeypatch) -> None:
@@ -124,36 +108,32 @@ class TestAsker:
         monkeypatch.delenv("NO_PROXY", raising=False)
         monkeypatch.delenv("no_proxy", raising=False)
 
-        proxy, task, control_port, allow = await _start_control_plane()
+        proxy = _start_control_plane()
         try:
             stub = _StubServer("allow_for_session")
             asker = EgressApprovalAsker(
-                stub, control_port=control_port, control_token="tok-test"  # type: ignore[arg-type]
+                stub, control_port=proxy.control_port, control_token="tok-test"  # type: ignore[arg-type]
             )
             assert await asker.ask_and_allow("example.com", 443, "https://example.com/") is True
-            assert allow.allows("example.com", 443)
             assert captured == []  # the declared proxy was never dialed
         finally:
-            await proxy.close()
-            task.cancel()
+            proxy.stop()
             interceptor.close()
             await interceptor.wait_closed()
 
     @pytest.mark.asyncio
     async def test_denial_is_cached_for_the_session(self) -> None:
-        proxy, task, control_port, allow = await _start_control_plane()
+        proxy = _start_control_plane()
         try:
             stub = _StubServer("deny_for_session")
             asker = EgressApprovalAsker(
-                stub, control_port=control_port, control_token="tok-test"  # type: ignore[arg-type]
+                stub, control_port=proxy.control_port, control_token="tok-test"  # type: ignore[arg-type]
             )
             assert await asker.ask_and_allow("example.com", 443, "https://example.com/") is False
             assert await asker.ask_and_allow("example.com", 443, "https://example.com/") is False
             assert len(stub.calls) == 1  # second denial never re-prompts
-            assert not allow.allows("example.com", 443)
         finally:
-            await proxy.close()
-            task.cancel()
+            proxy.stop()
 
     @pytest.mark.asyncio
     async def test_unreachable_host_channel_fails_closed(self) -> None:

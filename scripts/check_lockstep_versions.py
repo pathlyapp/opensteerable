@@ -48,11 +48,9 @@ PY_PACKAGES: list[tuple[str, str]] = [
     ("steerable-agent-runtime",  "packages/agent-runtime/py/pyproject.toml"),
     ("steerable-plugin-sdk",     "packages/plugin-sdk/py/pyproject.toml"),
     ("steerable-sidecar",        "packages/sidecar/py/pyproject.toml"),
-    ("steerable-egress-proxy",   "packages/egress-proxy/py/pyproject.toml"),
 ]
 
 RUST_PACKAGES: list[tuple[str, str]] = [
-    ("steerable-egress-proxy-rs", "packages/egress-proxy/rs/Cargo.toml"),
 ]
 
 NATIVE_PACKAGE = "steerable-agent-runtime-native"

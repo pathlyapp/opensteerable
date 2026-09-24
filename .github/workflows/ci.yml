@@ -44,12 +44,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: packages/egress-proxy/rs
-      - name: Rust egress-proxy crate tests
-        run: cargo test --manifest-path packages/egress-proxy/rs/Cargo.toml --locked
       - name: Public source gate
         run: python scripts/check_no_public_coreloop_source.py
 

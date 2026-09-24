@@ -228,7 +228,7 @@ DSH 有 subagent seam + workflow。
 - [x] **3.3** 结论已出（见 0.4.2）：做，作为独立可选组件 `steerable-egress-proxy`
       （CONNECT 隧道 + 主机允许列表，首版不做 TLS 拦截）。排期在 P1 之后；
       落地时同步更新 `docs/spec/safety.md` 的 egress 章节与桌面 `sandboxAllowedHosts` 默认推导。
-      已实现 `packages/egress-proxy/py`：零依赖 asyncio CONNECT 代理——空允许列表构造即
+      已实现闭源 CONNECT 代理二进制：空允许列表构造即
       ValueError（失败关闭，永不静默开放）、非 CONNECT 一律 405、表外目标 403、
       不可达 502、头部 16KiB 上限 431、裸 host 条目放行 443/80（与 Seatbelt profile 语义对齐）、
       CLI  misconfiguration 退出码 2。23 例测试（真实 loopback 隧道双向字节 + 全部拒绝路径

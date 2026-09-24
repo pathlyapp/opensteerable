@@ -18,14 +18,13 @@ LOCKSTEP = (ROOT / "scripts" / "check_lockstep_versions.py").read_text(
 def test_lockstep_tracks_the_native_wheel_pin() -> None:
     assert "steerable-agent-runtime-native" in LOCKSTEP
     assert "packages/agent-runtime/py/pyproject.toml" in LOCKSTEP
-    assert "steerable-egress-proxy-rs" in LOCKSTEP
+    assert "steerable-egress-proxy" not in LOCKSTEP
     assert "NATIVE_PIN_FILES" in LOCKSTEP
 
 
-def test_bump_rewrites_the_native_pin_and_egress_crate() -> None:
+def test_bump_rewrites_the_native_pin_not_the_closed_proxy() -> None:
     assert "steerable-agent-runtime-native" in BUMP
-    assert "packages/egress-proxy/rs/Cargo.toml" in BUMP
-    assert "packages/egress-proxy/rs/Cargo.lock" in BUMP
+    assert "egress-proxy" not in BUMP
     assert "native_pin_files" in BUMP
 
 

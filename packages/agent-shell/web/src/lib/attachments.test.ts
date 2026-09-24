@@ -1,43 +1,175 @@
 /**
- * attachments：会话附件的 renderer 侧助手。
- * 锁定：图像扩展名判定（大小写不敏感、无扩展名不算）、File→base64 的
- * 分块编码（跨块边界与空文件）、saveChatAttachments 的降级阶梯——
- * 无 chatId / 无桥 / 桥无 attachments 能力时原样返回；逐文件失败只退回
- * 该文件，整体失败退回整批（用户的选择不丢）。
- * 桥走真实的 window.electron 路径，不 mock 模块。
+ * 会话附件持久化的 renderer 契约：上传的是**文件**（docx/pdf/任意二进制），
+ * 图片只是其中一个可选的额外通道。这里钉死三件事：
+ *   1. 浏览器模式下 File 没有路径，必须靠落盘结果回填路径——绝不把空路径
+ *      写回给调用方（否则消息正文出现空引用，模型以为收到文件却读不到）；
+ *   2. 落盘失败时，浏览器模式（无源路径）必须进 `failures` 让用户看到；
+ *      Electron 模式（有源路径）才允许退回源路径；
+ *   3. 图片判定只影响 `metadata.images`，与「文件能不能持久化」无关。
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  composeAttachmentUserContent,
+  appendAttachmentRefs,
+  collectImageAttachments,
   fileToBase64,
+  formatAttachmentFailures,
   isImageFile,
   saveChatAttachments,
   type AttachmentFile,
 } from './attachments';
 
-afterEach(() => {
-  delete (window as { electron?: unknown }).electron;
-  vi.restoreAllMocks();
-});
+vi.mock('./electron-bridge', () => ({
+  isElectron: vi.fn(),
+  getElectronBridge: vi.fn(),
+}));
 
-function installBridge(save?: unknown) {
-  (window as { electron?: unknown }).electron = {
-    localBackend: { request: vi.fn() },
-    ...(save ? { attachments: { save } } : {}),
-  };
+import { getElectronBridge, isElectron } from './electron-bridge';
+
+const isElectronMock = vi.mocked(isElectron);
+const getBridgeMock = vi.mocked(getElectronBridge);
+
+const CHAT_ID = 'chat-1';
+
+function browserFile(name: string): AttachmentFile {
+  return { name, path: '', file: new File(['hello'], name, { type: 'application/octet-stream' }) };
 }
 
-describe('isImageFile', () => {
-  it('常见图像扩展名命中，大小写不敏感', () => {
-    for (const p of ['a.png', 'b.JPG', 'c.jpeg', 'd.gif', 'e.webp', 'f.bmp']) {
-      expect(isImageFile(p)).toBe(true);
-    }
+function attachBridge(save: ReturnType<typeof vi.fn>): void {
+  isElectronMock.mockReturnValue(true);
+  getBridgeMock.mockReturnValue({ attachments: { save } } as never);
+}
+
+afterEach(() => {
+  vi.clearAllMocks();
+});
+
+// 失败路径会 console.warn（预期行为），压掉以免污染测试输出。
+beforeEach(() => {
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+});
+
+describe('saveChatAttachments', () => {
+  it('空 chatId / 空列表原样返回，不报失败', async () => {
+    isElectronMock.mockReturnValue(true);
+    getBridgeMock.mockReturnValue(null);
+    const files = [browserFile('a.docx')];
+
+    await expect(saveChatAttachments(null, files)).resolves.toEqual({ files, failures: [] });
+    await expect(saveChatAttachments(CHAT_ID, [])).resolves.toEqual({ files: [], failures: [] });
   });
 
-  it('非图像与无扩展名不命中', () => {
-    for (const p of ['a.txt', 'archive.tar.gz', 'noext', 'dot.']) {
-      expect(isImageFile(p)).toBe(false);
-    }
+  it('浏览器模式：无路径文件落盘后回填落盘路径（非图片同样持久化）', async () => {
+    const save = vi.fn().mockResolvedValue({
+      files: [{ name: 'a.docx', path: '/data/attachments/chat-1/a.docx', size: 5 }],
+    });
+    attachBridge(save);
+
+    const result = await saveChatAttachments(CHAT_ID, [browserFile('a.docx')]);
+
+    expect(save).toHaveBeenCalledTimes(1);
+    const payload = save.mock.calls[0][0];
+    expect(payload.chatId).toBe(CHAT_ID);
+    expect(payload.files[0].path).toBeUndefined();
+    expect(typeof payload.files[0].data).toBe('string');
+    expect(result.failures).toEqual([]);
+    expect(result.files).toEqual([
+      { name: 'a.docx', path: '/data/attachments/chat-1/a.docx' },
+    ]);
+  });
+
+  it('浏览器模式：落盘失败的文件被剔除并上报，绝不留空路径', async () => {
+    const save = vi.fn().mockResolvedValue({
+      files: [{ name: 'big.bin', path: '', size: 0, error: 'file too large' }],
+    });
+    attachBridge(save);
+
+    const result = await saveChatAttachments(CHAT_ID, [browserFile('big.bin')]);
+
+    expect(result.files).toEqual([]);
+    expect(result.failures).toHaveLength(1);
+    expect(result.failures[0]).toMatchObject({ name: 'big.bin', error: 'file too large' });
+    // 没有可用路径 → 调用方拿不到任何 path:'' 的项。
+    expect(result.files.some((f) => !f.path)).toBe(false);
+  });
+
+  it('整批请求失败：浏览器模式全部上报，Electron 保留源路径', async () => {
+    const save = vi.fn().mockRejectedValue(new Error('request body too large (max 64MB)'));
+    attachBridge(save);
+
+    const browser = await saveChatAttachments(CHAT_ID, [browserFile('a.pdf')]);
+    expect(browser.files).toEqual([]);
+    expect(browser.failures[0].error).toContain('request body too large');
+
+    const electronFile: AttachmentFile = { name: 'a.pdf', path: '/Users/me/a.pdf' };
+    const electron = await saveChatAttachments(CHAT_ID, [electronFile]);
+    expect(electron.failures).toEqual([]);
+    expect(electron.files).toEqual([electronFile]);
+  });
+
+  it('部分成功：成功的用落盘路径，失败的单独上报', async () => {
+    const save = vi.fn().mockResolvedValue({
+      files: [
+        { name: 'ok.csv', path: '/data/attachments/chat-1/ok.csv', size: 3 },
+        { name: 'bad.csv', path: '', size: 0, error: 'disk full' },
+      ],
+    });
+    attachBridge(save);
+
+    const result = await saveChatAttachments(CHAT_ID, [browserFile('ok.csv'), browserFile('bad.csv')]);
+
+    expect(result.files).toEqual([{ name: 'ok.csv', path: '/data/attachments/chat-1/ok.csv' }]);
+    expect(result.failures.map((f) => f.name)).toEqual(['bad.csv']);
+  });
+});
+
+describe('isImageFile / formatAttachmentFailures', () => {
+  it('只把图片扩展名判为图片，文档类不被图片逻辑吞掉', () => {
+    expect(isImageFile('/x/a.PNG')).toBe(true);
+    expect(isImageFile('/x/a.jpeg')).toBe(true);
+    expect(isImageFile('/x/a.docx')).toBe(false);
+    expect(isImageFile('/x/a.pdf')).toBe(false);
+    expect(isImageFile('/x/noext')).toBe(false);
+  });
+
+  it('失败提示是可读中文且带文件名', () => {
+    const msg = formatAttachmentFailures([
+      { name: 'a.bin', error: 'file too large', file: browserFile('a.bin') },
+      { name: 'b.bin', error: 'disk full', file: browserFile('b.bin') },
+    ]);
+    expect(msg).toContain('a.bin');
+    expect(msg).toContain('b.bin');
+    expect(msg).toContain('file too large');
+    expect(formatAttachmentFailures([])).toBe('');
+  });
+});
+
+describe('appendAttachmentRefs / collectImageAttachments（文件优先，图片只是额外通道）', () => {
+  it('所有文件都写路径引用，非图片不会被图片逻辑吞掉', () => {
+    const content = appendAttachmentRefs('帮我做PPT', [
+      { name: 'a.docx', path: '/d/att/a.docx' },
+      { name: 'b.pdf', path: '/d/att/b.pdf' },
+      { name: 'p.png', path: '/d/att/p.png' },
+    ]);
+    expect(content.startsWith('帮我做PPT')).toBe(true);
+    expect(content).toContain('关联文件:');
+    expect(content).toContain('- `/d/att/a.docx`');
+    expect(content).toContain('- `/d/att/b.pdf`');
+    expect(content).toContain('- `/d/att/p.png`');
+  });
+
+  it('只有正文为空时，正文退化为引用段', () => {
+    expect(appendAttachmentRefs('', [{ name: 'a.docx', path: '/d/a.docx' }])).toBe(
+      '关联文件:\n- `/d/a.docx`',
+    );
+    expect(appendAttachmentRefs('hi', [])).toBe('hi');
+  });
+
+  it('metadata.images 只收图片；文档类只走正文路径', () => {
+    const files: AttachmentFile[] = [
+      { name: 'p.png', path: '/d/p.png' },
+      { name: 'a.docx', path: '/d/a.docx' },
+    ];
+    expect(collectImageAttachments(files)).toEqual([{ path: '/d/p.png', name: 'p.png' }]);
   });
 });
 
@@ -56,96 +188,5 @@ describe('fileToBase64', () => {
     const file = new File([bytes], 'big.bin');
     const expected = Buffer.from(bytes).toString('base64');
     expect(await fileToBase64(file)).toBe(expected);
-  });
-});
-
-describe('composeAttachmentUserContent', () => {
-  it('有路径写关联文件列表，无路径退回文件名', () => {
-    expect(
-      composeAttachmentUserContent('这是什么文件', [
-        { name: '纪要.docx', path: '/stored/纪要.docx' },
-        { name: '草稿.txt', path: '' },
-      ]),
-    ).toEqual({
-      content: '这是什么文件\n\n---\n关联文件:\n- `/stored/纪要.docx`\n- `草稿.txt`',
-      images: [],
-    });
-  });
-
-  it('只有附件时正文从关联文件起笔；图像进 metadata', () => {
-    expect(
-      composeAttachmentUserContent('', [{ name: '封面.png', path: '/stored/封面.png' }]),
-    ).toEqual({
-      content: '关联文件:\n- `/stored/封面.png`',
-      images: [{ path: '/stored/封面.png', name: '封面.png' }],
-    });
-  });
-});
-
-describe('saveChatAttachments 降级阶梯', () => {
-  const files: AttachmentFile[] = [{ name: 'a.txt', path: '/src/a.txt' }];
-
-  it('无 chatId / 空列表时原样返回（同一引用）', async () => {
-    expect(await saveChatAttachments(null, files)).toBe(files);
-    expect(await saveChatAttachments('', files)).toBe(files);
-    expect(await saveChatAttachments('chat-1', [])).toEqual([]);
-  });
-
-  it('无桥或桥无 attachments 能力时原样返回', async () => {
-    expect(await saveChatAttachments('chat-1', files)).toBe(files);
-    installBridge();
-    expect(await saveChatAttachments('chat-1', files)).toBe(files);
-  });
-
-  it('有路径走 path 拷贝，无路径读字节走 data 上传', async () => {
-    const save = vi.fn().mockResolvedValue({
-      files: [
-        { name: 'a.txt', path: '/stored/a.txt', size: 3 },
-        { name: 'b.txt', path: '/stored/b.txt', size: 2 },
-      ],
-    });
-    installBridge(save);
-    const input: AttachmentFile[] = [
-      { name: 'a.txt', path: '/src/a.txt' },
-      { name: 'b.txt', path: '', file: new File([new Uint8Array([72, 105])], 'b.txt') },
-    ];
-    const result = await saveChatAttachments('chat-1', input);
-    expect(save).toHaveBeenCalledWith({
-      chatId: 'chat-1',
-      files: [
-        { name: 'a.txt', path: '/src/a.txt' },
-        { name: 'b.txt', data: 'SGk=' },
-      ],
-    });
-    expect(result).toEqual([
-      { name: 'a.txt', path: '/stored/a.txt' },
-      { name: 'b.txt', path: '/stored/b.txt' },
-    ]);
-  });
-
-  it('逐文件失败只退回该文件，其余仍用落盘路径', async () => {
-    const save = vi.fn().mockResolvedValue({
-      files: [
-        { name: 'a.txt', path: '/stored/a.txt', size: 3 },
-        { name: 'b.txt', path: '', error: 'too big' },
-      ],
-    });
-    installBridge(save);
-    const input: AttachmentFile[] = [
-      { name: 'a.txt', path: '/src/a.txt' },
-      { name: 'b.txt', path: '/src/b.txt' },
-    ];
-    const result = await saveChatAttachments('chat-1', input);
-    expect(result[0]).toEqual({ name: 'a.txt', path: '/stored/a.txt' });
-    expect(result[1]).toBe(input[1]);
-  });
-
-  it('整体保存失败时 warn 并退回整批原始文件', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const save = vi.fn().mockRejectedValue(new Error('disk full'));
-    installBridge(save);
-    const result = await saveChatAttachments('chat-1', files);
-    expect(result).toBe(files);
-    expect(warn).toHaveBeenCalledOnce();
   });
 });

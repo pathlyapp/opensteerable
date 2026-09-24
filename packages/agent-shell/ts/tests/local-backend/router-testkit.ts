@@ -540,6 +540,9 @@ vi.mock('../../src/llm/index.js', () => ({
 
 vi.mock('../../src/runtime.js', () => ({
   getAppRootDir: () => '/tmp/app-root',
+  // feature/product-agent: 系统提示词会带上本会话附件目录（项目围栏外的只读
+  // 放行根），router.ts 经 chatAttachmentsDirPath() 读它。
+  getUserDataDir: () => '/tmp/user-data',
   getDocumentsDir: () =>
     process.env.STEERABLE_DOCUMENTS_DIR || '/tmp/steerable-test-documents',
   shellOpenPath: (target: string) => h.shellOpenPath(target),

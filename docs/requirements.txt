@@ -5,4 +5,4 @@ mkdocs-material==9.5.49
 # mkdocs-material 9.5, leading to ``` text leaking into <p> and the next
 # `# heading-like` line being promoted to <h1>. 10.13 fixed it; we pin a
 # floor + cap to keep the build reproducible.
-pymdown-extensions>=10.13,<11
+pymdown-extensions>=12.0.1,<13

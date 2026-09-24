@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from steerable_agent_protocol.generated import ToolCall
 from steerable_sidecar.file_edit import content_version
+from steerable_sidecar.png_ascii import encode_png_rgb
 from steerable_sidecar.tool_contract import canonical_contract
 from steerable_sidecar.workspace_tools import workspace_tools_for_cwd
 
@@ -34,7 +35,6 @@ def test_version_algorithm_matches_hardcoded_vectors() -> None:
 
 def test_schemas_expose_required_input_fields(tmp_path: Path) -> None:
     router = workspace_tools_for_cwd(tmp_path)
-    token_field = CONTRACT["versionToken"]["inputField"]
     for canonical_name, spec in CONTRACT["tools"].items():
         schema = _schema(router, canonical_name)
         required = set(schema.get("required", []))
@@ -42,11 +42,9 @@ def test_schemas_expose_required_input_fields(tmp_path: Path) -> None:
         for field in spec["requiredInput"]:
             assert field in required, f"{canonical_name} must require {field!r}"
             assert field in properties, f"{canonical_name} must declare {field!r}"
-        if "optionalInput" in spec:
-            assert token_field in spec["optionalInput"]
-            assert token_field in properties, (
-                f"{canonical_name} must accept {token_field!r}"
-            )
+        for field in spec.get("optionalInput", []):
+            assert field not in required, f"{canonical_name} must keep {field!r} optional"
+            assert field in properties, f"{canonical_name} must accept {field!r}"
 
 
 @pytest.mark.asyncio
@@ -62,6 +60,12 @@ async def test_result_shapes_cover_required_fields(tmp_path: Path) -> None:
     assert read.success is True
     for field in CONTRACT["tools"]["read_file"]["requiredResult"]:
         assert field in read.data, f"read_file result missing {field!r}"
+
+    (tmp_path / "pixel.png").write_bytes(encode_png_rgb(1, 1, b"\xff\x00\x00"))
+    viewed = await _call(router, "view_image", {"path": "pixel.png"})
+    assert viewed.success is True
+    for field in CONTRACT["tools"]["view_image"]["requiredResult"]:
+        assert field in viewed.data, f"view_image result missing {field!r}"
 
     edited = await _call(
         router,

@@ -1,9 +1,9 @@
 /**
  * WS4 工具契约一致性 + 防漂移门禁。
  *
- * 桌面的 4 个通用编码工具（local_read_file / local_write_file /
- * local_edit_file / local_exec_shell）与框架 steerable_sidecar.workspace_tools
- * 的 read_file / write_file / edit_file / bash 是同一能力的两个产品面。共享
+ * 桌面的通用工具（local_read_file / local_write_file / local_edit_file /
+ * local_exec_shell / view_image）与框架 steerable_sidecar.workspace_tools
+ * 的 read_file / write_file / edit_file / bash / view_image 是同一能力的两个产品面。共享
  * 语义核心的唯一来源是框架的 tool_contract.json；本测试把桌面约束到它：
  *
  * 1. schema 一致性：local_* 的必填输入字段 / version 令牌字段符合契约
@@ -76,10 +76,9 @@ describe('tool-contract / version 算法', () => {
 
 describe('tool-contract / schema 一致性', () => {
   const router = makeToolRouter();
-  const tokenField = CONTRACT.versionToken.inputField;
 
   for (const [canonicalName, spec] of Object.entries(CONTRACT.tools)) {
-    it(`${canonicalName} → ${spec.desktopName} 必填字段与 version 字段齐全`, () => {
+    it(`${canonicalName} → ${spec.desktopName} 必填与可选字段齐全`, () => {
       const schema = schemaFor(router, spec.desktopName);
       const required = new Set(schema.required ?? []);
       const properties = new Set(Object.keys(schema.properties ?? {}));
@@ -87,9 +86,9 @@ describe('tool-contract / schema 一致性', () => {
         expect(required.has(field), `${spec.desktopName} 必须 require ${field}`).toBe(true);
         expect(properties.has(field), `${spec.desktopName} 必须声明 ${field}`).toBe(true);
       }
-      if (spec.optionalInput) {
-        expect(spec.optionalInput).toContain(tokenField);
-        expect(properties.has(tokenField), `${spec.desktopName} 必须接受 ${tokenField}`).toBe(true);
+      for (const field of spec.optionalInput ?? []) {
+        expect(required.has(field), `${spec.desktopName} 必须保持 ${field} 可选`).toBe(false);
+        expect(properties.has(field), `${spec.desktopName} 必须接受 ${field}`).toBe(true);
       }
     });
   }

@@ -131,3 +131,39 @@ describe('智能体工具策略 / 分发层复检', () => {
     expect(out.success).toBe(true);
   });
 });
+
+describe('view_image 路由', () => {
+  it('作为 local-fs 只读工具直接暴露，并声明全部参数', () => {
+    const schema = makeToolRouter().getSchemaByName('view_image');
+    expect(schema?.mode).toBe('read');
+    expect(schema?.exposure ?? 'direct').toBe('direct');
+    expect(schema?.inputSchema).toMatchObject({
+      required: ['path'],
+      properties: {
+        path: { type: 'string' },
+        region: { type: 'object' },
+        maxEdge: { type: 'integer' },
+        format: { enum: ['png', 'jpeg'] },
+      },
+    });
+  });
+
+  it('执行层拒绝非法格式和项目外路径', async () => {
+    const router = makeToolRouter();
+    const invalidFormat = await router.execute({
+      name: 'view_image',
+      arguments: { path: '/tmp/a.png', format: 'webp' },
+    });
+    expect(invalidFormat).toMatchObject({
+      success: false,
+      needsFollowup: true,
+    });
+
+    const outside = await router.execute(
+      { name: 'view_image', arguments: { path: '/tmp/a.png' } },
+      { projectRoot: '/repo/project' },
+    );
+    expect(outside).toMatchObject({ success: false, needsFollowup: true });
+    expect((outside as { error: string }).error).toContain('路径越界');
+  });
+});

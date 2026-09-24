@@ -27,6 +27,7 @@ import {
   isToolAllowed,
   type AgentToolPolicy,
 } from './local-backend/agent-capability.js';
+import { processViewImage } from './image-attachment.js';
 import { isHostToolCapabilityEnabled } from './host-tools.js';
 import { getResolvedHostTools } from './host-tools-runtime.js';
 
@@ -247,6 +248,45 @@ export class ToolRouter {
             },
           },
           required: ['path'],
+        },
+      },
+      {
+        name: 'view_image',
+        description:
+          'Look at a local PNG, JPEG, or WebP image. The result includes an actual image content part the model can see, not merely a path or base64 text. ' +
+          'Use region for a pixel or normalized 0–1 crop, maxEdge to bound the longest output edge, and jpeg to reduce payload size.',
+        mode: 'read',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            path: { type: 'string', description: 'Local PNG, JPEG, or WebP path.' },
+            region: {
+              type: 'object',
+              description:
+                'Optional crop {x,y,w,h}; use either pixel values or all-normalized 0–1 values.',
+              properties: {
+                x: { type: 'number' },
+                y: { type: 'number' },
+                w: { type: 'number' },
+                h: { type: 'number' },
+              },
+              required: ['x', 'y', 'w', 'h'],
+              additionalProperties: false,
+            },
+            maxEdge: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 4096,
+              description: 'Resize the longest output edge to at most this many pixels (default 1568).',
+            },
+            format: {
+              type: 'string',
+              enum: ['png', 'jpeg'],
+              description: 'Output encoding. JPEG usually uses fewer bytes/tokens.',
+            },
+          },
+          required: ['path'],
+          additionalProperties: false,
         },
       },
       {
@@ -792,6 +832,38 @@ export class ToolRouter {
           projectRoot,
           context?.additionalReadRoots ?? null,
         );
+      case 'view_image': {
+        if (args.format !== undefined && args.format !== 'png' && args.format !== 'jpeg') {
+          return {
+            success: false,
+            error: 'format 必须是 png 或 jpeg',
+            needsFollowup: true,
+          };
+        }
+        const sourcePath = this.resolveReadablePath(
+          String(args.path || ''),
+          projectRoot,
+          context?.additionalReadRoots ?? null,
+        );
+        if ('error' in sourcePath) {
+          return { success: false, error: sourcePath.error, needsFollowup: true };
+        }
+        const region =
+          args.region && typeof args.region === 'object'
+            ? {
+                x: Number((args.region as Record<string, unknown>).x),
+                y: Number((args.region as Record<string, unknown>).y),
+                w: Number((args.region as Record<string, unknown>).w),
+                h: Number((args.region as Record<string, unknown>).h),
+              }
+            : undefined;
+        return processViewImage({
+          path: sourcePath.path,
+          region,
+          maxEdge: typeof args.maxEdge === 'number' ? args.maxEdge : undefined,
+          format: args.format === 'png' || args.format === 'jpeg' ? args.format : undefined,
+        });
+      }
       case 'local_write_file': {
         const written = await this.localExecutor.writeLocalFile(
           {
@@ -1044,6 +1116,34 @@ export class ToolRouter {
       return this.shellExecutor(sandboxed.request);
     }
     return this.localExecutor.executeShell(sandboxed.request);
+  }
+
+  private resolveReadablePath(
+    inputPath: string,
+    projectRoot?: string | null,
+    additionalReadRoots?: string[] | null,
+  ): { path: string } | { error: string } {
+    if (!inputPath.trim()) return { error: 'path 不能为空' };
+    const expanded = inputPath.startsWith('~')
+      ? path.join(os.homedir(), inputPath.slice(1))
+      : inputPath;
+    const resolved = path.resolve(expanded);
+    if (!projectRoot) return { path: resolved };
+    const root = path.resolve(
+      projectRoot.startsWith('~')
+        ? path.join(os.homedir(), projectRoot.slice(1))
+        : projectRoot,
+    );
+    const inAdditionalRoot = (additionalReadRoots ?? []).some((candidate) => {
+      const expandedCandidate = candidate.startsWith('~')
+        ? path.join(os.homedir(), candidate.slice(1))
+        : candidate;
+      return isPathWithinRoot(resolved, path.resolve(expandedCandidate));
+    });
+    if (!isPathWithinRoot(resolved, root) && !inAdditionalRoot) {
+      return { error: buildProjectRootViolation(resolved, root) };
+    }
+    return { path: resolved };
   }
 
   private resolveMcpConfig(args: Record<string, unknown>): McpServerConfig {

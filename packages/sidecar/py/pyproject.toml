@@ -20,6 +20,7 @@ dependencies = [
   # builds a transport per declared proxy at client construction, so the scheme
   # must be buildable or every provider call fails before reaching a URL.
   "httpx[socks]>=0.27",
+  "Pillow>=10.4",
   "steerable-agent-protocol>=0.1.0,<1.0.0",
   "steerable-agent-harness>=0.1.0,<1.0.0",
   "steerable-agent-runtime>=0.1.0,<1.0.0",

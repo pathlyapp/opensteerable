@@ -377,14 +377,21 @@ be expressed in a closed proxy list, so arbitrary fetches then fail at the
 proxy. The marker without any proxy env is a misconfiguration and fails loud
 with an actionable error instead of hanging behind an absent proxy.
 
-## Looking at an image (sidecar)
+## Looking at an image
 
-`view_image` attaches a workspace image file as pixels the model can see,
-plus the same ASCII preview `read_file` returns. PNG and JPEG attach as they
-are; uncompressed BMP is re-encoded to PNG because vision endpoints do not
-take BMP. Over the 400 KB attach cap, or not an image, the call fails with a
-followup-able error naming the fix rather than returning a picture nobody
-can read.
+`view_image` attaches a local image as an image content part the model can
+see. A path or base64 string in ordinary JSON is not considered visual
+input. The structured result also reports `width`, `height`, and
+`sourcePath`; its private `_image` payload is lifted out of JSON by the
+CoreLoop and serialized through each provider's native image-part format.
+
+PNG, JPEG, WebP, and BMP inputs are decoded. `region: {x,y,w,h}` crops in
+pixels, or in normalized 0–1 coordinates when all four values are in that
+range. `maxEdge` bounds the longest output edge (default 1568, maximum
+4096), and `format` selects `png` or `jpeg`; JPEG usually reduces transport
+size. Source files over 10 MB and encoded images over 5 MB fail with a
+followup-able error rather than returning a picture the model cannot see.
+The desktop host and sidecar expose the same model-visible behavior.
 
 Attaching is unconditional here and gated on `read_file`, because the two
 tools carry different intent. A `read_file` that attached every PNG it

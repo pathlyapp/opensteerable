@@ -18,6 +18,7 @@
  * should know an image was attached even when it was too large to send.
  */
 import { getNativeImage } from './runtime.js';
+import type { NativeImageLike } from './runtime.js';
 import { statSync } from 'fs';
 import { basename, extname } from 'path';
 import type { LlmImage } from './llm/types.js';
@@ -40,6 +41,33 @@ export interface ProcessedImageAttachments {
   images: LlmImage[];
   /** One line per input describing the outcome, for the model-visible note. */
   notes: string[];
+}
+
+export interface ImageRegion {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface ViewImageInput {
+  path: string;
+  region?: ImageRegion;
+  maxEdge?: number;
+  format?: 'png' | 'jpeg';
+}
+
+export interface ViewImageResult {
+  success: boolean;
+  data?: {
+    width: number;
+    height: number;
+    sourcePath: string;
+    mediaType: 'image/png' | 'image/jpeg';
+    _image: { b64: string; media_type: 'image/png' | 'image/jpeg' };
+  };
+  error?: string;
+  needsFollowup?: boolean;
 }
 
 export function isImagePath(path: string): boolean {
@@ -85,6 +113,134 @@ export function computeTargetSize(
     height: Math.max(1, Math.round(height * scale)),
     resized: true,
   };
+}
+
+/**
+ * Decode, optionally crop, resize, and encode one image for a model-visible
+ * tool result. `_image` is consumed by the CoreLoop as an image content part;
+ * it is not a path or model-visible base64 string.
+ */
+export function processViewImage(
+  input: ViewImageInput,
+  nativeImage: NativeImageLike | null = getNativeImage(),
+): ViewImageResult {
+  if (!isImagePath(input.path)) {
+    return {
+      success: false,
+      error: 'view_image supports PNG, JPEG, and WebP files',
+      needsFollowup: true,
+    };
+  }
+  if (!nativeImage) {
+    return {
+      success: false,
+      error: '当前运行环境不支持图片解码',
+      needsFollowup: true,
+    };
+  }
+
+  let sourceBytes: number;
+  try {
+    sourceBytes = statSync(input.path).size;
+  } catch {
+    return { success: false, error: '图片不存在或不可读', needsFollowup: true };
+  }
+  if (sourceBytes > IMAGE_MAX_SOURCE_BYTES) {
+    return {
+      success: false,
+      error: `源文件 ${formatMb(sourceBytes)}MB 超过 ${formatMb(IMAGE_MAX_SOURCE_BYTES)}MB 上限`,
+      needsFollowup: true,
+    };
+  }
+
+  const maxEdge = input.maxEdge ?? IMAGE_MAX_DIMENSION;
+  if (!Number.isInteger(maxEdge) || maxEdge < 1 || maxEdge > 4096) {
+    return {
+      success: false,
+      error: 'maxEdge 必须是 1–4096 的整数',
+      needsFollowup: true,
+    };
+  }
+
+  let rendered = nativeImage.createFromPath(input.path);
+  if (rendered.isEmpty()) {
+    return { success: false, error: '不是可识别的图片', needsFollowup: true };
+  }
+
+  if (input.region) {
+    const crop = resolveCrop(input.region, rendered.getSize());
+    if ('error' in crop) {
+      return { success: false, error: crop.error, needsFollowup: true };
+    }
+    rendered = rendered.crop(crop);
+  }
+
+  const croppedSize = rendered.getSize();
+  const target = computeTargetSize(croppedSize.width, croppedSize.height, maxEdge);
+  if (target.resized) {
+    rendered = rendered.resize({
+      width: target.width,
+      height: target.height,
+      quality: 'good',
+    });
+  }
+
+  const sourceExt = extname(input.path).toLowerCase();
+  const outputFormat = input.format ?? (['.jpg', '.jpeg'].includes(sourceExt) ? 'jpeg' : 'png');
+  let mediaType: 'image/png' | 'image/jpeg' =
+    outputFormat === 'jpeg' ? 'image/jpeg' : 'image/png';
+  let buffer = outputFormat === 'jpeg' ? rendered.toJPEG(85) : rendered.toPNG();
+  if (buffer.length > IMAGE_MAX_ENCODED_BYTES && input.format == null && outputFormat === 'png') {
+    mediaType = 'image/jpeg';
+    buffer = rendered.toJPEG(80);
+  }
+  if (buffer.length > IMAGE_MAX_ENCODED_BYTES) {
+    return {
+      success: false,
+      error: `图片编码后 ${formatMb(buffer.length)}MB 超过 ${formatMb(IMAGE_MAX_ENCODED_BYTES)}MB 上限；请减小 maxEdge 或使用 jpeg`,
+      needsFollowup: true,
+    };
+  }
+
+  const { width, height } = rendered.getSize();
+  const b64 = buffer.toString('base64');
+  return {
+    success: true,
+    data: {
+      width,
+      height,
+      sourcePath: input.path,
+      mediaType,
+      _image: { b64, media_type: mediaType },
+    },
+  };
+}
+
+function resolveCrop(
+  region: ImageRegion,
+  size: { width: number; height: number },
+): { x: number; y: number; width: number; height: number } | { error: string } {
+  const values = [region.x, region.y, region.w, region.h];
+  if (!values.every(Number.isFinite)) return { error: 'region 的 x/y/w/h 必须是有限数字' };
+
+  const normalized = values.every((value) => value >= 0 && value <= 1);
+  const x = normalized ? Math.floor(region.x * size.width) : Math.round(region.x);
+  const y = normalized ? Math.floor(region.y * size.height) : Math.round(region.y);
+  const width = normalized ? Math.ceil(region.w * size.width) : Math.round(region.w);
+  const height = normalized ? Math.ceil(region.h * size.height) : Math.round(region.h);
+  if (
+    x < 0 ||
+    y < 0 ||
+    width < 1 ||
+    height < 1 ||
+    x + width > size.width ||
+    y + height > size.height
+  ) {
+    return {
+      error: `region 超出图片范围 ${size.width}×${size.height}`,
+    };
+  }
+  return { x, y, width, height };
 }
 
 function formatMb(bytes: number): string {

@@ -98,6 +98,7 @@ describe('isHostToolCapabilityEnabled / familyForHostToolName', () => {
   it('族 capability 关掉后模型看不到该族工具；包工具不受影响', () => {
     const tools = resolveHostTools({ 'local-fs': false });
     expect(isHostToolCapabilityEnabled('local_read_file', tools)).toBe(false);
+    expect(isHostToolCapabilityEnabled('view_image', tools)).toBe(false);
     expect(isHostToolCapabilityEnabled('domain_scan', tools)).toBe(true);
   });
 

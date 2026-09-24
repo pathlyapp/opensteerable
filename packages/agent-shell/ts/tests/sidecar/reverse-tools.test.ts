@@ -315,6 +315,29 @@ describe('createToolInvokeHandler', () => {
     expect(JSON.stringify(out).length).toBeLessThanOrEqual(8000);
   });
 
+  it('preserves image content while capping only model-visible text', async () => {
+    const image = { b64: 'a'.repeat(20_000), media_type: 'image/jpeg' };
+    const toolRouter = makeToolRouter({
+      success: true,
+      data: {
+        width: 500,
+        height: 300,
+        sourcePath: '/tmp/slide.png',
+        content: 'x'.repeat(300_000),
+        _image: image,
+      },
+    });
+    const handler = createToolInvokeHandler({ toolRouter });
+
+    const out = (await handler({
+      name: 'view_image',
+      arguments: { path: '/tmp/slide.png' },
+    })) as { data: { content: string; _image: typeof image } };
+
+    expect(out.data._image).toEqual(image);
+    expect(out.data.content.length).toBeLessThan(300_000);
+  });
+
   it('falls back to a truncation envelope for pathological shapes', async () => {
     // 大量中等字段：逐字段截断后仍超总量上限 → 信封兜底，输出仍是合法 JSON。
     const pathological: Record<string, string> = {};

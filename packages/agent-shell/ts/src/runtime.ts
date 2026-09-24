@@ -232,15 +232,16 @@ export function offAppWillQuit(listener: () => void): void {
   }
 }
 
-interface NativeImageInstance {
+export interface NativeImageInstance {
   isEmpty(): boolean;
   getSize(): { width: number; height: number };
+  crop(rect: { x: number; y: number; width: number; height: number }): NativeImageInstance;
   resize(o: { width?: number; height?: number; quality?: string }): NativeImageInstance;
   toPNG(): Buffer;
   toJPEG(quality: number): Buffer;
 }
 
-interface NativeImageLike {
+export interface NativeImageLike {
   createFromPath(p: string): NativeImageInstance;
 }
 

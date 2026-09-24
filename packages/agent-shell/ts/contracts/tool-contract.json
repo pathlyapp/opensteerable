@@ -280,6 +280,24 @@
         "version"
       ]
     },
+    "view_image": {
+      "desktopName": "view_image",
+      "optionalInput": [
+        "region",
+        "maxEdge",
+        "format"
+      ],
+      "requiredInput": [
+        "path"
+      ],
+      "requiredResult": [
+        "width",
+        "height",
+        "sourcePath",
+        "mediaType",
+        "_image"
+      ]
+    },
     "write_file": {
       "desktopName": "local_write_file",
       "optionalInput": [
@@ -294,7 +312,7 @@
       ]
     }
   },
-  "version": 2,
+  "version": 3,
   "dualImplementations": {
     "todo_write": ["python", "rust"],
     "web_fetch": ["python", "rust"],

@@ -454,7 +454,7 @@ Steerable isn't the only way to ship an agent. The short, honest version against
 | **Loop / events** | `CoreLoop` + structured `LoopEvent` taxonomy; mid-turn `agent.chat.steer` | Session-owned turn loop; interrupt/abort; 12-event hooks | Inbox-driven ReactLoop; steer / inject / followup | Interrupts at node boundaries | Handoffs + guardrails; no mid-run steer | Mid-turn fold queue; hooks can veto continuation |
 | **Sandbox** | Seatbelt + bwrap/Landlock, fail-closed; command classifier; per-host egress proxy | Approvals + ExecPolicy + Seatbelt/Landlock + Guardian | `sandbox.confine`, fail-closed | None built-in | Guardrails; no sandbox | Permission modes; Seatbelt/bwrap opt-in, fail-open |
 | **Model quality** | Recovers malformed tool calls; completion veto; grounding; token calibration | Assumes structured `tool_calls` | Assumes structured `tool_calls` | Substrate — you own the loop | Built for frontier models | Built for frontier models |
-| **Maturity** | `0.6.x`; in production at DeepPath, Aroli, PetroChina | Massive real-world usage | Pre-release (`0.1.x`); internal use | Widely adopted in production | Production, OpenAI-tied | Production; Anthropic models via first-party, Bedrock, Vertex, Foundry, Gateway |
+| **Maturity** | `0.6.x`; in production at DeepPath, Aroli, PetroChina, E-Town Holdings | Massive real-world usage | Pre-release (`0.1.x`); internal use | Widely adopted in production | Production, OpenAI-tied | Production; Anthropic models via first-party, Bedrock, Vertex, Foundry, Gateway |
 
 <p class="sf-lede" markdown>
 Where Steerable genuinely differs, where it lags, and how to choose: [Full comparison](comparison.md).
@@ -473,6 +473,10 @@ Where Steerable genuinely differs, where it lags, and how to choose: [Full compa
 </div>
 <div class="sf-user" markdown>
 **中国石油 PetroChina**
+<span>Enterprise deployment.</span>
+</div>
+<div class="sf-user" markdown>
+**亦庄控股 E-Town Holdings**
 <span>Enterprise deployment.</span>
 </div>
 </div>

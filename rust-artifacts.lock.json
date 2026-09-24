@@ -1,20 +1,22 @@
 {
   "schemaVersion": 1,
-  "artifactVersion": "0.6.38",
-  "license": "MIT",
+  "artifactVersion": "0.6.39",
+  "license": "LicenseRef-DeepPath-Steerable-Engine",
   "release": {
     "repository": "pathlyapp/opensteerable",
-    "tag": "rust-v0.6.38",
-    "manifest": "steerable-rust-artifacts-0.6.38-manifest.json",
-    "sha256": "9600ebbbb17ad7ef265b1432448767390d975d812be23090fe7a4a1bd127afd6"
+    "tag": "rust-v0.6.39",
+    "manifest": "steerable-rust-artifacts-0.6.39-manifest.json",
+    "sha256": "079df37ff008ed317f21d9680cb6afec216d0d371bfd11e3ea1910d6c3f6fa87"
   },
   "native": {
     "package": "steerable-agent-runtime-native",
-    "version": "0.6.38"
+    "version": "0.6.39"
   },
   "compatibility": {
     "coreloopApi": 1,
     "sidecarProtocol": "0.1.0",
     "egressCli": 1
-  }
+  },
+  "licenseFile": "steerable-engine-LICENSE.txt",
+  "licenseSha256": "15d4e308f46c28ea8b4d5cccb3242b55a91ac3d5d39bfafb023f03cd13703acd"
 }

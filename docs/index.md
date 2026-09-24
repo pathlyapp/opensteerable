@@ -440,7 +440,7 @@ graph BT
 | [`steerable-agent-runtime`](https://pypi.org/project/steerable-agent-runtime/) · `@steerable/agent-runtime` (TS, source-only) | 3 | `CoreLoop` + `LLMProvider` adapters (OpenAI-compat / Responses / Anthropic / Gemini), `ToolRouter` + `@tool`, storage & transport adapters (FastAPI SSE, stdio JSON-RPC); the TS package owns the sidecar process lifecycle for pure-TypeScript hosts |
 | [`steerable-sidecar`](https://pypi.org/project/steerable-sidecar/) · [`steerable-egress-proxy`](https://pypi.org/project/steerable-egress-proxy/) | 3 | Portable CPython binary — boots in <1s, macOS notarised, Windows signed — plus the bundled per-host CONNECT allow-list egress proxy |
 | [`@steerable/agent-ui`](https://www.npmjs.com/package/@steerable/agent-ui) | 4 | `ChatPanel`, `MessageList`, `AgentSelector`, `ModelSelector`, `OrchestrationPlanCard`, `ToolCallRenderer`, `SSEStreamView` + 14-card `/cards` subpath + hooks + Tailwind preset |
-| `@steerable/agent-shell` · `agent-shell-web` · `pack-sdk` | 5 | Tauri + headless host shell, shared Node HostRuntime, sidecar supervision, product-neutral renderer — published to npm (`dist` / source / pure-types respectively) |
+| `@steerable/agent-shell` · `agent-shell-web` · `agent-shell-tauri` · `pack-sdk` | 5 | Tauri + headless host shell, shared Node HostRuntime, sidecar supervision, product-neutral renderer — published to npm (`dist` / source / pure-types respectively) |
 
 <h2 class="sf-section">How it compares</h2>
 
@@ -459,6 +459,48 @@ Steerable isn't the only way to ship an agent. The short, honest version against
 <p class="sf-lede" markdown>
 Where Steerable genuinely differs, where it lags, and how to choose: [Full comparison](comparison.md).
 </p>
+
+<h2 class="sf-section">Who's using it</h2>
+
+<div class="sf-brand-grid">
+  <div class="sf-brand-group">
+    <div class="sf-brand-group-title">Enterprise & Products</div>
+    <div class="sf-brand-items">
+      <a href="https://deeppath.cc" target="_blank" rel="noopener noreferrer" class="sf-brand-item">
+        <img src="assets/users/deeppath.png" alt="DeepPath">
+        <span class="sf-brand-name">DeepPath</span>
+        <span class="sf-brand-domain">deeppath.cc</span>
+      </a>
+      <a href="https://aroli.work" target="_blank" rel="noopener noreferrer" class="sf-brand-item">
+        <img src="assets/users/aroli.png" alt="Aroli">
+        <span class="sf-brand-name">Aroli</span>
+        <span class="sf-brand-domain">aroli.work</span>
+      </a>
+      <div class="sf-brand-item">
+        <img src="assets/users/petrochina.svg" alt="PetroChina">
+        <span>PetroChina</span>
+      </div>
+      <div class="sf-brand-item">
+        <img src="assets/users/etown-mark.png" alt="E-Town Holdings">
+        <span>E-Town Holdings</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="sf-brand-group">
+    <div class="sf-brand-group-title">Research & Universities</div>
+    <div class="sf-brand-items">
+      <div class="sf-brand-item">
+        <img src="assets/users/tsinghua-university.png" alt="Tsinghua University">
+        <span>Tsinghua University</span>
+      </div>
+      <div class="sf-brand-item">
+        <img src="assets/users/ucas.svg" alt="University of Chinese Academy of Sciences">
+        <span>UCAS</span>
+      </div>
+    </div>
+  </div>
+</div>
 
 <h2 class="sf-section">Explore</h2>
 

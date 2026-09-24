@@ -7,7 +7,7 @@ written to help you decide, not to declare a winner.
 !!! note "Honesty policy"
     Every claim below links to a spec page or names a shipped artifact.
     Where Steerable is behind, the table says so. If you find a stale row,
-    [open an issue](https://github.com/pathlyapp/opensteerable/issues) —
+    [open an issue](https://github.com/pathlyapp/steerable/issues) —
     this page is reviewed on every release.
 
 !!! info "How the Claude Code column was sourced"
@@ -221,7 +221,7 @@ each tier is independently adoptable.
 
 ## Terminal-Bench 2.1
 
-The score of record is **OpenSteerable + GLM-5.3-Flash = 79.0% ±3.4** on the 89-task catalog (three-run mean at `e25a8d4`; see [Evals](evals.md)), averaging **229.9M input tokens per run**. Provider prices changed between measurement windows, so the current baseline does not claim a cross-date dollar cost.
+The score of record is **Steerable + GLM-5.3-Flash = 79.0% ±3.4** on the 89-task catalog (three-run mean at `e25a8d4`; see [Evals](evals.md)), averaging **229.9M input tokens per run**. Provider prices changed between measurement windows, so the current baseline does not claim a cross-date dollar cost.
 
 On the same model and Harbor protocol, Claude Code scores 83.1% and Pi scores 73.4%. Z.AI's own Claude Code run of GLM-5.3-Flash is 84.3% under a 6-hour timeout — we wrap at 170 minutes. Pass rate and token volume are tracked as co-equal metrics because they can move in opposite directions. Read the current score with its 3.4-point sample standard deviation.
 

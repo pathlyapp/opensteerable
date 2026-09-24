@@ -2,7 +2,7 @@
  * `useChatsAndAgents` — sidebar state (paginated chats + agent catalog + the
  * "agent picked for next new chat" selection) for the Agent shell.
  *
- * Wave 1 of the OpenSteerable refactor moved the generic pagination /
+ * Wave 1 of the Steerable refactor moved the generic pagination /
  * agent-selection / title-patching machinery into `@steerable/agent-ui/state`
  * as `useChatList<TChat, TAgent>`. This file is now an Electron-flavoured
  * adapter:

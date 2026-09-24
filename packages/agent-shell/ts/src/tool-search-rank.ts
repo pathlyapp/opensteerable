@@ -1,5 +1,5 @@
 /**
- * `tool_search` 的 BM25 排序，与 OpenSteerable
+ * `tool_search` 的 BM25 排序，与 Steerable
  * `packages/agent-runtime/py/src/steerable_agent_runtime/tool_search.py`
  * 同一算法与同一常量：同名工具在两侧必须给出同样的名次与同样的默认上限，
  * 否则「桌面的 tool_search」和「框架的 tool_search」是两个契约不同的工具。

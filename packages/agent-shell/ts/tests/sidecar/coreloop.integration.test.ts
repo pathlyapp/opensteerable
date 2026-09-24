@@ -5,7 +5,7 @@
  * Skipped by default. Run with:
  *
  *   STEERABLE_SIDECAR_TEST=1 \
- *   STEERABLE_SIDECAR_PYTHON=/path/to/opensteerable/.venv/bin/python3 \
+ *   STEERABLE_SIDECAR_PYTHON=/path/to/steerable/.venv/bin/python3 \
  *   STEERABLE_SMOKE_MODEL=gpt-oss:20b-cloud \
  *     npx vitest run tests/sidecar/coreloop.integration.test.ts
  *

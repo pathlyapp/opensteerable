@@ -4,7 +4,7 @@ All notable changes to this package will be documented in this file. The
 format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 the package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.0](https://github.com/pathlyapp/opensteerable/compare/agent-ui-v0.1.0...agent-ui-v0.2.0) (2026-05-15)
+## [0.2.0](https://github.com/pathlyapp/steerable/compare/agent-ui-v0.1.0...agent-ui-v0.2.0) (2026-05-15)
 
 
 ### Features

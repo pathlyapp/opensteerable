@@ -40,7 +40,7 @@ permissions:
 
 jobs:
   publish:
-    if: github.repository == 'pathlyapp/opensteerable'
+    if: github.repository == 'pathlyapp/steerable'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

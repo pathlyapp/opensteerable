@@ -46,7 +46,7 @@ Both wrappers run the steps below; pick whichever style fits your shell.
 ### Step-by-step
 
 ```bash
-cd /path/to/opensteerable
+cd /path/to/steerable
 
 # 0. Clean install + sync workspaces
 pnpm install --frozen-lockfile
@@ -139,12 +139,12 @@ console.log({mode: decideToolMode('read_file'), done: isTerminalResult({success:
 ```jsonc
 {
   "dependencies": {
-    "@steerable/agent-protocol": "file:../opensteerable/dist/npm/steerable-agent-protocol-0.1.0.tgz",
-    "@steerable/agent-ui":       "file:../opensteerable/dist/npm/steerable-agent-ui-0.1.0.tgz"
+    "@steerable/agent-protocol": "file:../steerable/dist/npm/steerable-agent-protocol-0.1.0.tgz",
+    "@steerable/agent-ui":       "file:../steerable/dist/npm/steerable-agent-ui-0.1.0.tgz"
   },
   "pnpm": {
     "overrides": {
-      "@steerable/agent-protocol": "file:../opensteerable/dist/npm/steerable-agent-protocol-0.1.0.tgz"
+      "@steerable/agent-protocol": "file:../steerable/dist/npm/steerable-agent-protocol-0.1.0.tgz"
     }
   }
 }
@@ -189,7 +189,7 @@ without a registry.
 
      ```bash
      gh secret set NPM_TOKEN \
-       --repo pathlyapp/opensteerable \
+       --repo pathlyapp/steerable \
        --body "<paste-the-token>"
      ```
 
@@ -199,7 +199,7 @@ without a registry.
      - Go to <https://pypi.org/manage/account/publishing/> for each
        project (or the umbrella account if all four projects share an
        owner).
-     - Add a publisher: owner `pathlyapp`, repo `opensteerable`,
+     - Add a publisher: owner `pathlyapp`, repo `steerable`,
        workflow `publish-pypi.yml`, environment `pypi`.
      - In the GitHub repo, create an Environment named `pypi`
        (Settings → Environments → New environment) and (optionally) gate
@@ -210,7 +210,7 @@ without a registry.
      # On https://pypi.org/manage/account/token/, scope it to all four
      # `steerable-*` projects.
      gh secret set PYPI_API_TOKEN \
-       --repo pathlyapp/opensteerable \
+       --repo pathlyapp/steerable \
        --body "pypi-XXXX..."
      ```
 

@@ -28,7 +28,7 @@
  * Framework `SSEEvent` (packages/agent-protocol/ts/src/generated/SSEEvent.ts)
  * is the canonical normalisation target. The legacy-envelope mapping lives in
  * `@steerable/agent-ui/state`'s `bridgeLegacySSE` — this file used to keep its
- * own copy; wave 1 of the OpenSteerable refactor consolidated them.
+ * own copy; wave 1 of the Steerable refactor consolidated them.
  *
  * We do still keep one app-specific guard: if any content has already
  * streamed and the backend ends with `budget_exhausted`, we downgrade that

@@ -532,7 +532,7 @@ but missing wiring, so Wave 4 adds **no new mechanisms**.
    are all capped.
 
 Regression after wiring: deeppath-agent 292 tests pass,
-OpenSteerable 629 tests pass, desktop build green.
+Steerable 629 tests pass, desktop build green.
 
 Deliberately **not** doing: pi-style in-process extension loading (an
 unsandboxed loader plus an unbounded `context` hook is more risk than

@@ -46,7 +46,7 @@ permissions:
 
 jobs:
   validate:
-    if: github.repository == 'pathlyapp/opensteerable'
+    if: github.repository == 'pathlyapp/steerable'
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.value }}
@@ -138,7 +138,7 @@ jobs:
   # failed release — the registries are already the source of truth.
   notify:
     needs: [validate, publish-npm, publish-pypi, publish-native]
-    if: always() && github.repository == 'pathlyapp/opensteerable'
+    if: always() && github.repository == 'pathlyapp/steerable'
     runs-on: ubuntu-latest
     steps:
       - name: Notify Feishu
@@ -174,7 +174,7 @@ jobs:
               and native == "success"
           )
           tag = f"v{version}"
-          title = f"{'成功' if ok else '失败'} · OpenSteerable {tag}"
+          title = f"{'成功' if ok else '失败'} · Steerable {tag}"
           lines = [
               f"仓库：{os.environ.get('REPO', '')}",
               f"版本：{tag}",

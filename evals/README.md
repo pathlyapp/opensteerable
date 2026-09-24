@@ -1,6 +1,6 @@
 # Coding-agent evaluations
 
-OpenSteerable uses pinned Terminal-Bench 2.1 task sets through
+Steerable uses pinned Terminal-Bench 2.1 task sets through
 [Harbor](https://www.harborframework.com/docs/run-jobs/run-evals). The suite
 definition is [`suite.yaml`](suite.yaml); aggregate public results and
 methodology live in [`docs/evals.md`](../docs/evals.md).

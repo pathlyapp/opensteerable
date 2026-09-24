@@ -11,7 +11,7 @@ import {
   TOOL_SEARCH_MAX_RESULTS_CEILING,
 } from '../src/tool-search-rank.js';
 
-// `tool_search` 在桌面与 OpenSteerable 各有一份实现，但对模型是同一
+// `tool_search` 在桌面与 Steerable 各有一份实现，但对模型是同一
 // 个工具：名次不同就是两个契约。三层证据，强度递减但覆盖面递增：
 //
 //   1. 桌面侧自身行为（本文件上半）。
@@ -35,7 +35,7 @@ const CONTRACT = JSON.parse(
   ),
 ) as { toolSearch: ToolSearchContract };
 
-const FRAMEWORK = process.env.STEERABLE_FRAMEWORK_DIR ?? path.resolve('../opensteerable');
+const FRAMEWORK = process.env.STEERABLE_FRAMEWORK_DIR ?? path.resolve('../steerable');
 const FRAMEWORK_PY = path.join(FRAMEWORK, '.venv/bin/python');
 const RANK_PY = path.join(
   FRAMEWORK,

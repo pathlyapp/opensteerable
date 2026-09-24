@@ -1,7 +1,7 @@
 /**
  * W4.1.1 reverse channel: serve the sidecar's `host.process.spawn` by
  * spawning the command confined on Windows via the win-spawn-helper Rust
- * binary (restricted token + Job Object; contract: OpenSteerable
+ * binary (restricted token + Job Object; contract: Steerable
  * docs/spec/safety.md "Host capability surface").
  *
  * Fail closed by construction: on non-Windows platforms (which have local

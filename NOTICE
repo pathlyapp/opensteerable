@@ -1,8 +1,8 @@
-OpenSteerable
+Steerable
 Copyright (c) 2026 DeepPath
 
 This product includes software developed by contributors to the
-OpenSteerable project.
+Steerable project.
 
 The binary-only Rust artifacts selected by rust-artifacts.lock.json
 (steerable-agent-runtime-native, the Rust sidecar, and the egress proxy)

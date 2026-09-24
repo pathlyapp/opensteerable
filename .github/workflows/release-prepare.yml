@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   bump:
-    if: github.repository == 'pathlyapp/opensteerable'
+    if: github.repository == 'pathlyapp/steerable'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout release branch

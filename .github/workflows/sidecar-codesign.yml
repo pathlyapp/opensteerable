@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   sign:
-    if: ${{ github.repository == 'pathlyapp/opensteerable' && github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.repository == 'pathlyapp/steerable' && github.event.workflow_run.conclusion == 'success' }}
     strategy:
       fail-fast: false
       matrix:

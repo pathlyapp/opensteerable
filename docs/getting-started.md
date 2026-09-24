@@ -100,7 +100,7 @@ bounded auto-restart, graceful drain) and exposes the CoreLoop-level API over
 on npm):
 
 ```bash
-pnpm add link:../opensteerable/packages/agent-runtime/ts
+pnpm add link:../steerable/packages/agent-runtime/ts
 ```
 
 ```ts
@@ -132,7 +132,7 @@ await runtime.close();
 Any language that can fork a subprocess can also speak the protocol directly:
 spawn `python -m steerable_sidecar`, wait for `__SIDECAR_READY__:{json}` on
 stderr, frame JSON-RPC on stdin/stdout — see the
-[sidecar-roundtrip example](https://github.com/pathlyapp/opensteerable/tree/main/examples/sidecar-roundtrip).
+[sidecar-roundtrip example](https://github.com/pathlyapp/steerable/tree/main/examples/sidecar-roundtrip).
 
 The `agent.chat.stream` notification → `stream.chunk` flow is the canonical way
 to pull LLM output back through the sidecar without going through HTTP.
@@ -190,4 +190,4 @@ transport that replays the 14 rich chat cards — zero external services.
 
 - Read the [Spec Overview](spec/overview.md) to understand the cross-language contract pipeline
 - Read the [Architecture](spec/architecture.md) page to understand the Tier 1–5 boundary
-- Browse [`examples/`](https://github.com/pathlyapp/opensteerable/tree/main/examples) for runnable starter projects
+- Browse [`examples/`](https://github.com/pathlyapp/steerable/tree/main/examples) for runnable starter projects

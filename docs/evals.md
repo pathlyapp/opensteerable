@@ -1,6 +1,6 @@
 # Evaluations
 
-OpenSteerable publishes aggregate evaluation results to make runtime changes
+Steerable publishes aggregate evaluation results to make runtime changes
 reviewable without publishing credentials, raw model transcripts, private
 gateway details or internal run archaeology.
 
@@ -8,12 +8,12 @@ gateway details or internal run archaeology.
 
 - **Benchmark:** Terminal-Bench 2.1 through Harbor.
 - **Catalog:** the pinned task IDs in
-  [`evals/suite.yaml`](https://github.com/pathlyapp/opensteerable/blob/main/evals/suite.yaml).
+  [`evals/suite.yaml`](https://github.com/pathlyapp/steerable/blob/main/evals/suite.yaml).
 - **Scoring:** Harbor verifier reward; infrastructure errors count as failures
   unless a report explicitly excludes them.
 - **Attempts:** every published score states the number of attempts per task.
 - **Timeouts:** every report states the agent timeout and job-level timeout.
-- **Runtime:** the exact OpenSteerable and Rust artifact versions are recorded.
+- **Runtime:** the exact Steerable and Rust artifact versions are recorded.
 - **Model:** provider, model identifier, reasoning effort and sampling controls
   are recorded without exposing endpoints or credentials.
 
@@ -33,7 +33,7 @@ of record.
 
 A public result is complete only when it records:
 
-1. OpenSteerable commit or release tag.
+1. Steerable commit or release tag.
 2. `rust-artifacts.lock.json` artifact version.
 3. Harbor and Terminal-Bench versions.
 4. Model identifier and request protocol.
@@ -47,7 +47,7 @@ or licensed benchmark material and are not committed to this repository.
 
 ## Running evaluations
 
-See [`evals/README.md`](https://github.com/pathlyapp/opensteerable/blob/main/evals/README.md)
+See [`evals/README.md`](https://github.com/pathlyapp/steerable/blob/main/evals/README.md)
 for local and CI commands. Run the
 full catalog only when collecting release evidence; use the oracle and
 `cheap-12` splits for routine validation.

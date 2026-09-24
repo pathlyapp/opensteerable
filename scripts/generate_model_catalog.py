@@ -280,7 +280,7 @@ def main(argv: list[str] | None = None) -> int:
         # User-Agent; identify as the repo's generator instead.
         request = urllib.request.Request(
             UPSTREAM_URL,
-            headers={"User-Agent": "opensteerable-model-catalog-generator"},
+            headers={"User-Agent": "steerable-model-catalog-generator"},
         )
         with urllib.request.urlopen(request, timeout=60) as resp:
             raw = resp.read()

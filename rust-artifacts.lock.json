@@ -3,7 +3,7 @@
   "artifactVersion": "0.6.39",
   "license": "LicenseRef-DeepPath-Steerable-Engine",
   "release": {
-    "repository": "pathlyapp/opensteerable",
+    "repository": "pathlyapp/steerable",
     "tag": "rust-v0.6.39",
     "manifest": "steerable-rust-artifacts-0.6.39-manifest.json",
     "sha256": "079df37ff008ed317f21d9680cb6afec216d0d371bfd11e3ea1910d6c3f6fa87"

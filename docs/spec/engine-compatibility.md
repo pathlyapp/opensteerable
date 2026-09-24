@@ -1,6 +1,6 @@
 # Engine compatibility
 
-OpenSteerable publishes the framework source and consumes a separately built,
+Steerable publishes the framework source and consumes a separately built,
 source-unavailable Rust engine. `rust-artifacts.lock.json` is the reviewed pin
 for one immutable engine bundle; its manifest digest authenticates the native
 CoreLoop wheel, Rust sidecar and egress proxy downloaded by the framework.

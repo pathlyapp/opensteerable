@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   tag:
-    if: github.repository == 'pathlyapp/opensteerable' && github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/')
+    if: github.repository == 'pathlyapp/steerable' && github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout main

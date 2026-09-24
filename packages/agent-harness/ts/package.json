@@ -6,11 +6,11 @@
   "homepage": "https://steerableframework.com/",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/pathlyapp/opensteerable.git",
+    "url": "git+https://github.com/pathlyapp/steerable.git",
     "directory": "packages/agent-harness/ts"
   },
   "bugs": {
-    "url": "https://github.com/pathlyapp/opensteerable/issues"
+    "url": "https://github.com/pathlyapp/steerable/issues"
   },
   "keywords": [
     "steerable",

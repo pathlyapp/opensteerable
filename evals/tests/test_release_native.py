@@ -33,7 +33,7 @@ def test_release_verifies_published_native_wheels() -> None:
     assert "uses: ./.github/workflows/publish-native.yml" in RELEASE
     assert "needs: [validate, publish-native]" in RELEASE
     assert "fetch_verified_artifacts.py verify-wheels --artifact-lock" in PUBLISH_NATIVE
-    assert "pathlyapp/opensteerable" in PUBLISH_NATIVE
+    assert "pathlyapp/steerable" in PUBLISH_NATIVE
     pypi = (ROOT / ".github" / "workflows" / "publish-pypi.yml").read_text(
         encoding="utf-8"
     )

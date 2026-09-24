@@ -22,7 +22,7 @@ import urllib.request
 from pathlib import Path
 
 NATIVE_PROJECT = "steerable-agent-runtime-native"
-RELEASE_REPO = "pathlyapp/opensteerable"
+RELEASE_REPO = "pathlyapp/steerable"
 WHEEL_PLATFORMS = (
     "manylinux-x64",
     "manylinux-arm64",

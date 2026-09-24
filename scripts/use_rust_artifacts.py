@@ -13,7 +13,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-REPO = "pathlyapp/opensteerable"
+REPO = "pathlyapp/steerable"
 NATIVE = "steerable-agent-runtime-native"
 PIN_FILES = (
     ROOT / "packages/agent-runtime/py/pyproject.toml",

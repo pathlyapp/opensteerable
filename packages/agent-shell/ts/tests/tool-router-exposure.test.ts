@@ -11,7 +11,7 @@ import { TOOL_SEARCH_DEFAULT_MAX_RESULTS } from '../src/tool-search-rank.js';
 
 // Wave 2 工具分层的宿主采纳：MCP 动态工具落 deferred 层，模型可见列表
 // 只出 direct 层 + tool_search 发现缝；分发不按层设卡。契约与
-// OpenSteerable 的 tool_search.py 一致（BM25 排序 / name 分词计两次 /
+// Steerable 的 tool_search.py 一致（BM25 排序 / name 分词计两次 /
 // 默认 8 封顶 20 / 返回完整 schema）。
 
 function makeToolRouter(registry?: McpServerRegistry): ToolRouter {

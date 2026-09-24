@@ -19,7 +19,7 @@ permissions:
 jobs:
   verify:
     name: Require published native wheels
-    if: github.repository == 'pathlyapp/opensteerable'
+    if: github.repository == 'pathlyapp/steerable'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

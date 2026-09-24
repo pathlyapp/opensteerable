@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   collectAmbientProxyEndpoints: vi.fn(async () => [] as string[]),
   buildEgressProxyPlan: vi.fn(),
   decideEgressProxy: vi.fn(() => ({ start: false, posture: { mode: 'off', reason: null } })),
+  ensureEgressProxyExecutable: vi.fn(async () => '/usr/bin/steerable-egress-proxy'),
   deriveWebEgressHosts: vi.fn(() => []),
   pickFreePort: vi.fn(async () => 41000),
   recordEgressPosture: vi.fn(),
@@ -63,6 +64,7 @@ vi.mock('../../src/sidecar/proxy-detect.js', () => ({
 vi.mock('../../src/sidecar/egress-proxy.js', () => ({
   buildEgressProxyPlan: mocks.buildEgressProxyPlan,
   decideEgressProxy: mocks.decideEgressProxy,
+  ensureEgressProxyExecutable: mocks.ensureEgressProxyExecutable,
   deriveWebEgressHosts: mocks.deriveWebEgressHosts,
   pickFreePort: mocks.pickFreePort,
   recordEgressPosture: mocks.recordEgressPosture,
@@ -122,6 +124,7 @@ beforeEach(() => {
   // 避免上一个测试的定制实现泄漏到下一个。
   mocks.collectAmbientProxyEndpoints.mockResolvedValue([]);
   mocks.decideEgressProxy.mockReturnValue({ start: false, posture: { mode: 'off', reason: null } });
+  mocks.ensureEgressProxyExecutable.mockResolvedValue('/usr/bin/steerable-egress-proxy');
   mocks.webToolsEnabled.mockReturnValue(true);
   mocks.sidecarWebSearchEnv.mockReturnValue({ STEERABLE_WEB_SEARCH_PROVIDER: 'host' });
   mocks.storeGetWebSearchSettings.mockReturnValue(undefined);
@@ -369,6 +372,19 @@ describe('startHostSidecar · egress 代理', () => {
     );
     // 回退后 env 不带 CONFINED 标记（sidecar 不会误以为自己被收敛）
     expect(mocks.supervisorStart.mock.calls[0][0].env.STEERABLE_EGRESS_CONFINED).toBeUndefined();
+  });
+
+  it('找不到 egress 二进制 → 端口级回退，不启动代理', async () => {
+    mocks.decideEgressProxy.mockReturnValue({ start: true, posture: { mode: 'per-host-proxy', reason: null } });
+    mocks.ensureEgressProxyExecutable.mockResolvedValue(null);
+    const sup = fakeSupervisor();
+    mocks.supervisorStart.mockResolvedValue(sup);
+    await startHostSidecar(makeDeps());
+    expect(mocks.startEgressProxy).not.toHaveBeenCalled();
+    expect(mocks.recordEgressPosture).toHaveBeenCalledWith({
+      mode: 'port-only-fallback',
+      reason: '未找到 steerable-egress-proxy 二进制，按主机管控未启用',
+    });
   });
 
   it('派生不出代理 plan → 端口级回退', async () => {

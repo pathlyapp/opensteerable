@@ -139,7 +139,7 @@ function Footer({
             className="inline-flex items-center gap-1 rounded-agent-md px-2.5 py-1.5 text-xs font-medium text-agent-muted-foreground transition hover:bg-agent-muted hover:text-agent-foreground"
           >
             <LuWand size={12} />
-            交给我决定
+            交给AI决定
           </button>
         )}
       </div>
@@ -588,9 +588,11 @@ export function AskUserQuestionMenu({
             {bottomHint ? ` · ${bottomHint}` : ''}
           </p>
         </div>
-        <span className="rounded-full border border-agent-border px-2 py-0.5 text-[10px] font-medium text-agent-muted-foreground">
-          {current.type === 'password' ? '密码输入' : current.multiSelect ? '可多选' : '菜单选择'}
-        </span>
+        {current.type === 'password' || current.multiSelect ? (
+          <span className="rounded-full border border-agent-border px-2 py-0.5 text-[10px] font-medium text-agent-muted-foreground">
+            {current.type === 'password' ? '密码输入' : '可多选'}
+          </span>
+        ) : null}
       </div>
 
       {current.type === 'select' ? (

@@ -21,7 +21,9 @@ from steerable_agent_runtime import (
     LoopEvent,
     RouterToolExecutor,
     ToolRouter,
+    make_ask_user_tool,
 )
+from steerable_agent_runtime.approval import ApprovalDecision, ApprovalExecutor
 from steerable_agent_runtime.llm import LLMMessage, LLMStreamChunk
 
 
@@ -225,6 +227,93 @@ async def test_slow_tool_under_the_limit_is_untouched() -> None:
     )
     events = await collect(loop.run([LLMMessage.text_of("user", "go")]))
     assert results_of(events)[0].data["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_ask_user_waits_for_the_answer_past_the_tool_timeout() -> None:
+    provider = make_provider(
+        [
+            {
+                "content": "",
+                "tool_calls": [
+                    tc(
+                        "ask_user",
+                        {
+                            "intro": "Pick one",
+                            "questions": [
+                                {
+                                    "id": "color",
+                                    "text": "Which color?",
+                                    "type": "select",
+                                    "options": ["red", "blue"],
+                                    "multiSelect": False,
+                                }
+                            ],
+                        },
+                    )
+                ],
+            },
+            {"content": "done"},
+        ]
+    )
+    router = ToolRouter()
+
+    async def handler(intro: str, questions: list[dict[str, Any]]) -> dict[str, str]:
+        await asyncio.sleep(0.05)
+        return {"color": "blue"}
+
+    fn = make_ask_user_tool(handler)
+    meta = fn.__steerable_tool_meta__
+    router.register(
+        fn,
+        name=meta["name"],
+        mode=meta["mode"],
+        description=meta["description"],
+        schema=meta["schema"],
+        require_consent=meta["require_consent"],
+        concurrency_safe=meta["concurrency_safe"],
+        exposure=meta["exposure"],
+    )
+    loop = CoreLoop(
+        provider,
+        RouterToolExecutor(router),
+        LoopConfig(tool_timeout_ms=20),
+    )
+    events = await collect(loop.run([LLMMessage.text_of("user", "go")]))
+    result = results_of(events)[0].data
+    assert result["success"] is True, result
+    assert "blue" in str(result)
+
+
+@pytest.mark.asyncio
+async def test_approval_wait_is_not_part_of_the_tool_timeout() -> None:
+    provider = make_provider(
+        [
+            {"content": "", "tool_calls": [tc("shell", {"cmd": "ls"})]},
+            {"content": "done"},
+        ]
+    )
+    router = ToolRouter()
+
+    async def shell(cmd: str) -> str:
+        return f"ran {cmd}"
+
+    router.register(shell)
+
+    class _SlowApprover:
+        async def approve(self, request: Any) -> ApprovalDecision:
+            await asyncio.sleep(0.05)
+            return ApprovalDecision("allow_once")
+
+    loop = CoreLoop(
+        provider,
+        ApprovalExecutor(RouterToolExecutor(router), _SlowApprover()),
+        LoopConfig(tool_timeout_ms=20),
+    )
+    events = await collect(loop.run([LLMMessage.text_of("user", "go")]))
+    result = results_of(events)[0].data
+    assert result["success"] is True, result
+    assert "ran ls" in str(result)
 
 
 def test_default_is_a_generous_backstop() -> None:

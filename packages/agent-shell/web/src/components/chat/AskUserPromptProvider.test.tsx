@@ -145,7 +145,7 @@ describe('AskUserPromptProvider', () => {
     });
 
     expect(screen.getByText(/还有 1 组问题待回答/)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: /交给我决定/ }));
+    fireEvent.click(screen.getByRole('button', { name: /交给AI决定/ }));
 
     expect(screen.getByText('第二组问题')).toBeTruthy();
     expect(bridge.answer).toHaveBeenCalledWith({

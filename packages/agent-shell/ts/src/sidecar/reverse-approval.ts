@@ -5,8 +5,9 @@
  *
  * Fail-closed by construction: no window, no listener, a renderer error,
  * or an invalid reply all become `deny_once` — never a hang, never an
- * auto-allow. The sidecar additionally bounds the wait (`timeoutMs` on the
- * approval config), so a wedged renderer degrades to `timed_out` there.
+ * auto-allow. An explicit `timeoutMs` on the approval config still fails
+ * closed as `timed_out`; the desktop omits it, so the prompt waits until
+ * the user decides.
  *
  * The renderer answers via the `approval:decide` invoke with the requestId
  * echoed back; decisions are validated against the algebra's kind set

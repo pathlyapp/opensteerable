@@ -82,7 +82,10 @@ def _config_json(loop: CoreLoop) -> str:
         "persist_tool_results": config.persist_tool_results,
         "parallel_tools": config.parallel_tools,
         "tool_dedup": config.tool_dedup,
-        "tool_timeout_ms": config.tool_timeout_ms,
+        # Python `_execute_tool` owns this cap and exempts `ask_user` (it
+        # blocks until the user answers). The native loop would apply the
+        # same number to every call, including that wait.
+        "tool_timeout_ms": None,
         "soft_timeout_ms": config.soft_timeout_ms,
         "wrap_up_keeps_tools": config.wrap_up_keeps_tools,
         "wrap_up_max_tool_rounds": config.wrap_up_max_tool_rounds,

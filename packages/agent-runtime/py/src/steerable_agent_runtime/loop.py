@@ -61,6 +61,7 @@ from typing import Any, Literal, Protocol, runtime_checkable
 from steerable_agent_harness import BudgetLimit
 from steerable_agent_protocol.generated import ToolCall, ToolResult
 
+from .approval import ToolTimeoutClock, tool_timeout_clock
 from .history import (
     KIND_ASSISTANT,
     KIND_SYSTEM,
@@ -673,14 +674,20 @@ class CoreLoop:
         blocked by a hung peer again.
         """
 
+        # ask_user blocks until the user answers. The generic tool cap would
+        # cancel that wait (default 5 minutes) and continue without an answer.
+        if call.name == "ask_user":
+            return await self._executor.execute(call, ctx)
         timeout_ms = self._effective_tool_timeout_ms()
         if timeout_ms is None:
             return await self._executor.execute(call, ctx)
+        clock = ToolTimeoutClock()
+        token = tool_timeout_clock.set(clock)
+        task = asyncio.create_task(self._executor.execute(call, ctx))
         try:
-            return await asyncio.wait_for(
-                self._executor.execute(call, ctx), timeout=timeout_ms / 1000
-            )
-        except asyncio.TimeoutError:
+            return await _await_tool_deadline(task, clock, timeout_ms / 1000)
+        except TimeoutError:
+            task.cancel()
             return ToolResult(
                 success=False,
                 error="tool_timeout",
@@ -693,6 +700,8 @@ class CoreLoop:
                     ),
                 },
             )
+        finally:
+            tool_timeout_clock.reset(token)
 
     def _effective_tool_timeout_ms(self) -> int | None:
         """Resolve the wall-clock cap for the tool about to run.
@@ -846,6 +855,34 @@ _TOOL_TIMEOUT_MESSAGE = (
     "not claim it succeeded; retry with different arguments, use a different "
     "tool, or continue without it."
 )
+
+
+async def _await_tool_deadline(
+    task: asyncio.Task[ToolResult], clock: ToolTimeoutClock, timeout_s: float
+) -> ToolResult:
+    """Wait for a tool, freezing the deadline while approval is unanswered."""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout_s
+    while True:
+        if clock.suspended:
+            resume = asyncio.create_task(clock.resumed.wait())
+            done, _pending = await asyncio.wait(
+                {task, resume}, return_when=asyncio.FIRST_COMPLETED
+            )
+            resume.cancel()
+            if task in done:
+                return task.result()
+            continue
+        remaining = deadline - loop.time()
+        if remaining <= 0:
+            raise TimeoutError
+        pause = asyncio.create_task(clock.paused.wait())
+        done, _pending = await asyncio.wait(
+            {task, pause}, timeout=remaining, return_when=asyncio.FIRST_COMPLETED
+        )
+        pause.cancel()
+        if task in done:
+            return task.result()
 
 
 def _honors_forced_tool_choice(provider: LLMProvider, tool_choice: str) -> bool:

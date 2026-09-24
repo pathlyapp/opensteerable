@@ -139,7 +139,6 @@ describe('isApprovalEnabled', () => {
       buildHostApproval({ productApproval: 'host', storePath: '/tmp/a.json' }),
     ).toEqual({
       mode: 'host',
-      timeoutMs: 120_000,
       storePath: '/tmp/a.json',
     });
   });

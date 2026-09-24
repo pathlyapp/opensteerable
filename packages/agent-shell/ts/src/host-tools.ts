@@ -253,11 +253,13 @@ export function buildHostApproval(input: {
   envApproval?: string;
   storePath: string;
   timeoutMs?: number;
-}): { mode: 'host'; timeoutMs: number; storePath: string } | undefined {
+}): { mode: 'host'; timeoutMs?: number; storePath: string } | undefined {
   if (!isApprovalEnabled(input)) return undefined;
+  // No default timer: the card stays until the user allows or denies.
+  // An explicit timeoutMs still fails closed as timed_out.
   return {
     mode: 'host',
-    timeoutMs: input.timeoutMs ?? 120_000,
+    ...(input.timeoutMs != null ? { timeoutMs: input.timeoutMs } : {}),
     storePath: input.storePath,
   };
 }

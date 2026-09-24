@@ -75,7 +75,7 @@ jobs:
           echo "value=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Releasing version: $VERSION"
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 

@@ -185,6 +185,55 @@ def verify_wheel_file(wheel: Path, *, opener=urllib.request.urlopen) -> None:
     verify_bytes(wheel.read_bytes(), str(chosen["digests"]["sha256"]), wheel.name)
 
 
+def egress_filename(version: str, target: str) -> str:
+    """Return the published egress-proxy filename for one target."""
+    if target not in SIDECAR_TARGETS:
+        raise SystemExit(f"unknown egress target {target}")
+    suffix = ".exe" if target == "win32-x64" else ""
+    return f"steerable-egress-proxy-bin-{version}-{target}{suffix}"
+
+
+def egress_manifest_name(version: str) -> str:
+    return f"steerable-egress-proxy-bin-{version}-manifest.json"
+
+
+def download_egress(
+    version: str,
+    target: str,
+    dest: Path,
+    *,
+    opener=urllib.request.urlopen,
+) -> Path:
+    """Download one verified egress-proxy binary into ``dest``."""
+    manifest_url = release_asset_url(version, egress_manifest_name(version))
+    manifest = json.loads(fetch_bytes(manifest_url, opener).decode("utf-8"))
+    if manifest.get("version") != version or manifest.get("kind") != "rust-egress-proxy":
+        raise SystemExit("egress manifest header mismatch")
+    entry = next(
+        (item for item in manifest.get("files", []) if item.get("target") == target),
+        None,
+    )
+    if entry is None:
+        raise SystemExit(f"egress manifest has no {target}")
+    filename = str(entry["name"])
+    if filename != egress_filename(version, target):
+        raise SystemExit(f"unexpected egress filename {filename}")
+    blob = fetch_bytes(release_asset_url(version, filename), opener)
+    verify_bytes(blob, str(entry["sha256"]), filename)
+    if len(blob) != int(entry["bytes"]):
+        raise SystemExit(f"egress size mismatch for {filename}")
+    dest.mkdir(parents=True, exist_ok=True)
+    path = dest / filename
+    path.write_bytes(blob)
+    if not filename.endswith(".exe"):
+        path.chmod(0o755)
+    (dest / f"{filename}.sha256").write_text(
+        f"{entry['sha256']}  {filename}\n",
+        encoding="utf-8",
+    )
+    return path
+
+
 def sidecar_filename(version: str, target: str) -> str:
     """Return the published sidecar filename for one target."""
     if target not in SIDECAR_TARGETS:
@@ -309,6 +358,12 @@ def main(argv: list[str] | None = None) -> None:
     sidecar.add_argument("--target", choices=[*SIDECAR_TARGETS, "host"], default="host")
     sidecar.add_argument("--out", required=True, type=Path)
 
+    egress = sub.add_parser("egress", help="download one verified egress proxy binary")
+    egress.add_argument("--version")
+    egress.add_argument("--lockstep", action="store_true")
+    egress.add_argument("--target", choices=[*SIDECAR_TARGETS, "host"], default="host")
+    egress.add_argument("--out", required=True, type=Path)
+
     verify = sub.add_parser("verify-wheels", help="download every platform wheel and verify it")
     verify.add_argument("--version")
     verify.add_argument("--lockstep", action="store_true")
@@ -325,6 +380,10 @@ def main(argv: list[str] | None = None) -> None:
     elif args.command == "sidecar":
         target = host_sidecar_target() if args.target == "host" else args.target
         path = download_sidecar(_resolve_version(args), target, args.out)
+        print(path)
+    elif args.command == "egress":
+        target = host_sidecar_target() if args.target == "host" else args.target
+        path = download_egress(_resolve_version(args), target, args.out)
         print(path)
     elif args.command == "verify-wheels":
         version = _resolve_version(args)

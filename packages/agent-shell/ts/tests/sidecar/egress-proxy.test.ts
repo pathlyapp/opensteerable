@@ -10,14 +10,12 @@ import {
 describe('buildEgressProxyPlan (W1.3.3)', () => {
   it('pins the Seatbelt list to the proxy port and allows the https provider host', () => {
     const plan = buildEgressProxyPlan({
-      pythonExecutable: '/usr/bin/python3',
+      executable: '/usr/bin/steerable-egress-proxy',
       port: 18899,
       providerBaseUrl: 'https://api.deepseek.com',
     });
     expect(plan).not.toBeNull();
     expect(plan!.args).toEqual([
-      '-m',
-      'steerable_egress_proxy',
       '--bind',
       '127.0.0.1:18899',
       '--allow',
@@ -34,7 +32,7 @@ describe('buildEgressProxyPlan (W1.3.3)', () => {
 
   it('carries a control plane whose token never appears in argv (W-egress-ask)', () => {
     const plan = buildEgressProxyPlan({
-      pythonExecutable: '/usr/bin/python3',
+      executable: '/usr/bin/steerable-egress-proxy',
       port: 18899,
       providerBaseUrl: 'https://api.deepseek.com',
     });
@@ -47,7 +45,7 @@ describe('buildEgressProxyPlan (W1.3.3)', () => {
     expect(plan!.args.join(' ')).not.toContain(plan!.control!.tokenValue);
     // Two plans never share a token.
     const other = buildEgressProxyPlan({
-      pythonExecutable: '/usr/bin/python3',
+      executable: '/usr/bin/steerable-egress-proxy',
       port: 18899,
       providerBaseUrl: 'https://api.deepseek.com',
     });
@@ -58,7 +56,7 @@ describe('buildEgressProxyPlan (W1.3.3)', () => {
     // A https provider would go through the proxy; an http one stays in the
     // Seatbelt list — CONNECT tunneling serves HTTPS only (framework v1).
     const plan = buildEgressProxyPlan({
-      pythonExecutable: '/usr/bin/python3',
+      executable: '/usr/bin/steerable-egress-proxy',
       port: 18899,
       providerBaseUrl: 'http://127.0.0.1:11434',
     });
@@ -68,7 +66,7 @@ describe('buildEgressProxyPlan (W1.3.3)', () => {
 
   it('preserves explicit ports on the provider host', () => {
     const plan = buildEgressProxyPlan({
-      pythonExecutable: '/usr/bin/python3',
+      executable: '/usr/bin/steerable-egress-proxy',
       port: 18899,
       providerBaseUrl: 'https://gateway.internal:8443/v1',
     });
@@ -78,11 +76,11 @@ describe('buildEgressProxyPlan (W1.3.3)', () => {
 
   it('returns null when the baseUrl is missing or unparseable', () => {
     expect(
-      buildEgressProxyPlan({ pythonExecutable: '/usr/bin/python3', port: 1 }),
+      buildEgressProxyPlan({ executable: '/usr/bin/steerable-egress-proxy', port: 1 }),
     ).toBeNull();
     expect(
       buildEgressProxyPlan({
-        pythonExecutable: '/usr/bin/python3',
+        executable: '/usr/bin/steerable-egress-proxy',
         port: 1,
         providerBaseUrl: 'not a url',
       }),
@@ -91,7 +89,7 @@ describe('buildEgressProxyPlan (W1.3.3)', () => {
 
   it('adds inject args and a broker plan when an apiKey is present (W2.2.2)', () => {
     const plan = buildEgressProxyPlan({
-      pythonExecutable: '/usr/bin/python3',
+      executable: '/usr/bin/steerable-egress-proxy',
       port: 18899,
       providerBaseUrl: 'https://api.deepseek.com',
       providerApiKey: 'sk-real-key',
@@ -102,8 +100,6 @@ describe('buildEgressProxyPlan (W1.3.3)', () => {
       secretValue: 'Bearer sk-real-key',
     });
     expect(plan!.args).toEqual([
-      '-m',
-      'steerable_egress_proxy',
       '--bind',
       '127.0.0.1:18899',
       '--allow',
@@ -123,14 +119,14 @@ describe('buildEgressProxyPlan (W1.3.3)', () => {
 
   it('skips the broker when no apiKey or the endpoint has an explicit port', () => {
     const noKey = buildEgressProxyPlan({
-      pythonExecutable: '/usr/bin/python3',
+      executable: '/usr/bin/steerable-egress-proxy',
       port: 18899,
       providerBaseUrl: 'https://api.deepseek.com',
     });
     expect(noKey!.broker).toBeUndefined();
     expect(noKey!.args).not.toContain('--inject-host');
     const explicitPort = buildEgressProxyPlan({
-      pythonExecutable: '/usr/bin/python3',
+      executable: '/usr/bin/steerable-egress-proxy',
       port: 18899,
       providerBaseUrl: 'https://gateway.internal:8443/v1',
       providerApiKey: 'sk-x',
@@ -140,7 +136,7 @@ describe('buildEgressProxyPlan (W1.3.3)', () => {
 
   it('merges web allowed hosts into the proxy allow-list, deduped (3.1b/3.1d)', () => {
     const plan = buildEgressProxyPlan({
-      pythonExecutable: '/usr/bin/python3',
+      executable: '/usr/bin/steerable-egress-proxy',
       port: 18899,
       providerBaseUrl: 'https://api.deepseek.com',
       webAllowedHosts: ['example.com', 'api.deepseek.com', 'api.tavily.com'],
@@ -151,8 +147,6 @@ describe('buildEgressProxyPlan (W1.3.3)', () => {
       'api.tavily.com',
     ]);
     expect(plan!.args).toEqual([
-      '-m',
-      'steerable_egress_proxy',
       '--bind',
       '127.0.0.1:18899',
       '--allow',
@@ -174,7 +168,7 @@ describe('buildEgressProxyPlan (W1.3.3)', () => {
   it('still builds a plan for an http-only provider when web hosts exist', () => {
     // Local Ollama stays direct; the proxy then carries the web list only.
     const plan = buildEgressProxyPlan({
-      pythonExecutable: '/usr/bin/python3',
+      executable: '/usr/bin/steerable-egress-proxy',
       port: 18899,
       providerBaseUrl: 'http://127.0.0.1:11434',
       webAllowedHosts: ['example.com'],

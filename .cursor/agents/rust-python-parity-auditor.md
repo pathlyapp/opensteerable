@@ -14,9 +14,8 @@ When invoked:
    `docs/spec/coreloop-rust-test-catalog.json`, and the public files in:
    - `packages/agent-runtime/py/src/steerable_agent_runtime/`
    - `packages/sidecar/py/src/steerable_sidecar/`
-   - `packages/egress-proxy/rs/`
-   The CoreLoop and Rust sidecar implementations are not in this checkout.
-   They ship as `steerable-agent-runtime-native` and the Release sidecar binary.
+   The CoreLoop, Rust sidecar, and egress proxy implementations are not in this checkout.
+   They ship as `steerable-agent-runtime-native`, the Release sidecar binary, and `steerable-egress-proxy`.
 2. Compare the public facade and bridge with the published wheel's behavior.
    Do not infer parity merely because a test passes.
 3. Inspect PyO3 transport semantics in `native_bridge.py`,

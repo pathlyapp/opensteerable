@@ -18,16 +18,16 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import AsyncIterator
-from contextlib import suppress
 
+import httpx
 import pytest
+
 from steerable_agent_runtime.gateway_catalog import (
     GatewayCatalogError,
     clear_gateway_cache,
     fetch_gateway_models,
 )
-from steerable_egress_proxy.proxy import AllowList, EgressProxyServer, ProxyConfig
+from egress_bin import start_egress_proxy
 
 #: Never resolved: the proxy refuses this target before dialing it.
 DENIED_HOST = "denied.example"
@@ -46,7 +46,7 @@ PROXY_ENV_VARS = (
 
 
 @pytest.fixture
-async def confining_proxy(monkeypatch) -> AsyncIterator[EgressProxyServer]:
+async def confining_proxy(monkeypatch):
     """A running proxy that the fetch is confined to, desktop-style.
 
     ``STEERABLE_EGRESS_CONFINED`` is what makes the proxy own every host:
@@ -54,28 +54,14 @@ async def confining_proxy(monkeypatch) -> AsyncIterator[EgressProxyServer]:
     loopback among them — past the proxy, which is the opposite of the
     posture under test.
     """
-    proxy = EgressProxyServer(ProxyConfig(allow=AllowList(["allowed.example"]), bind_port=0))
-    serving = asyncio.create_task(proxy.serve())
-    # Polled, not slept on: a fetch that starts before the listener exists is
-    # refused by the kernel, and this suite's whole subject is telling a
-    # refusal by the proxy apart from a refusal by the network. The readiness
-    # test is ``> 0`` because ``bound_port`` falls back to the *requested*
-    # port, which is 0 here until the socket exists.
-    for _ in range(500):
-        if proxy.bound_port > 0:
-            break
-        await asyncio.sleep(0.01)
-    assert proxy.bound_port > 0, "egress proxy never bound a port"
-    monkeypatch.setenv("HTTPS_PROXY", f"http://127.0.0.1:{proxy.bound_port}")
+    proxy = start_egress_proxy(["allowed.example"])
+    monkeypatch.setenv("HTTPS_PROXY", f"http://127.0.0.1:{proxy.port}")
     monkeypatch.setenv("STEERABLE_EGRESS_CONFINED", "1")
     clear_gateway_cache()
     try:
         yield proxy
     finally:
-        serving.cancel()
-        with suppress(asyncio.CancelledError):
-            await serving
-        await proxy.close()
+        proxy.stop()
         clear_gateway_cache()
 
 
@@ -102,7 +88,13 @@ async def test_allowed_host_is_never_reported_as_an_egress_denial(
 
     upstream = await asyncio.start_server(hang_up, "127.0.0.1", 0)
     port = upstream.sockets[0].getsockname()[1]
-    confining_proxy.config.allow.add(f"127.0.0.1:{port}")
+    async with httpx.AsyncClient(timeout=5.0, trust_env=False) as client:
+        granted = await client.post(
+            f"http://127.0.0.1:{confining_proxy.control_port}/allow",
+            headers={"Authorization": "Bearer tok-test"},
+            json={"host": f"127.0.0.1:{port}"},
+        )
+    assert granted.status_code == 200
     try:
         with pytest.raises(GatewayCatalogError) as excinfo:
             await fetch_gateway_models(f"https://127.0.0.1:{port}/v1", "sk-test")

@@ -8,7 +8,7 @@
  */
 import path from 'node:path';
 import log from 'electron-log';
-import { SidecarSupervisor, resolveSidecarPython, type SidecarBootFailure } from './supervisor.js';
+import { SidecarSupervisor, type SidecarBootFailure } from './supervisor.js';
 import { setSidecarSupervisor, setSidecarSupervisorPending, llmService } from '../llm/index.js';
 import type { ScopedStore } from '../storage/scoped-store.js';
 import { resolveSidecarStoragePath } from './storage-path.js';
@@ -22,6 +22,7 @@ import { collectAmbientProxyEndpoints } from './proxy-detect.js';
 import {
   buildEgressProxyPlan,
   decideEgressProxy,
+  resolveEgressProxyExecutable,
   deriveWebEgressHosts,
   pickFreePort,
   recordEgressPosture,
@@ -90,7 +91,7 @@ async function deriveSidecarEgressAllowList(): Promise<string[] | undefined> {
 
 /**
  * W1.3.3（3.1a 起默认开）：把 sidecar 出网收敛到本机
- * steerable_egress_proxy。显式 `STEERABLE_EGRESS_PROXY=0` 退出。
+ * steerable-egress-proxy 二进制。显式 `STEERABLE_EGRESS_PROXY=0` 退出。
  *
  * 两类自动回退到旧的 Seatbelt 端口级派生路径（加固永远不能弄断 LLM
  * 通路）：
@@ -126,8 +127,17 @@ async function startEgressProxyIfEnabled(store: ScopedStore): Promise<{
       storedProvider: searchSettings?.provider,
       llmBaseUrl: settings.baseUrl,
     });
+    const executable = resolveEgressProxyExecutable();
+    if (!executable) {
+      log.warn('[egress-proxy] steerable-egress-proxy binary was not found; staying on port-level enforcement');
+      recordEgressPosture({
+        mode: 'port-only-fallback',
+        reason: '未找到 steerable-egress-proxy 二进制，按主机管控未启用',
+      });
+      return null;
+    }
     const plan = buildEgressProxyPlan({
-      pythonExecutable: resolveSidecarPython(),
+      executable,
       port: await pickFreePort(),
       providerBaseUrl: settings.baseUrl,
       providerApiKey: settings.apiKey || undefined,

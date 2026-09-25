@@ -471,9 +471,18 @@ Where Steerable genuinely differs, where it lags, and how to choose: [Full compa
         <span class="sf-brand-name">DeepPath</span>
         <span class="sf-brand-domain">deeppath.cc</span>
       </a>
+      <a href="https://aroli.work" target="_blank" rel="noopener noreferrer" class="sf-brand-item">
+        <img src="assets/users/aroli.png" alt="Aroli">
+        <span class="sf-brand-name">Aroli</span>
+        <span class="sf-brand-domain">aroli.work</span>
+      </a>
       <div class="sf-brand-item">
         <img src="assets/users/petrochina.svg" alt="PetroChina">
         <span>PetroChina</span>
+      </div>
+      <div class="sf-brand-item">
+        <img src="assets/users/etown-mark.png" alt="E-Town Holdings">
+        <span>E-Town Holdings</span>
       </div>
     </div>
   </div>

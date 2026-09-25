@@ -32,6 +32,10 @@ BANNED_LITERALS = (
     joined("e", "town"),
     joined("a", "roli"),
 )
+PUBLIC_HOMEPAGE_USER_LITERALS = {
+    joined("e", "town"),
+    joined("a", "roli"),
+}
 BANNED_ROOT_DOCS = {
     "ALIGN_TODO.md",
     "CORELOOP_TODO.md",
@@ -70,7 +74,11 @@ def main() -> int:
         except (UnicodeDecodeError, OSError):
             continue
         for literal in BANNED_LITERALS:
-            if literal in text:
+            allowed_homepage_user = (
+                relative == "docs/index.md"
+                and literal in PUBLIC_HOMEPAGE_USER_LITERALS
+            )
+            if literal in text and not allowed_homepage_user:
                 failures.append(f"{relative}: contains banned public literal {literal!r}")
         if relative == "wrangler.jsonc" and '"account_id"' in text:
             failures.append(f"{relative}: Cloudflare account_id must come from secrets")

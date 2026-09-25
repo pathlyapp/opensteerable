@@ -1,6 +1,6 @@
 [project]
 name = "steerable-agent-runtime"
-version = "0.6.42"
+version = "0.6.43"
 description = "Steerable agent runtime: LLM, tool, storage, and transport adapters."
 license = { text = "Apache-2.0" }
 readme = "README.md"

@@ -200,6 +200,16 @@ describe('ChatInput IME composition (Pinyin)', () => {
     expect(editor.getAttribute('data-composing')).toBe('true');
   });
 
+  it('WKWebView Enter keyCode 229 sends and does not stick composition', () => {
+    const onSubmit = vi.fn();
+    render(<ChatInput value="hello" onChange={vi.fn()} onSubmit={onSubmit} />);
+    const editor = screen.getByRole('textbox');
+    fireEvent.keyDown(editor, { key: 'Enter', keyCode: 229 });
+    fireEvent.keyDown(editor, { key: 'Enter', keyCode: 229 });
+    expect(onSubmit).toHaveBeenCalledTimes(2);
+    expect(editor.getAttribute('data-composing')).toBeNull();
+  });
+
   it('restores composing state on the first Pinyin letter keydown', () => {
     render(<ChatInput value="" onChange={vi.fn()} onSubmit={vi.fn()} />);
     const editor = screen.getByRole('textbox');

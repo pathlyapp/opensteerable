@@ -1,6 +1,6 @@
 [project]
 name = "steerable-sidecar"
-version = "0.6.43"
+version = "0.6.44"
 description = "Steerable agent runtime sidecar — JSON-RPC over stdio."
 license = { text = "Apache-2.0" }
 readme = "README.md"

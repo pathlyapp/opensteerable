@@ -5,7 +5,7 @@ use command_group::{Signal, UnixChildExt};
 use serde::Deserialize;
 use std::env;
 use std::io::{BufRead, BufReader};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::mpsc;
 use std::sync::Mutex;
@@ -224,12 +224,20 @@ impl HostPaths {
             .path()
             .resource_dir()
             .map_err(|error| error.to_string())?;
+        let resource_dir = node_compatible_path(&resource_dir);
         let host_root = resource_dir.join("node-host");
         let app_root = host_root.join("app-dist");
+        let engine_node = resource_dir.join("engine").join(platform_binary("node"));
         Ok(Self {
             node: env::var_os("DEEPPATH_TAURI_NODE")
                 .map(PathBuf::from)
-                .unwrap_or_else(|| resource_dir.join(node_resource_name())),
+                .unwrap_or_else(|| {
+                    if engine_node.exists() {
+                        engine_node
+                    } else {
+                        resource_dir.join(node_resource_name())
+                    }
+                }),
             server_entry: app_root
                 .join("products")
                 .join(&config.product_id)
@@ -271,6 +279,27 @@ fn node_resource_name() -> &'static str {
     }
 }
 
+fn node_compatible_path(path: &Path) -> PathBuf {
+    #[cfg(windows)]
+    {
+        use std::ffi::OsString;
+        use std::os::windows::ffi::{OsStrExt, OsStringExt};
+
+        let wide = path.as_os_str().encode_wide().collect::<Vec<_>>();
+        let verbatim_unc = r"\\?\UNC\".encode_utf16().collect::<Vec<_>>();
+        if let Some(rest) = wide.strip_prefix(&verbatim_unc) {
+            let mut normalized = r"\\".encode_utf16().collect::<Vec<_>>();
+            normalized.extend_from_slice(rest);
+            return PathBuf::from(OsString::from_wide(&normalized));
+        }
+        let verbatim = r"\\?\".encode_utf16().collect::<Vec<_>>();
+        if let Some(rest) = wide.strip_prefix(&verbatim) {
+            return PathBuf::from(OsString::from_wide(rest));
+        }
+    }
+    path.to_path_buf()
+}
+
 fn spawn_group(command: &mut Command) -> std::io::Result<GroupChild> {
     #[cfg(windows)]
     {
@@ -281,3 +310,7 @@ fn spawn_group(command: &mut Command) -> std::io::Result<GroupChild> {
         command.group_spawn()
     }
 }
+
+#[cfg(test)]
+#[path = "host_tests.rs"]
+mod tests;

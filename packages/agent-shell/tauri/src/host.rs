@@ -287,13 +287,13 @@ fn node_compatible_path(path: &Path) -> PathBuf {
 
         let wide = path.as_os_str().encode_wide().collect::<Vec<_>>();
         let verbatim_unc = r"\\?\UNC\".encode_utf16().collect::<Vec<_>>();
-        if let Some(rest) = wide.strip_prefix(&verbatim_unc) {
+        if let Some(rest) = wide.strip_prefix(verbatim_unc.as_slice()) {
             let mut normalized = r"\\".encode_utf16().collect::<Vec<_>>();
             normalized.extend_from_slice(rest);
             return PathBuf::from(OsString::from_wide(&normalized));
         }
         let verbatim = r"\\?\".encode_utf16().collect::<Vec<_>>();
-        if let Some(rest) = wide.strip_prefix(&verbatim) {
+        if let Some(rest) = wide.strip_prefix(verbatim.as_slice()) {
             return PathBuf::from(OsString::from_wide(rest));
         }
     }

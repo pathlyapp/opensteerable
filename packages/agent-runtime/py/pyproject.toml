@@ -16,7 +16,7 @@ dependencies = [
   "pydantic>=2.10.0",
   "steerable-agent-protocol>=0.1.0,<1.0.0",
   "steerable-agent-harness>=0.1.0,<1.0.0",
-  "steerable-agent-runtime-native==0.6.40",
+  "steerable-agent-runtime-native==0.6.43",
 ]
 
 [project.optional-dependencies]

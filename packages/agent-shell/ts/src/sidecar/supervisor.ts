@@ -846,6 +846,17 @@ export class SidecarSupervisor extends EventEmitter {
     child.stderr.setEncoding('utf-8');
     child.stdout.on('data', (chunk: string) => this.handleStdoutChunk(chunk));
     child.stderr.on('data', (chunk: string) => this.handleStderrChunk(chunk));
+    child.stdin.on('error', (error) => {
+      // A child may close stdin between shutdown's requireChild() and write().
+      // Keep the stream error handled; the write callback/pending failure
+      // carries the transport error to callers.
+      this.failPending(new SidecarShutdownError(
+        `sidecar stdin closed: ${error.message}`,
+      ));
+      if (!this.shuttingDown) {
+        this.options.onLogLine?.(`sidecar stdin error: ${error.message}`);
+      }
+    });
     child.on('exit', (code, signal) => {
       this.emit('exit', { code, signal });
       this.failPending(new SidecarShutdownError(

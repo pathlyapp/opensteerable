@@ -62,12 +62,14 @@ function fakeChild() {
   const child = new EventEmitter() as EventEmitter & {
     stdout: EventEmitter & { setEncoding: (enc: string) => void };
     stderr: EventEmitter & { setEncoding: (enc: string) => void };
-    stdin: { write: (data: string, cb?: (err?: Error | null) => void) => void };
+    stdin: EventEmitter & {
+      write: (data: string, cb?: (err?: Error | null) => void) => void;
+    };
     kill: () => void;
   };
   child.stdout = Object.assign(new EventEmitter(), { setEncoding: () => {} });
   child.stderr = Object.assign(new EventEmitter(), { setEncoding: () => {} });
-  child.stdin = {
+  child.stdin = Object.assign(new EventEmitter(), {
     write: (data, cb) => {
       // Graceful shutdown handshake: respond to the RPC, then exit — on a
       // later macrotask so the supervisor's `await call(...)` continuation
@@ -86,7 +88,7 @@ function fakeChild() {
       }
       cb?.();
     },
-  };
+  });
   child.kill = () => {};
   queueMicrotask(() => child.stderr.emit('data', READY_LINE));
   return child;
@@ -197,6 +199,18 @@ describe('SidecarSupervisor sandbox spawn plan', () => {
     expect(command).toBe('/fake/python3');
     expect(args).toEqual(['-m', 'steerable_sidecar']);
     expect(execFileImpl).not.toHaveBeenCalled();
+  });
+
+  it('handles stdin EPIPE during shutdown without crashing the host', async () => {
+    const supervisor = await SidecarSupervisor.start({
+      pythonExecutable: '/fake/python3',
+      healthIntervalMs: 0,
+      sandbox: false,
+    });
+    const child = spawnMock.mock.results[0].value as ReturnType<typeof fakeChild>;
+    const error = Object.assign(new Error('write EPIPE'), { code: 'EPIPE' });
+    expect(() => child.stdin.emit('error', error)).not.toThrow();
+    await supervisor.shutdown();
   });
 
   it('wraps the spawn in sandbox-exec when sandbox: true', async () => {

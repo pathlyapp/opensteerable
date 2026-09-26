@@ -98,15 +98,20 @@ describe('executeShell · 基础分支', () => {
     }
   });
 
-  it.skipIf(isWin)('显式 shell=bash：走 /bin/bash 且结果标记 shell=bash', async () => {
-    const res = await new LocalExecutor().executeShell({
-      command: 'printf %s "$BASH_VERSION"',
-      shell: 'bash',
-    });
-    expect(res.success).toBe(true);
-    expect(res.shell).toBe('bash');
-    expect(res.stdout?.trim()).not.toBe('');
-  });
+  it.skipIf(isWin)(
+    '显式 shell=bash：走 /bin/bash 且结果标记 shell=bash',
+    async () => {
+      const res = await new LocalExecutor().executeShell({
+        command: 'printf %s "$BASH_VERSION"',
+        shell: 'bash',
+      });
+      expect(res.success).toBe(true);
+      expect(res.shell).toBe('bash');
+      expect(res.stdout?.trim()).not.toBe('');
+    },
+    // Workspace-wide parallel tests can delay native process startup on CI.
+    15_000,
+  );
 
   it.skipIf(!hasZsh)('显式 shell=zsh：走 zsh 且结果标记 shell=zsh', async () => {
     const res = await new LocalExecutor().executeShell({

@@ -11,6 +11,8 @@
  */
 
 import { EventEmitter } from 'node:events';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -186,6 +188,11 @@ describe('SidecarSupervisor sandbox spawn plan', () => {
     expect(args.slice(2)).toEqual(['/fake/python3', '-m', 'steerable_sidecar']);
     // The sandbox denies __pycache__ writes; bytecode caching is disabled.
     expect(spawnOptions.env.PYTHONDONTWRITEBYTECODE).toBe('1');
+    // macOS launchd TMPDIR is /var/folders, which Seatbelt does not allow.
+    const confinedTmp = join(homedir(), '.steerable', 'tmp');
+    expect(spawnOptions.env.TMPDIR).toBe(confinedTmp);
+    expect(spawnOptions.env.TMP).toBe(confinedTmp);
+    expect(spawnOptions.env.TEMP).toBe(confinedTmp);
   });
 
   it('generates the Seatbelt profile from the rust sidecar when the flag is on', async () => {

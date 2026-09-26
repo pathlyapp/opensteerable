@@ -670,11 +670,19 @@ export class SidecarSupervisor extends EventEmitter {
           ')',
       );
       this.sandboxPosture = { backend: 'seatbelt', enforcement: 'partial', reason: 'active' };
+      // macOS TMPDIR is /var/folders, which the Seatbelt profile does not
+      // allow. run_code / run_js materialize their workers there and fail
+      // with EPERM, so the model cannot list or read local folders.
+      const confinedTmp = join(writableRoots[0], 'tmp');
+      mkdirSync(confinedTmp, { recursive: true });
       return {
         command: SEATBELT_EXECUTABLE,
         args: ['-p', profile, command, ...args],
         env: {
           PYTHONDONTWRITEBYTECODE: '1',
+          TMPDIR: confinedTmp,
+          TMP: confinedTmp,
+          TEMP: confinedTmp,
           // macOS denies a nested sandbox_apply once the outer profile allows
           // outbound network, so a layer-1-confined sidecar cannot wrap its own
           // run_code child. The marker tells the sidecar to let that child

@@ -142,12 +142,18 @@ export async function startBsHost(
     shutdown(): Promise<void> {
       shutdownPromise ??= (async () => {
         try {
-          await new Promise<void>((resolve, reject) => {
+          const closed = new Promise<void>((resolve, reject) => {
             server.close((error) => {
               if (error) reject(error);
               else resolve();
             });
           });
+          // The Tauri webview keeps HTTP/SSE connections alive while its
+          // ExitRequested handler waits for this promise. Force those
+          // connections closed so Cmd+Q does not deadlock until the outer
+          // five-second process timeout.
+          server.closeAllConnections();
+          await closed;
         } finally {
           await runtime.shutdown();
         }

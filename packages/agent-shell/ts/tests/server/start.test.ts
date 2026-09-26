@@ -79,7 +79,9 @@ describe('startBsHost', () => {
     );
     expect(mocks.runtimeStart).toHaveBeenCalledOnce();
 
+    const closeAllConnections = vi.spyOn(handle.server, 'closeAllConnections');
     await Promise.all([handle.shutdown(), handle.shutdown()]);
+    expect(closeAllConnections).toHaveBeenCalledOnce();
     expect(mocks.runtimeShutdown).toHaveBeenCalledOnce();
   });
 });

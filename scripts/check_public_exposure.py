@@ -14,13 +14,15 @@ def joined(*parts: str) -> str:
     return "".join(parts)
 
 
-BANNED_LITERALS = (
+SENSITIVE_LITERALS = (
     joined("sk-", "b1383d225ee44f118ad99e359ec9e5d8"),
     joined("/Users/", "wangtai"),
     joined("C:\\Users\\", "wangtai"),
     joined("pathlyapp/", "steerable-framework"),
     joined("github.com/deeppath/", "steerable-framework"),
     joined("proj/", "yizhuang-agent"),
+)
+PRODUCT_LITERALS = (
     joined("时", "踪"),
     joined("亦", "庄"),
     joined("测", "井"),
@@ -32,6 +34,7 @@ BANNED_LITERALS = (
     joined("e", "town"),
     joined("a", "roli"),
 )
+PRODUCT_PUBLIC_DOCS = frozenset({"docs/index.md"})
 BANNED_ROOT_DOCS = {
     "ALIGN_TODO.md",
     "CORELOOP_TODO.md",
@@ -41,6 +44,21 @@ BANNED_ROOT_DOCS = {
     "TODO.md",
 }
 SENSITIVE_SUFFIXES = (".pem", ".key", ".p12", ".pfx", ".jks", ".keystore")
+
+
+def literal_exposure_failures(relative: str, text: str) -> list[str]:
+    failures = [
+        f"{relative}: contains banned public literal {literal!r}"
+        for literal in SENSITIVE_LITERALS
+        if literal in text
+    ]
+    if relative not in PRODUCT_PUBLIC_DOCS:
+        failures.extend(
+            f"{relative}: contains private product literal {literal!r}"
+            for literal in PRODUCT_LITERALS
+            if literal in text
+        )
+    return failures
 
 
 def tracked_files() -> list[str]:
@@ -69,9 +87,7 @@ def main() -> int:
             text = full.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
             continue
-        for literal in BANNED_LITERALS:
-            if literal in text:
-                failures.append(f"{relative}: contains banned public literal {literal!r}")
+        failures.extend(literal_exposure_failures(relative, text))
         if relative == "wrangler.jsonc" and '"account_id"' in text:
             failures.append(f"{relative}: Cloudflare account_id must come from secrets")
 

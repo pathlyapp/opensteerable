@@ -521,12 +521,17 @@ export class SidecarSupervisor extends EventEmitter {
   // ------------------------------------------------------------------
 
   private async boot(): Promise<void> {
-    const rustBin = rustSidecarEnabled()
+    const useRustSidecar = rustSidecarEnabled();
+    const rustBin = useRustSidecar
       ? resolveRustSidecarBin(this.options.rustSidecarBin)
       : undefined;
     let spawnPlan: { command: string; args: string[]; env?: NodeJS.ProcessEnv };
     if (rustBin) {
       spawnPlan = await this.resolveSandboxedSpawn(rustBin, this.options.args ?? []);
+    } else if (useRustSidecar) {
+      throw new Error(
+        'STEERABLE_RUST_SIDECAR is enabled but the Rust sidecar binary is missing',
+      );
     } else {
       const py = this.resolvePythonBinary();
       const entry = this.options.entryModule ?? 'steerable_sidecar';
@@ -670,11 +675,16 @@ export class SidecarSupervisor extends EventEmitter {
           ')',
       );
       this.sandboxPosture = { backend: 'seatbelt', enforcement: 'partial', reason: 'active' };
+      const confinedTmp = join(writableRoots[0], 'tmp');
+      mkdirSync(confinedTmp, { recursive: true });
       return {
         command: SEATBELT_EXECUTABLE,
         args: ['-p', profile, command, ...args],
         env: {
           PYTHONDONTWRITEBYTECODE: '1',
+          TMPDIR: confinedTmp,
+          TMP: confinedTmp,
+          TEMP: confinedTmp,
           // macOS denies a nested sandbox_apply once the outer profile allows
           // outbound network, so a layer-1-confined sidecar cannot wrap its own
           // run_code child. The marker tells the sidecar to let that child
@@ -1176,12 +1186,16 @@ function envFlag(name: string): boolean {
 }
 
 export function rustSidecarEnabled(): boolean {
-  return envFlag(RUST_SIDECAR_ENV);
+  if ((process.env[RUST_SIDECAR_ENV] ?? '').trim()) {
+    return envFlag(RUST_SIDECAR_ENV);
+  }
+  return resolveRustSidecarBin() !== undefined;
 }
 
 /**
- * Resolve the optional Rust sidecar binary. Missing binary with the flag
- * on is a silent fallback to Python (`python -m steerable_sidecar`).
+ * Resolve the Rust sidecar binary from an explicit path, a packaged engine,
+ * or a framework source checkout. Boot fails when Rust was explicitly
+ * enabled but no binary resolves.
  */
 export function resolveRustSidecarBin(explicit?: string): string | undefined {
   if (explicit) {
@@ -1192,6 +1206,11 @@ export function resolveRustSidecarBin(explicit?: string): string | undefined {
     return existsSync(fromEnv) ? fromEnv : undefined;
   }
   const exe = process.platform === 'win32' ? 'steerable-sidecar.exe' : 'steerable-sidecar';
+  const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
+  if (resourcesPath) {
+    const packaged = join(resourcesPath, 'engine', exe);
+    if (existsSync(packaged)) return packaged;
+  }
   const relatives = [
     join('..', '..', '..', '..', 'sidecar', 'rs', 'target', 'debug', exe),
     join('..', '..', '..', '..', '..', 'sidecar', 'rs', 'target', 'debug', exe),

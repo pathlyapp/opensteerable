@@ -5,6 +5,7 @@ mod update;
 use commands::{host_capture_screenshot, host_save_text_file, host_select_directory};
 use host::HostProcess;
 use std::path::PathBuf;
+use std::thread;
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder},
     Emitter, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent,
@@ -99,27 +100,44 @@ pub fn run(context: tauri::Context<tauri::Wry>, config: DesktopConfig) {
         ])
         .setup(move |app| {
             install_menu(app)?;
-            let (host, url) = match HostProcess::spawn(app.handle(), &config) {
-                Ok(started) => started,
-                Err(error) => {
-                    let handle = app.handle().clone();
-                    app.dialog()
-                        .message(error)
+            let handle = app.handle().clone();
+            thread::spawn(move || {
+                let (host, url) = match HostProcess::spawn(&handle, &config) {
+                    Ok(started) => started,
+                    Err(error) => {
+                        let exit_handle = handle.clone();
+                        handle
+                            .dialog()
+                            .message(error)
+                            .title(format!("{} 无法启动", config.product_name))
+                            .kind(MessageDialogKind::Error)
+                            .show(move |_| exit_handle.exit(1));
+                        return;
+                    }
+                };
+                handle.manage(host);
+                let allowed_origin = url.origin().ascii_serialization();
+                if let Err(error) =
+                    WebviewWindowBuilder::new(&handle, "main", WebviewUrl::External(url))
+                        .title(&config.product_name)
+                        .inner_size(1200.0, 800.0)
+                        .min_inner_size(900.0, 650.0)
+                        .on_navigation(move |url| {
+                            url.origin().ascii_serialization() == allowed_origin
+                        })
+                        .build()
+                {
+                    let exit_handle = handle.clone();
+                    handle
+                        .dialog()
+                        .message(error.to_string())
                         .title(format!("{} 无法启动", config.product_name))
                         .kind(MessageDialogKind::Error)
-                        .show(move |_| handle.exit(1));
-                    return Ok(());
+                        .show(move |_| exit_handle.exit(1));
+                    return;
                 }
-            };
-            app.manage(host);
-            let allowed_origin = url.origin().ascii_serialization();
-            WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url))
-                .title(&config.product_name)
-                .inner_size(1200.0, 800.0)
-                .min_inner_size(900.0, 650.0)
-                .on_navigation(move |url| url.origin().ascii_serialization() == allowed_origin)
-                .build()?;
-            update::start(app.handle());
+                update::start(&handle);
+            });
             Ok(())
         });
 

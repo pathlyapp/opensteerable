@@ -31,10 +31,14 @@ describe('Rust sidecar flag fallback', () => {
     rmSync(scratch, { recursive: true, force: true });
   });
 
-  it('is off unless STEERABLE_RUST_SIDECAR is set', () => {
+  it('uses an available binary by default and honors an explicit off switch', () => {
     expect(rustSidecarEnabled()).toBe(false);
-    process.env[RUST_SIDECAR_ENV] = '1';
+    const bin = join(scratch, 'steerable-sidecar');
+    writeFileSync(bin, '');
+    process.env[RUST_SIDECAR_BIN_ENV] = bin;
     expect(rustSidecarEnabled()).toBe(true);
+    process.env[RUST_SIDECAR_ENV] = '0';
+    expect(rustSidecarEnabled()).toBe(false);
   });
 
   it('resolves an explicit binary and ignores a missing env path', () => {

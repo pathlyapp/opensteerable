@@ -400,6 +400,31 @@ def _normalize_root(root: str) -> str:
     return os.path.realpath(os.path.abspath(os.path.expanduser(root)))
 
 
+def _tmp_exec_roots(argv: Sequence[str]) -> list[str]:
+    """Existing ``/tmp/<name>`` directories named by an exec argv.
+
+    The bwrap profile replaces ``/tmp`` with a private tmpfs. An AppImage
+    extracted to ``/tmp/appimage_extracted_*`` (or a FUSE mount at
+    ``/tmp/.mount_*``) disappears, and ``execve`` reports ENOENT. Re-bind
+    only those top-level directories the command itself names.
+    """
+
+    roots: list[str] = []
+    seen: set[str] = set()
+    for arg in argv:
+        if not arg.startswith("/tmp/") or arg in ("/tmp/", "/tmp/."):
+            continue
+        component = arg[len("/tmp/") :].split("/", 1)[0]
+        if not component or component in (".", ".."):
+            continue
+        top = f"/tmp/{component}"
+        if top in seen or not os.path.isdir(top):
+            continue
+        seen.add(top)
+        roots.append(top)
+    return roots
+
+
 class BwrapExecBackend:
     """Per-exec bubblewrap backend for ``SandboxedToolExecutor`` (layer 2).
 
@@ -480,7 +505,12 @@ class BwrapExecBackend:
 
         if not argv:
             raise ValueError("linux-wrap command argv is empty")
-        return [self._executable, *self._profile_args(), "--", *argv]
+        # Private /tmp hides AppImage extract dirs and FUSE mounts. Re-bind
+        # each referenced top-level directory so execve can still find them.
+        rebind: list[str] = []
+        for top in _tmp_exec_roots(argv):
+            rebind += ["--dir", top, "--ro-bind", top, top]
+        return [self._executable, *self._profile_args(), *rebind, "--", *argv]
 
     def wrap_command(self, command: str) -> str:
         return " ".join(shlex.quote(part) for part in self.argv_for(command))

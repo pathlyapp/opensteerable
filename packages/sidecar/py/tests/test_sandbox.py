@@ -8,11 +8,13 @@ sandbox-exec smoke tests on macOS (skipped elsewhere).
 
 from __future__ import annotations
 
+import os
 import socket
 import subprocess
 import sys
 import threading
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 from steerable_sidecar.landlock import landlock_available
@@ -494,6 +496,24 @@ class TestBwrapExecBackend:
         # Scratch is a private tmpfs, not the host's /tmp.
         tmpfs_at = args.index("--tmpfs")
         assert args[tmpfs_at + 1] == "/tmp"
+
+    def test_appimage_extract_under_tmp_is_rebound(self) -> None:
+        extract = Path("/tmp") / f"appimage_extracted_steerable_test_{os.getpid()}"
+        extract.mkdir()
+        try:
+            binary = str(extract / "usr/lib/Aroli/engine/steerable-sidecar")
+            args = BwrapExecBackend(executable="/usr/bin/bwrap").argv_for_exec([binary])
+        finally:
+            extract.rmdir()
+        sep = args.index("--")
+        assert args[sep - 5 : sep] == [
+            "--dir",
+            str(extract),
+            "--ro-bind",
+            str(extract),
+            str(extract),
+        ]
+        assert args[sep + 1] == binary
 
     def test_writable_root_must_exist(self, tmp_path) -> None:
         with pytest.raises(ValueError, match="does not exist"):

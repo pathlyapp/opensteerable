@@ -12,3 +12,11 @@ resource paths, and updates.
 
 The crate is source-distributed with the npm package and is not published to
 crates.io.
+
+Packaged products place the verified Rust sidecar and egress proxy at
+`engine/steerable-sidecar` and `engine/steerable-egress-proxy`. An optional
+`engine/python-runner` is only a child interpreter for `run_code`; it never
+hosts the sidecar. Products may set `pythonRunner` to `bundle` or `download`
+in `product.json`. Download mode uses the packaged lock and installer,
+verifies SHA-256 before an atomic install under the product data directory,
+and passes the resulting absolute executable as `STEERABLE_PYTHON`.

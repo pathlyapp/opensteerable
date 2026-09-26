@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   supervisorStart: vi.fn(),
   resolveSidecarPython: vi.fn(() => '/venv/bin/python3'),
+  rustSidecarEnabled: vi.fn(() => false),
   setSidecarSupervisor: vi.fn(),
   setSidecarSupervisorPending: vi.fn(),
   llmGetSettings: vi.fn(() => ({ baseUrl: 'https://llm.example/v1', apiKey: 'k' })),
@@ -39,6 +40,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../src/sidecar/supervisor.js', () => ({
   SidecarSupervisor: { start: mocks.supervisorStart },
   resolveSidecarPython: mocks.resolveSidecarPython,
+  rustSidecarEnabled: mocks.rustSidecarEnabled,
 }));
 vi.mock('../../src/llm/index.js', () => ({
   setSidecarSupervisor: mocks.setSidecarSupervisor,
@@ -115,7 +117,12 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
   return Object.assign(deps, toolRouter) as never;
 }
 
-const ENV_KEYS = ['STEERABLE_USE_SIDECAR', 'STEERABLE_EGRESS_PROXY', 'STEERABLE_SIDECAR_SANDBOX_ALLOWED_HOSTS'];
+const ENV_KEYS = [
+  'STEERABLE_USE_SIDECAR',
+  'STEERABLE_EGRESS_PROXY',
+  'STEERABLE_SIDECAR_SANDBOX_ALLOWED_HOSTS',
+  'STEERABLE_PYTHON',
+];
 let savedEnv: Record<string, string | undefined> = {};
 
 beforeEach(() => {
@@ -130,10 +137,12 @@ beforeEach(() => {
   mocks.storeGetWebSearchSettings.mockReturnValue(undefined);
   mocks.llmGetSettings.mockReturnValue({ baseUrl: 'https://llm.example/v1', apiKey: 'k' });
   mocks.deriveEgressAllowListFromBaseUrl.mockReturnValue(['llm.example']);
+  mocks.rustSidecarEnabled.mockReturnValue(false);
   savedEnv = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]));
   delete process.env.STEERABLE_USE_SIDECAR;
   delete process.env.STEERABLE_EGRESS_PROXY;
   delete process.env.STEERABLE_SIDECAR_SANDBOX_ALLOWED_HOSTS;
+  delete process.env.STEERABLE_PYTHON;
 });
 
 afterEach(async () => {
@@ -169,6 +178,22 @@ describe('startHostSidecar · 开关与 spawn 计划', () => {
     expect(plan.env.ELECTRON_RUN_AS_NODE).toBeUndefined();
     expect(mocks.setSidecarSupervisor).toHaveBeenCalledWith(sup);
     expect(mocks.setSidecarSupervisorPending).toHaveBeenCalledOnce();
+  });
+
+  it('Rust sidecar 只在受管 Python runner 可用时注册 run_code', async () => {
+    mocks.rustSidecarEnabled.mockReturnValue(true);
+    mocks.supervisorStart.mockResolvedValue(fakeSupervisor());
+    await startHostSidecar(makeDeps());
+    expect(mocks.supervisorStart.mock.calls[0][0].env.STEERABLE_RUN_CODE).toBe('0');
+    await shutdownHostSidecar();
+
+    process.env.STEERABLE_PYTHON = '/managed/python3';
+    mocks.supervisorStart.mockResolvedValue(fakeSupervisor());
+    await startHostSidecar(makeDeps());
+    expect(mocks.supervisorStart.mock.calls[1][0].env).toMatchObject({
+      STEERABLE_RUN_CODE: '1',
+      STEERABLE_PYTHON: '/managed/python3',
+    });
   });
 
   it('反向通道全接线：tool.invoke / approval / ask_user / read_state.seed / host.process.spawn', async () => {

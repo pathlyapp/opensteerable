@@ -9,7 +9,11 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import log from 'electron-log';
-import { SidecarSupervisor, type SidecarBootFailure } from './supervisor.js';
+import {
+  rustSidecarEnabled,
+  SidecarSupervisor,
+  type SidecarBootFailure,
+} from './supervisor.js';
 import { setSidecarSupervisor, setSidecarSupervisorPending, llmService } from '../llm/index.js';
 import type { ScopedStore } from '../storage/scoped-store.js';
 import { resolveSidecarStoragePath } from './storage-path.js';
@@ -219,6 +223,8 @@ async function startEgressProxyIfEnabled(store: ScopedStore): Promise<{
  */
 export async function startHostSidecar(deps: HostSidecarDeps): Promise<void> {
   if (process.env.STEERABLE_USE_SIDECAR === '0') return;
+  const pythonRunner = process.env.STEERABLE_PYTHON?.trim();
+  const runCodeEnabled = !rustSidecarEnabled() || Boolean(pythonRunner);
   // ready 后的完整接线：注册全局 handle + reverse channels + web 工具握手。
   // 正常 boot 路径与「boot 失败后后台 restart 迟到就绪」路径共用。
   const wireSupervisor = async (supervisor: SidecarSupervisor): Promise<void> => {
@@ -375,7 +381,8 @@ export async function startHostSidecar(deps: HostSidecarDeps): Promise<void> {
           // P1: offer the sidecar's run_code (programmatic tool calls) to the
           // model. The sidecar registers + advertises it; the desktop's
           // tool-router forwards the call back over the reverse channel.
-          STEERABLE_RUN_CODE: '1',
+          STEERABLE_RUN_CODE: runCodeEnabled ? '1' : '0',
+          ...(pythonRunner ? { STEERABLE_PYTHON: pythonRunner } : {}),
           // P3: conversational JS PTC (run_js/wait_js). The sidecar spawns a
           // long-lived Node worker. Browser and Tauri desktop hosts both run
           // under the pinned Node runtime, so process.execPath is directly

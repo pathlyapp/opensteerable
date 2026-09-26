@@ -164,6 +164,9 @@ is an extra tool whose arguments are `{code, description}`. `code` is the
 body of a Python function. The program runs in a **child** interpreter
 under the same layer-2 backend as bash (Seatbelt / bwrap / Landlock). The
 sidecar process that holds the API key does not `exec` model Python.
+The Rust sidecar requires the host to provide a verified interpreter through
+`STEERABLE_PYTHON`; it does not discover an arbitrary system Python from
+`PATH`. Product packaging may bundle this runner or install it separately.
 
 The child talks JSON-over-stdio (`tools.call(name, **kwargs)` /
 `tools.<name>(...)`). Nested calls go through the live executor (approval,

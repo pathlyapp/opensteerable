@@ -1184,22 +1184,22 @@ requires-dist = [
     { name = "starlette", marker = "extra == 'fastapi'", specifier = ">=0.37" },
     { name = "steerable-agent-harness", editable = "packages/agent-harness/py" },
     { name = "steerable-agent-protocol", editable = "packages/agent-protocol/py" },
-    { name = "steerable-agent-runtime-native", specifier = "==0.6.39" },
+    { name = "steerable-agent-runtime-native", specifier = "==1.0.2" },
 ]
 provides-extras = ["sqlalchemy", "fastapi", "openai", "anthropic", "all"]
 
 [[package]]
 name = "steerable-agent-runtime-native"
-version = "0.6.39"
+version = "1.0.2"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/92/fd/f40bcb8b35960d849a09702d2f97f18195e2b31c1d34ad9589932b7c4f91/steerable_agent_runtime_native-0.6.39-cp310-abi3-macosx_10_12_x86_64.whl", hash = "sha256:72337b89a2c0a40eefa75de3623a1baac4eb9d62ec43136560f48d9c2c284632", size = 600161, upload-time = "2026-09-24T13:28:02.113Z" },
-    { url = "https://files.pythonhosted.org/packages/5e/0a/6073635ba25ea2f7237c2e8453bc3ab545e0bcd87a720c69727ca9c85320/steerable_agent_runtime_native-0.6.39-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:a6e34bad5486abe979bf5fddf2dce918ebadff229f42c4f3725e99d2bf267770", size = 581379, upload-time = "2026-09-24T13:28:03.899Z" },
-    { url = "https://files.pythonhosted.org/packages/25/b2/e25e25fb81b022b2fa43f66442abe71b528b2b59f043fc336f43781e8b16/steerable_agent_runtime_native-0.6.39-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:100210769cc79e365b99f7f1399c12107806d71f1cfadf9ea1651d1dd35f97bc", size = 644413, upload-time = "2026-09-24T13:28:05.751Z" },
-    { url = "https://files.pythonhosted.org/packages/35/ce/686b64fd21ced029219716291987372c4a1e5af4d831e707b3b2b5c3501b/steerable_agent_runtime_native-0.6.39-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:f3f7788dc90e64709ebfd957357177b1c472d5d0932e9b84d3f712cb1df233b2", size = 677270, upload-time = "2026-09-24T13:28:07.269Z" },
-    { url = "https://files.pythonhosted.org/packages/d6/67/fc3652713bbb9509e0e9618c0a53eb126eb6e39bcab7995021e8cbae41c3/steerable_agent_runtime_native-0.6.39-cp310-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:6ab3056ae875302780c8431701d039fbe392d1ac60e8e20a3388df46141fb8bf", size = 821428, upload-time = "2026-09-24T13:28:08.975Z" },
-    { url = "https://files.pythonhosted.org/packages/d5/86/b130ae42f30556160fb1cd8a2610d3ec1dc2fb1e02c0786fc50b6bcc7d53/steerable_agent_runtime_native-0.6.39-cp310-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:dd7863233ac95830f4f01c663f88af4d0e12be928c2a3657534f83668ae34e0b", size = 875113, upload-time = "2026-09-24T13:28:10.405Z" },
-    { url = "https://files.pythonhosted.org/packages/95/87/b1d0fc05f31caeda320a8ae2b1edd382e0d6bd38c6753eebf41288a4aeee/steerable_agent_runtime_native-0.6.39-cp310-abi3-win_amd64.whl", hash = "sha256:253543e62801293dead42fa61765f1acaa8a8abe3e9a86bcb87efa27fa21479b", size = 513571, upload-time = "2026-09-24T13:28:11.854Z" },
+    { url = "https://files.pythonhosted.org/packages/bd/54/2a4417fa17dd16be978e6839afb67e8f4ccfb7e5c5c52ad3a8bbd7238599/steerable_agent_runtime_native-1.0.2-cp310-abi3-macosx_10_12_x86_64.whl", hash = "sha256:696100448105332e8c41d84d1fde5c696fe52efd6ed544ce87b3cdcaabee42b4", size = 600097, upload-time = "2026-09-26T09:30:57.49Z" },
+    { url = "https://files.pythonhosted.org/packages/12/74/be64259c490921bd5247e610f632643d238d6636493604a692c77ae6b774/steerable_agent_runtime_native-1.0.2-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:454c2c8d371f8a108e0ed7cb7f944d7196d10a0a3a61cf80855065e70018d236", size = 581374, upload-time = "2026-09-26T09:30:59.053Z" },
+    { url = "https://files.pythonhosted.org/packages/f0/8f/a5cdbe793f01eedded5820986bc730ecf4e15d72c7eb1d01a55223121b66/steerable_agent_runtime_native-1.0.2-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:d8d4b57c1474a7ded4b70d6ecec8c5faf3f12cf0229eee783f322e674f386f4d", size = 645468, upload-time = "2026-09-26T09:31:00.467Z" },
+    { url = "https://files.pythonhosted.org/packages/3c/c7/85c7b9d67ea4d4a8aec76cc1dc87f83898b2e49c258bb55ba60dee12b20f/steerable_agent_runtime_native-1.0.2-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:47cbd6ab36c1d373b31a0489e1ddf7efe9a6cad794ec02da3fb522681f2a0a07", size = 677536, upload-time = "2026-09-26T09:31:02.423Z" },
+    { url = "https://files.pythonhosted.org/packages/d0/dc/843dd7a152f689f36d3d79dd6c9f238ce591e55deca8351a960ed7426e7b/steerable_agent_runtime_native-1.0.2-cp310-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:9b81cdcb4f91bc0e2e93768838c2e58b67937bf00e51b165c15062102ebe766d", size = 821165, upload-time = "2026-09-26T09:31:03.944Z" },
+    { url = "https://files.pythonhosted.org/packages/40/38/85e8f15447052964ebdba6ac8ae6a8d3d3f754195a3d8df88fbc99f98f38/steerable_agent_runtime_native-1.0.2-cp310-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:bae3159e1f45d36e466c8dea61f4b636274e6017cff3685414ccd4633765f4b5", size = 874804, upload-time = "2026-09-26T09:31:05.34Z" },
+    { url = "https://files.pythonhosted.org/packages/a2/60/b9e784f384a74c9db70cf04823c1a0167919beabb02fa3ae9171db2f4dfa/steerable_agent_runtime_native-1.0.2-cp310-abi3-win_amd64.whl", hash = "sha256:bcb6f2898fdbb213a9d881ccd12d811e747e29397c5e769358416cd4a1c665b8", size = 513765, upload-time = "2026-09-26T09:31:06.91Z" },
 ]
 
 [[package]]
@@ -1262,7 +1262,7 @@ dev = [
     { name = "steerable-agent-harness", editable = "packages/agent-harness/py" },
     { name = "steerable-agent-protocol", editable = "packages/agent-protocol/py" },
     { name = "steerable-agent-runtime", editable = "packages/agent-runtime/py" },
-    { name = "steerable-agent-runtime-native", specifier = "==0.6.39" },
+    { name = "steerable-agent-runtime-native", specifier = "==1.0.2" },
     { name = "steerable-plugin-sdk", editable = "packages/plugin-sdk/py" },
     { name = "steerable-sidecar", editable = "packages/sidecar/py" },
 ]

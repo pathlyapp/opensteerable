@@ -1,6 +1,6 @@
 {
   "name": "@steerable/agent-shell",
-  "version": "0.6.41",
+  "version": "0.6.48",
   "description": "Steerable framework \u2014 product-neutral Node HostRuntime and headless HTTP server shared by Tauri desktop and browser deployments; scenario packs extend it through @steerable/pack-sdk.",
   "license": "Apache-2.0",
   "homepage": "https://steerableframework.com/",

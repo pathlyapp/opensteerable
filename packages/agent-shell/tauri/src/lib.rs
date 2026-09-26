@@ -43,10 +43,15 @@ fn install_menu(app: &tauri::App) -> tauri::Result<()> {
     let open_terminal = MenuItemBuilder::with_id("open-terminal", "打开终端")
         .accelerator("CmdOrCtrl+T")
         .build(app)?;
+    let quit = MenuItemBuilder::with_id("app-quit", "退出")
+        .accelerator("CmdOrCtrl+Q")
+        .build(app)?;
     let file = SubmenuBuilder::new(app, "文件")
         .item(&new_chat)
         .separator()
         .close_window()
+        .separator()
+        .item(&quit)
         .build()?;
     let edit = SubmenuBuilder::new(app, "编辑")
         .undo()
@@ -73,6 +78,7 @@ fn install_menu(app: &tauri::App) -> tauri::Result<()> {
         "open-terminal" => {
             let _ = app.emit("menu:open-terminal", ());
         }
+        "app-quit" => app.exit(0),
         _ => {}
     });
     Ok(())

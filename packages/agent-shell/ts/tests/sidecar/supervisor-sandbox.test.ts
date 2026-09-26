@@ -162,6 +162,34 @@ describe('SidecarSupervisor sandbox spawn plan', () => {
     expect(execFileImpl).toHaveBeenCalledOnce();
   });
 
+  it('does not spawn after shutdown begins during profile generation', async () => {
+    let finishProfile:
+      | ((value: { stdout: string; stderr: string }) => void)
+      | undefined;
+    execFileImpl.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishProfile = resolve;
+        }),
+    );
+    let supervisor: SidecarSupervisor | undefined;
+    const starting = SidecarSupervisor.start(
+      {
+        pythonExecutable: '/fake/python3',
+        healthIntervalMs: 0,
+      },
+      (created) => {
+        supervisor = created;
+      },
+    );
+    await vi.waitFor(() => expect(finishProfile).toBeDefined());
+    await supervisor!.shutdown();
+    finishProfile!({ stdout: PROFILE, stderr: '' });
+
+    await expect(starting).rejects.toThrow('startup cancelled by shutdown');
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
   it('spawns python directly when sandbox: false', async () => {
     await startAndStop({ sandbox: false });
     expect(spawnMock).toHaveBeenCalledOnce();

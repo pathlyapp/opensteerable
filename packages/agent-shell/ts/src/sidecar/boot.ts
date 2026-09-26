@@ -68,6 +68,7 @@ export interface HostSidecarDeps {
 
 let egressProxyRef: EgressProxyHandle | null = null;
 let supervisorRef: SidecarSupervisor | null = null;
+let sidecarGeneration = 0;
 
 async function deriveSidecarEgressAllowList(): Promise<string[] | undefined> {
   const envList = (process.env.STEERABLE_SIDECAR_SANDBOX_ALLOWED_HOSTS ?? '')
@@ -223,11 +224,16 @@ async function startEgressProxyIfEnabled(store: ScopedStore): Promise<{
  */
 export async function startHostSidecar(deps: HostSidecarDeps): Promise<void> {
   if (process.env.STEERABLE_USE_SIDECAR === '0') return;
+  const generation = ++sidecarGeneration;
   const pythonRunner = process.env.STEERABLE_PYTHON?.trim();
   const runCodeEnabled = !rustSidecarEnabled() || Boolean(pythonRunner);
   // ready 后的完整接线：注册全局 handle + reverse channels + web 工具握手。
   // 正常 boot 路径与「boot 失败后后台 restart 迟到就绪」路径共用。
   const wireSupervisor = async (supervisor: SidecarSupervisor): Promise<void> => {
+    if (generation !== sidecarGeneration) {
+      await supervisor.shutdown();
+      return;
+    }
     supervisorRef = supervisor;
     setSidecarSupervisor(supervisor);
 
@@ -391,6 +397,12 @@ export async function startHostSidecar(deps: HostSidecarDeps): Promise<void> {
           STEERABLE_PTC_NODE: process.execPath,
         },
         onLogLine: (line) => (deps.onLogLine ?? ((l) => log.info('[sidecar]', l)))(line),
+      }, (created) => {
+        if (generation === sidecarGeneration) {
+          supervisorRef = created;
+        } else {
+          void created.shutdown();
+        }
       });
       await wireSupervisor(supervisor);
       return supervisor;
@@ -416,6 +428,7 @@ export async function startHostSidecar(deps: HostSidecarDeps): Promise<void> {
 
 /** 宿主退出钩子：停 supervisor + egress proxy。幂等。 */
 export async function shutdownHostSidecar(): Promise<void> {
+  sidecarGeneration += 1;
   if (supervisorRef) {
     const supervisor = supervisorRef;
     supervisorRef = null;

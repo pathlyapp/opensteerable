@@ -196,6 +196,28 @@ describe('startHostSidecar · 开关与 spawn 计划', () => {
     });
   });
 
+  it('启动尚未 ready 时退出会立即关闭已创建的 supervisor', async () => {
+    const sup = fakeSupervisor();
+    let resolveStart: ((supervisor: ReturnType<typeof fakeSupervisor>) => void) | undefined;
+    mocks.supervisorStart.mockImplementation(
+      async (_options: unknown, onCreate?: (supervisor: ReturnType<typeof fakeSupervisor>) => void) => {
+        onCreate?.(sup);
+        return await new Promise((resolve) => {
+          resolveStart = resolve;
+        });
+      },
+    );
+
+    const starting = startHostSidecar(makeDeps());
+    await vi.waitFor(() => expect(resolveStart).toBeDefined());
+    await shutdownHostSidecar();
+    expect(sup.shutdown).toHaveBeenCalled();
+
+    resolveStart!(sup);
+    await starting;
+    expect(mocks.setSidecarSupervisor).not.toHaveBeenCalledWith(sup);
+  });
+
   it('反向通道全接线：tool.invoke / approval / ask_user / read_state.seed / host.process.spawn', async () => {
     const sup = fakeSupervisor();
     mocks.supervisorStart.mockResolvedValue(sup);

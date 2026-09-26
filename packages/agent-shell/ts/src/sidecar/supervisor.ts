@@ -123,8 +123,12 @@ export class SidecarSupervisor extends EventEmitter {
   }
 
   /** Spawn the sidecar and wait for the ready marker. */
-  static async start(options: SidecarStartOptions = {}): Promise<SidecarSupervisor> {
+  static async start(
+    options: SidecarStartOptions = {},
+    onCreate?: (supervisor: SidecarSupervisor) => void,
+  ): Promise<SidecarSupervisor> {
     const supervisor = new SidecarSupervisor(options);
+    onCreate?.(supervisor);
     try {
       await supervisor.boot();
       SidecarSupervisor.lastSpawnRefusal = null;
@@ -537,6 +541,11 @@ export class SidecarSupervisor extends EventEmitter {
       const entry = this.options.entryModule ?? 'steerable_sidecar';
       const args = ['-m', entry, ...(this.options.args ?? [])];
       spawnPlan = await this.resolveSandboxedSpawn(py, args);
+    }
+    // Profile generation is asynchronous. A quit can begin while it runs;
+    // never spawn a new child after shutdown has claimed the supervisor.
+    if (this.shuttingDown) {
+      throw new SidecarShutdownError('sidecar startup cancelled by shutdown');
     }
     const child = spawn(spawnPlan.command, spawnPlan.args, {
       cwd: this.options.cwd,

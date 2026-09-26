@@ -1443,10 +1443,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
       // Honor IME composition (`isComposing` true while Chinese input is mid-
       // selection) — only intercept on plain key events.
-      if (isComposingRef.current || event.nativeEvent.isComposing) return;
-      // Windows / some Chromium IMEs report keyCode 229 on the first
-      // Pinyin keydown, before compositionstart.
-      if (event.keyCode === 229) {
+      // WKWebView reports keyCode 229 for Enter itself. Treating that as IME
+      // composition sticks isComposing and swallows every later Enter, so the
+      // send shortcut never runs. Only non-Enter 229 starts composition.
+      if (event.key !== 'Enter' && (isComposingRef.current || event.nativeEvent.isComposing)) return;
+      if (event.key !== 'Enter' && event.keyCode === 229) {
         markComposing();
         return;
       }

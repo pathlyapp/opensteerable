@@ -19,7 +19,7 @@
  */
 import { getNativeImage } from './runtime.js';
 import type { NativeImageLike } from './runtime.js';
-import { statSync } from 'fs';
+import { readFileSync, statSync } from 'fs';
 import { basename, extname } from 'path';
 import type { LlmImage } from './llm/types.js';
 
@@ -131,13 +131,6 @@ export function processViewImage(
       needsFollowup: true,
     };
   }
-  if (!nativeImage) {
-    return {
-      success: false,
-      error: '当前运行环境不支持图片解码',
-      needsFollowup: true,
-    };
-  }
 
   let sourceBytes: number;
   try {
@@ -160,6 +153,10 @@ export function processViewImage(
       error: 'maxEdge 必须是 1–4096 的整数',
       needsFollowup: true,
     };
+  }
+
+  if (!nativeImage) {
+    return viewImageWithoutDecoder(input, sourceBytes, maxEdge);
   }
 
   let rendered = nativeImage.createFromPath(input.path);
@@ -214,6 +211,94 @@ export function processViewImage(
       _image: { b64, media_type: mediaType },
     },
   };
+}
+
+function viewImageWithoutDecoder(
+  input: ViewImageInput,
+  sourceBytes: number,
+  maxEdge: number,
+): ViewImageResult {
+  if (input.region) {
+    return {
+      success: false,
+      error: '当前环境不能裁剪图片',
+      needsFollowup: true,
+    };
+  }
+  if (sourceBytes > IMAGE_MAX_ENCODED_BYTES) {
+    return {
+      success: false,
+      error: `源文件 ${formatMb(sourceBytes)}MB 超过 ${formatMb(IMAGE_MAX_ENCODED_BYTES)}MB，当前环境不能缩放`,
+      needsFollowup: true,
+    };
+  }
+  const sourceExt = extname(input.path).toLowerCase();
+  if (sourceExt !== '.png' && sourceExt !== '.jpg' && sourceExt !== '.jpeg') {
+    return {
+      success: false,
+      error: '当前环境只能直接发送 PNG 和 JPEG',
+      needsFollowup: true,
+    };
+  }
+  const natural = sourceExt === '.png' ? 'png' : 'jpeg';
+  if (input.format != null && input.format !== natural) {
+    return {
+      success: false,
+      error: '当前环境不能转码',
+      needsFollowup: true,
+    };
+  }
+  const bytes = readFileSync(input.path);
+  const size = readRasterSize(bytes);
+  if (size && (size.width > maxEdge || size.height > maxEdge)) {
+    return {
+      success: false,
+      error: '当前环境不能缩放',
+      needsFollowup: true,
+    };
+  }
+  const mediaType: 'image/png' | 'image/jpeg' =
+    natural === 'jpeg' ? 'image/jpeg' : 'image/png';
+  return {
+    success: true,
+    data: {
+      width: size?.width ?? 0,
+      height: size?.height ?? 0,
+      sourcePath: input.path,
+      mediaType,
+      _image: { b64: bytes.toString('base64'), media_type: mediaType },
+    },
+  };
+}
+
+function readRasterSize(bytes: Buffer): { width: number; height: number } | null {
+  if (
+    bytes.length >= 24 &&
+    bytes[0] === 137 &&
+    bytes.toString('ascii', 1, 4) === 'PNG'
+  ) {
+    return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+  }
+  if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return null;
+  let offset = 2;
+  while (offset + 9 < bytes.length) {
+    if (bytes[offset] !== 0xff) return null;
+    const marker = bytes[offset + 1];
+    if (marker === 0xd8 || marker === 0xd9) {
+      offset += 2;
+      continue;
+    }
+    const length = bytes.readUInt16BE(offset + 2);
+    if (length < 2 || offset + 2 + length > bytes.length) return null;
+    if (marker >= 0xc0 && marker <= 0xc3) {
+      return {
+        height: bytes.readUInt16BE(offset + 5),
+        width: bytes.readUInt16BE(offset + 7),
+      };
+    }
+    offset += 2 + length;
+  }
+  return null;
 }
 
 function resolveCrop(
@@ -276,8 +361,26 @@ export function processImageAttachments(
 
     const nativeImage = getNativeImage();
     if (!nativeImage) {
-      // Non-Electron host (BS server, unit tests, headless) — can't decode images.
-      notes.push(`- ${label}：当前运行环境不支持图片解码，未附加`);
+      // Tauri and the browser server run plain Node, which has no Electron
+      // nativeImage. The bytes are already a PNG/JPEG the provider can read;
+      // pass them through when they fit the encoded cap. Resize stays on the
+      // Electron path.
+      if (sourceBytes > IMAGE_MAX_ENCODED_BYTES) {
+        notes.push(`- ${label}：源文件 ${formatMb(sourceBytes)}MB 超过 ${formatMb(IMAGE_MAX_ENCODED_BYTES)}MB，当前环境不能缩放，未附加`);
+        continue;
+      }
+      const ext = extname(file.path).toLowerCase();
+      const mediaType =
+        ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg'
+        : ext === '.gif' ? 'image/gif'
+        : ext === '.webp' ? 'image/webp'
+        : ext === '.bmp' ? 'image/bmp'
+        : 'image/png';
+      images.push({
+        data: readFileSync(file.path).toString('base64'),
+        mediaType,
+      });
+      notes.push(`- ${label}（原图）`);
       continue;
     }
 

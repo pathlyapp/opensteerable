@@ -149,8 +149,11 @@ describe('processImageAttachments（非 Electron 宿主）', () => {
       const p = join(dir, 'ok.png');
       writeFileSync(p, Buffer.from([137, 80, 78, 71])); // PNG magic, 内容无所谓
       const r = processImageAttachments([{ path: p, name: 'ok.png' }]);
-      // vitest 里没有 nativeImage，应走「不支持图片解码」分支
-      expect(r.images).toEqual([]);
+      // 无 nativeImage 时原样把字节交给模型，不再只留路径。
+      expect(r.images).toEqual([{
+        data: Buffer.from([137, 80, 78, 71]).toString('base64'),
+        mediaType: 'image/png',
+      }]);
       expect(r.notes[0]).toContain('ok.png');
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -251,14 +254,19 @@ describe('processViewImage', () => {
     });
   });
 
-  it('拒绝非图片扩展、缺失文件、空图片和无解码器环境', () => {
+  it('拒绝非图片扩展、缺失文件和空图片，无解码器时发送原图', () => {
     const decoder = { createFromPath: () => fakeNativeImage(10, 10) };
     expect(processViewImage({ path: '/tmp/a.txt' }, decoder).error).toContain('supports');
     expect(processViewImage({ path: '/definitely/missing.png' }, decoder).error).toContain(
       '不存在',
     );
     withImageFile((imagePath) => {
-      expect(processViewImage({ path: imagePath }, null).error).toContain('不支持图片解码');
+      const passed = processViewImage({ path: imagePath }, null);
+      expect(passed.success).toBe(true);
+      expect(passed.data?._image.b64).toBe(Buffer.from([137, 80, 78, 71]).toString('base64'));
+      expect(processViewImage({ path: imagePath, region: { x: 0, y: 0, w: 1, h: 1 } }, null).error).toContain(
+        '不能裁剪',
+      );
       expect(
         processViewImage(
           { path: imagePath },

@@ -24,6 +24,6 @@
     "@vitejs/plugin-react": "^4.7.0",
     "tailwindcss": "^4.3.0",
     "typescript": "^5.8.3",
-    "vite": "^5.4.21"
+    "vite": "^8.3.0"
   }
 }

@@ -1,10 +1,11 @@
 import { useRef, useState } from 'react';
-import { LuActivity, LuBlocks, LuBot, LuChartBar, LuMonitor, LuNetwork, LuPlug, LuSearch, LuSettings, LuShieldCheck } from 'react-icons/lu';
+import { LuActivity, LuBlocks, LuBot, LuChartBar, LuDownload, LuMonitor, LuNetwork, LuPlug, LuSearch, LuSettings, LuShieldCheck } from 'react-icons/lu';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
 import { isElectron } from '@/lib/electron-bridge';
 import { AgentsSettingsPanel } from '@/components/settings/AgentsSettingsPanel';
 import { AppearanceSettingsPanel } from '@/components/settings/AppearanceSettingsPanel';
 import { AppUpdateSettingsPanel } from '@/components/settings/AppUpdateSettingsPanel';
+import { PortableSettingsPanel } from '@/components/settings/PortableSettingsPanel';
 import { DiagnoseSettingsPanel } from '@/components/settings/DiagnoseSettingsPanel';
 import { InsightsSettingsPanel } from '@/components/settings/InsightsSettingsPanel';
 import {
@@ -21,6 +22,7 @@ import { UsagePanel } from '@/components/settings/UsagePanel';
 import { WebSearchSettingsPanel } from '@/components/settings/WebSearchSettingsPanel';
 import { getPackSettingsPanels } from '@/packs/registry';
 import { settingsChrome } from '@/lib/host-tools';
+import { isPortableEnabled } from '@/lib/portable';
 import type { AgentOutletContext } from '@/layouts/AgentLayout';
 
 type SettingsSection = 'skills' | 'mcp' | 'agents' | 'general';
@@ -217,6 +219,16 @@ export function SettingsPage() {
                   <panel.Component />
                 </section>
               ))}
+
+              {isPortableEnabled() && (
+              <section className="space-y-2" data-testid="settings-section-portable">
+                <h2 className="flex items-center gap-1.5 text-xs font-semibold text-agent-foreground">
+                  <LuDownload className="h-3.5 w-3.5 text-agent-muted-foreground" />
+                  备份与迁移
+                </h2>
+                <PortableSettingsPanel />
+              </section>
+              )}
 
               <AppUpdateSettingsPanel />
             </>

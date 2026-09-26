@@ -71,6 +71,7 @@ export function createProductViteConfig(options: ProductViteConfigOptions) {
         JSON.stringify(product.chatModes ?? ['agent', 'plan']),
       ),
       'import.meta.env.VITE_SETTINGS': JSON.stringify(JSON.stringify(product.settings ?? {})),
+      'import.meta.env.VITE_PORTABLE': JSON.stringify(product.portable === true ? 'true' : 'false'),
     },
     resolve: {
       alias: {

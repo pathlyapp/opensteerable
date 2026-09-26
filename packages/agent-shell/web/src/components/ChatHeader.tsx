@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { LuCheck, LuGitBranch, LuListTodo, LuListTree, LuLoaderCircle } from 'react-icons/lu';
+import { LuCheck, LuDownload, LuGitBranch, LuListTodo, LuListTree, LuLoaderCircle } from 'react-icons/lu';
 import type { LocalChat, LocalTask } from '@/lib/local-api';
 import {
   activateChatBranch,
@@ -11,6 +11,13 @@ import { SessionTreeModal } from './chat/SessionTreeModal';
 import { TaskPanelModal } from './chat/TaskPanelModal';
 import { actionableTasks, summarizeTasks, type ChatTaskSummary } from './chat/useChatTasks';
 import type { PackChatSlotContribution } from '@/packs/registry';
+import {
+  fetchChatDocument,
+  isPortableEnabled,
+  portableErrorMessage,
+  safeDownloadName,
+  saveJsonFile,
+} from '@/lib/portable';
 
 interface ChatHeaderProps {
   chat: LocalChat | null;
@@ -56,6 +63,8 @@ export function ChatHeader({
   const [taskPanelOpen, setTaskPanelOpen] = useState(false);
   const [branches, setBranches] = useState<ChatBranchesResponse | null>(null);
   const [switching, setSwitching] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [menuBox, setMenuBox] = useState<{ top: number; left: number; width: number } | null>(
     null,
   );
@@ -193,6 +202,30 @@ export function ChatHeader({
           {chat?.title ?? '未选择对话'}
         </span>
       </div>
+      {chat && isPortableEnabled() && (
+        <button
+          type="button"
+          disabled={exporting}
+          onClick={() => {
+            setExporting(true);
+            setExportError(null);
+            void fetchChatDocument(chat.id)
+              .then((doc) => saveJsonFile(safeDownloadName(chat.title, '对话'), doc))
+              .then((saved) => {
+                if (!saved) return;
+              })
+              .catch((err: unknown) => setExportError(portableErrorMessage(err)))
+              .finally(() => setExporting(false));
+          }}
+          className="flex h-7 shrink-0 items-center gap-1 rounded-full px-2 text-xs text-agent-muted-foreground transition-colors hover:bg-agent-foreground/5 hover:text-agent-foreground disabled:opacity-60"
+          title={exportError ?? '导出此对话'}
+          aria-label="导出此对话"
+          data-testid="header-export-chat"
+        >
+          <LuDownload className="h-3.5 w-3.5" />
+          {exportError ? '导出失败' : exporting ? '导出中' : '导出'}
+        </button>
+      )}
       {chat && onBranchSwitched && (
         <div className="shrink-0">
           <button

@@ -386,6 +386,15 @@ class FakeLocalStore {
     return this.state.llmSettings;
   }
 
+  async setLlmSettings(settings: Record<string, unknown>): Promise<Record<string, unknown>> {
+    this.state.llmSettings = { ...settings };
+    return this.state.llmSettings;
+  }
+
+  async getInsightsSettings(): Promise<FakeStoreState['insights']> {
+    return this.state.insights;
+  }
+
   async getTelemetrySettings(): Promise<FakeStoreState['telemetry']> {
     return this.state.telemetry;
   }

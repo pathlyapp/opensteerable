@@ -10,6 +10,7 @@ import { InsightsConsentBanner } from '@/components/settings/InsightsSettingsPan
 import { trackBehavior } from '@/lib/insights';
 import { getElectronBridge, isElectron } from '@/lib/electron-bridge';
 import { deleteChatIfEmpty, pruneEmptyChats } from '@/lib/local-api';
+import { PORTABLE_CHATS_CHANGED_EVENT } from '@/lib/portable';
 import { getPackChatSlots, type PackChatSlotContribution } from '@/packs/registry';
 import {
   useChatsAndAgents,
@@ -185,6 +186,13 @@ function AgentLayoutContent() {
       void refreshChatsRef.current();
     });
     return unsubscribe;
+  }, []);
+  useEffect(() => {
+    const onImported = () => {
+      void refreshChatsRef.current();
+    };
+    window.addEventListener(PORTABLE_CHATS_CHANGED_EVENT, onImported);
+    return () => window.removeEventListener(PORTABLE_CHATS_CHANGED_EVENT, onImported);
   }, []);
 
   // 空会话不进侧栏：启动时清掉从未发过消息的残骸；离开一段空对话时丢掉它。

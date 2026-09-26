@@ -96,6 +96,8 @@ import {
 } from './regenerate-helper.js';
 import { resolveBranchActivation } from './branch-helper.js';
 import { detectInterruptedTurn } from './interrupted-helper.js';
+import { handlePortableRequest } from './portable-service.js';
+import { isPortableProduct } from '../product-config.js';
 import { dropCurrentUserMessage } from './history-helper.js';
 import { parseImageAttachments, processImageAttachments } from '../image-attachment.js';
 import { chatAttachmentsDirPath } from '../attachments.js';
@@ -383,6 +385,26 @@ export class LocalBackendRouter {
         };
       }
       return { status: 200, data: buildLocalApiUser() };
+    }
+
+    if (
+      pathname === '/api/v2/portable/config' ||
+      pathname === '/api/v2/portable/preview' ||
+      pathname === '/api/v2/portable/chats' ||
+      /^\/api\/v2\/chats\/[^/]+\/portable$/.test(pathname)
+    ) {
+      if (!isPortableProduct()) return this.notFound('Not found');
+      return handlePortableRequest({
+        method,
+        pathname,
+        includeSecrets: url.searchParams.get('includeSecrets') === '1',
+        body: request.body,
+        store: this.store,
+        mcp: this.toolRouter.mcpRegistry ?? null,
+        projects: getResolvedHostTools().projects.capability
+          ? (this.toolRouter.projectRegistry ?? null)
+          : null,
+      });
     }
 
     // Desktop Agent —— 在本地模式下虚拟一个永远在线的 agent，所有 exec 直接走 ToolRouter

@@ -67,6 +67,10 @@ export interface ProductConfig {
    */
   settings?: Record<string, boolean>;
   /**
+   * 对话与配置的导出/导入。缺省关。只有显式 `true` 的产品才有入口和接口。
+   */
+  portable?: boolean;
+  /**
    * 产品钉死的大模型。`settings.llm === false` 时必填，运行时用这份，
    * 不再读设置页。密钥用 `apiKeyEnv` 指向环境变量，不要把 key 写进仓库。
    */
@@ -110,6 +114,11 @@ export function isShellBuiltinAgentEnabled(
   config: ProductConfig = getProductConfig(),
 ): boolean {
   return config.builtinAgents?.[id] === true;
+}
+
+/** 对话与配置能否导出/导入。缺省关，产品必须显式打开。 */
+export function isPortableProduct(config: ProductConfig = getProductConfig()): boolean {
+  return config.portable === true;
 }
 
 /** shell 内置技能：`true` 全开；否则只有对象里显式 `true` 的目录开。 */

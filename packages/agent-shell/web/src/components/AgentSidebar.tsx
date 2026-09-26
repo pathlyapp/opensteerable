@@ -99,6 +99,7 @@ import {
   LuPencil,
   LuPlug,
   LuEllipsis,
+  LuUpload,
 } from "react-icons/lu";
 import { parseChatTitle } from "@/lib/chat-title";
 import { getDateGroupLabel, getDateGroupPriority } from "@/lib/date-groups";
@@ -117,6 +118,16 @@ import {
 import type { UseChatsAndAgentsResult } from "@/hooks/useChatsAndAgents";
 import type { RightPanelState } from "@/layouts/AgentLayout";
 import { BrandLockup } from "@/components/BrandLockup";
+import { PortableChatImportDialog } from "@/components/portable/PortableChatImportDialog";
+import {
+  importChatDocument,
+  isPortableEnabled,
+  parsePortableText,
+  pickJsonFile,
+  portableErrorMessage,
+  previewPortableDocument,
+  type PortablePreview,
+} from "@/lib/portable";
 import {
   SidebarVersionLabel,
   useAppRelease,
@@ -325,6 +336,12 @@ export function AgentSidebar({
   const [confirmDeleteChatId, setConfirmDeleteChatId] = useState<string | null>(
     null,
   );
+  const portable = isPortableEnabled();
+  const [portableNotice, setPortableNotice] = useState<string | null>(null);
+  const [chatImport, setChatImport] = useState<PortablePreview | null>(null);
+  const [chatImportDoc, setChatImportDoc] = useState<unknown>(null);
+  const [chatImportBusy, setChatImportBusy] = useState(false);
+  const [chatImportError, setChatImportError] = useState<string | null>(null);
   const [deletingChatId, setDeletingChatId] = useState<string | null>(null);
   const [chatsExpanded, setChatsExpanded] = useState(true);
   const chatScrollRef = useRef<HTMLDivElement>(null);
@@ -629,6 +646,46 @@ export function AgentSidebar({
     [confirmDeleteChatId, deleteChat, deletingChatId, currentChatId, navigate],
   );
 
+  const beginChatImport = useCallback(async () => {
+    setPortableNotice(null);
+    const text = await pickJsonFile();
+    if (!text) return;
+    const parsed = parsePortableText(text);
+    if (!parsed.ok) {
+      setPortableNotice(parsed.error);
+      return;
+    }
+    try {
+      const preview = await previewPortableDocument(parsed.value);
+      if (preview.kind !== "steerable-chat" && preview.kind !== "steerable-chats") {
+        setPortableNotice("这是配置包，请到设置页导入");
+        return;
+      }
+      setChatImportDoc(parsed.value);
+      setChatImportError(null);
+      setChatImport(preview);
+    } catch (err) {
+      setPortableNotice(portableErrorMessage(err));
+    }
+  }, []);
+
+  const confirmChatImport = useCallback(async () => {
+    if (!chatImportDoc) return;
+    setChatImportBusy(true);
+    setChatImportError(null);
+    try {
+      const result = await importChatDocument(chatImportDoc);
+      await data.refreshChats();
+      setChatImport(null);
+      setChatImportDoc(null);
+      setPortableNotice(`已导入「${result.title}」`);
+    } catch (err) {
+      setChatImportError(portableErrorMessage(err));
+    } finally {
+      setChatImportBusy(false);
+    }
+  }, [chatImportDoc, data]);
+
   // 单条会话行——无项目日期分组和项目分组共用同一个渲染，避免两份 JSX。
   const renderChatRow = (chat: (typeof normalizedChats)[number]) => {
     const isCurrent = currentChatId === chat.id;
@@ -679,7 +736,8 @@ export function AgentSidebar({
         <div
           aria-hidden="true"
           className={[
-            "pointer-events-none absolute inset-y-0 right-0 w-12 rounded-r-full transition-opacity duration-200",
+            "pointer-events-none absolute inset-y-0 right-0 rounded-r-full transition-opacity duration-200",
+            "w-12",
             isConfirmingDelete
               ? isCurrent
                 ? "bg-gradient-to-l from-agent-canvas via-agent-canvas/95 to-transparent opacity-100"
@@ -812,6 +870,23 @@ export function AgentSidebar({
             <LuPlus className="h-3.5 w-3.5" />
             <span>新对话</span>
           </button>
+          {portable && (
+            <button
+              type="button"
+              onClick={() => void beginChatImport()}
+              className="flex h-7 w-full items-center gap-1.5 rounded-full px-2.5 text-xs text-agent-muted-foreground transition-colors hover:bg-agent-foreground/5 hover:text-agent-foreground"
+              title="导入对话"
+              data-testid="sidebar-import-chat"
+            >
+              <LuUpload className="h-3.5 w-3.5" />
+              <span>导入对话</span>
+            </button>
+          )}
+          {portableNotice && (
+            <p className="px-2.5 text-[11px] leading-relaxed text-agent-muted-foreground" data-testid="sidebar-portable-notice">
+              {portableNotice}
+            </p>
+          )}
           {settingsChrome("agents") && (
           <button
             type="button"
@@ -1138,6 +1213,19 @@ export function AgentSidebar({
           );
         })()}
 
+      {chatImport && (
+        <PortableChatImportDialog
+          preview={chatImport}
+          busy={chatImportBusy}
+          error={chatImportError}
+          onCancel={() => {
+            setChatImport(null);
+            setChatImportDoc(null);
+            setChatImportError(null);
+          }}
+          onConfirm={() => void confirmChatImport()}
+        />
+      )}
       <CreateProjectModal
         open={createProjectOpen}
         onClose={() => setCreateProjectOpen(false)}

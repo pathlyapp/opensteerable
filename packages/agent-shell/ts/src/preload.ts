@@ -561,6 +561,16 @@ const electronAPI = {
       return () => ipcRenderer.removeListener('terminal:spawned', fn);
     },
   },
+  app: {
+    snapshot: () => ipcRenderer.invoke('app:release-snapshot'),
+    check: () => ipcRenderer.invoke('app:release-check'),
+    install: () => ipcRenderer.invoke('app:release-install'),
+    onState: (callback: (snapshot: unknown) => void) => {
+      const fn = (_event: Electron.IpcRendererEvent, snapshot: unknown) => callback(snapshot);
+      ipcRenderer.on('app-update-state', fn);
+      return () => ipcRenderer.removeListener('app-update-state', fn);
+    },
+  },
 };
 
 contextBridge.exposeInMainWorld('electron', { ...electronAPI, ...packContributions });

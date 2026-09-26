@@ -29,7 +29,9 @@ import {
   AppUpdateController,
   appUpdateMenuAction,
   shouldNotifyUpdateReady,
+  toAppReleaseSnapshot,
   type AppUpdatePhase,
+  type AppUpdateState,
 } from './app-update.js';
 import { createElectronAppUpdater } from './app-update-electron.js';
 import { assertHostIpcAllowed, getResolvedHostTools } from './host-tools-runtime.js';
@@ -568,7 +570,26 @@ function createMenu(): void {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
+function currentReleaseSnapshot(state?: AppUpdateState) {
+  return toAppReleaseSnapshot(app.getVersion(), state ?? appUpdates?.state ?? { phase: 'disabled' });
+}
+
+function broadcastRelease(state: AppUpdateState): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send('app-update-state', currentReleaseSnapshot(state));
+}
+
 function setupIpcHandlers(): void {
+  ipcMain.handle('app:release-snapshot', () => currentReleaseSnapshot());
+  ipcMain.handle('app:release-check', async () => {
+    if (!appUpdates) return currentReleaseSnapshot({ phase: 'disabled' });
+    return currentReleaseSnapshot(await appUpdates.checkNow());
+  });
+  ipcMain.handle('app:release-install', () => {
+    if (!appUpdates) return currentReleaseSnapshot({ phase: 'disabled' });
+    return currentReleaseSnapshot(appUpdates.installNow());
+  });
+
   ipcMain.on('retry-connection', async () => {
     retryCount = 0;
     if (retryTimer) {
@@ -933,6 +954,7 @@ function startDesktopUpdates(): void {
     updater: createElectronAppUpdater(),
     onState: state => {
       log.info('[app-update]', state.phase, state.version ?? '', state.message ?? '');
+      broadcastRelease(state);
       if (shouldNotifyUpdateReady(previous, state) && state.version) {
         const notification = new ElectronNotification({
           title: getBrand().displayName,

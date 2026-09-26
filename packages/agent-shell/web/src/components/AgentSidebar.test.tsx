@@ -445,6 +445,23 @@ describe('AgentSidebar 会话行交互', () => {
 });
 
 describe('AgentSidebar 入口导航与高亮', () => {
+  it('设置按钮右侧显示当前版本，侧栏没有检查更新', async () => {
+    bridgeStub = baseElectronBridge({
+      app: {
+        snapshot: async () => ({ version: '0.2.2', enabled: true, phase: 'idle' }),
+        check: vi.fn(),
+        install: vi.fn(),
+        onState: () => () => {},
+      },
+    });
+    renderSidebar('/agent');
+    const version = await screen.findByTestId('sidebar-app-version');
+    expect(version.textContent).toBe('v0.2.2');
+    expect(screen.getByTestId('sidebar-llm-settings').contains(version)).toBe(true);
+    expect(screen.queryByTestId('sidebar-app-update')).toBeNull();
+    expect(screen.queryByTestId('settings-app-update')).toBeNull();
+  });
+
   it('Skill / MCP / 综合设置入口分别导航到对应设置页', () => {
     renderSidebar('/agent');
     fireEvent.click(screen.getByTestId('sidebar-skill-settings'));

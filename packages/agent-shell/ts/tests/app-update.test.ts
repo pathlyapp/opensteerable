@@ -17,6 +17,7 @@ import {
   AppUpdateController,
   appUpdateMenuAction,
   shouldNotifyUpdateReady,
+  toAppReleaseSnapshot,
   type AppUpdateCheckResult,
   type AppUpdaterPort,
 } from '../src/app-update.js';
@@ -306,6 +307,31 @@ describe('AppUpdateController', () => {
     const interval = vi.spyOn(global, 'setInterval');
     await startWith(new FakeUpdater(), { packaged: false, feedUrl: 'https://example.test/latest' });
     expect(interval).not.toHaveBeenCalled();
+  });
+});
+
+describe('app release snapshot', () => {
+  it('maps the installed version and the updater phase for the sidebar', () => {
+    expect(toAppReleaseSnapshot('0.2.2', { phase: 'disabled' })).toEqual({
+      version: '0.2.2',
+      enabled: false,
+      phase: 'disabled',
+    });
+    expect(
+      toAppReleaseSnapshot('0.2.2', { phase: 'downloading', version: '0.3.0', percent: 40 }),
+    ).toEqual({
+      version: '0.2.2',
+      enabled: true,
+      phase: 'downloading',
+      availableVersion: '0.3.0',
+      percent: 40,
+    });
+    expect(toAppReleaseSnapshot('0.2.2', { phase: 'error', message: 'offline' })).toEqual({
+      version: '0.2.2',
+      enabled: true,
+      phase: 'error',
+      message: 'offline',
+    });
   });
 });
 

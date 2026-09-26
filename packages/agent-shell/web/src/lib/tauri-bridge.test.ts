@@ -58,6 +58,23 @@ describe('createTauriBridge', () => {
     });
   });
 
+  it('reads the release snapshot and listens for updater events', async () => {
+    const snapshot = {
+      version: '0.2.2',
+      enabled: true,
+      phase: 'idle' as const,
+    };
+    mocks.invoke.mockResolvedValue(snapshot);
+    const bridge = createTauriBridge();
+    await expect(bridge.app!.snapshot()).resolves.toEqual(snapshot);
+    expect(mocks.invoke).toHaveBeenCalledWith('app_release_snapshot');
+
+    const onState = vi.fn();
+    const off = bridge.app!.onState(onState);
+    expect(mocks.listen).toHaveBeenCalledWith('app-update-state', expect.any(Function));
+    off();
+  });
+
   it('forwards native menu events with the existing channel names', () => {
     const bridge = createTauriBridge();
     const callback = vi.fn();

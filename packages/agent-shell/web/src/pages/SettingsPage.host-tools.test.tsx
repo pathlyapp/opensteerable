@@ -13,6 +13,7 @@ vi.mock('@/lib/host-tools', () => ({
 
 vi.mock('@/lib/electron-bridge', () => ({
   isElectron: () => true,
+  getElectronBridge: () => null,
 }));
 
 vi.mock('@/components/settings/LlmSettingsPanel', () => ({

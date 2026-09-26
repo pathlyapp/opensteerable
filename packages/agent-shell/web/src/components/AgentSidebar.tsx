@@ -70,7 +70,7 @@
  *   │   ...（无项目对话，按日期分组）  │ ← 无项目排在项目分组之后
  *   ├─────────────────────────────────┤
  *   │ ▢_ 终端                 ⌘T     │
- *   │ ⚙ 设置                          │ ← /settings（模型 + 洞察/遥测/用量/搜索/安全）
+ *   │ ⚙ 设置                   v0.2.2 │ ← /settings；右侧是当前版本，检查更新在设置页
  *   └─────────────────────────────────┘
  *
  * 项目模式：项目 = 名字 + 托管家目录（Documents/<应用名>/<项目名>/）+
@@ -117,6 +117,10 @@ import {
 import type { UseChatsAndAgentsResult } from "@/hooks/useChatsAndAgents";
 import type { RightPanelState } from "@/layouts/AgentLayout";
 import { BrandLockup } from "@/components/BrandLockup";
+import {
+  SidebarVersionLabel,
+  useAppRelease,
+} from "@/components/SidebarRelease";
 import { CreateProjectModal } from "@/components/CreateProjectModal";
 
 const DEFAULT_DOT_COLOR = "#7c3aed";
@@ -285,6 +289,7 @@ export function AgentSidebar({
   const location = useLocation();
   const { chatId: currentChatId } = useParams<{ chatId?: string }>();
   const bridge = getElectronBridge();
+  const release = useAppRelease();
   const onSettingsPage = location.pathname === "/settings";
   // /settings?section=skills|mcp|agents|（缺省 = 综合设置）—— 各自高亮。
   const settingsSection = useMemo(
@@ -1085,8 +1090,14 @@ export function AgentSidebar({
         >
           <LuSettings className="h-3.5 w-3.5" />
           <span>设置</span>
+          <SidebarVersionLabel release={release} />
         </button>
         )}
+        {!hasGeneralSettingsChrome() && release.version ? (
+          <div className="mt-0.5 flex h-7 w-full items-center px-2.5">
+            <SidebarVersionLabel release={release} />
+          </div>
+        ) : null}
       </div>
 
       {projectMenu &&

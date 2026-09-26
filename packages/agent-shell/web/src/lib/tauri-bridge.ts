@@ -8,7 +8,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import html2canvas from 'html2canvas';
-import type { HostBridge } from './electron-bridge';
+import type { AppReleaseSnapshot, HostBridge } from './electron-bridge';
 import { createHttpBridge } from './http-bridge';
 
 type VoidCallback = () => void;
@@ -85,6 +85,27 @@ export function createTauriBridge(): HostBridge {
     offMenuNewChat: newChatMenu.off,
     onMenuOpenTerminal: terminalMenu.on,
     offMenuOpenTerminal: terminalMenu.off,
+    app: {
+      snapshot: () => invoke<AppReleaseSnapshot>('app_release_snapshot'),
+      check: () => invoke<AppReleaseSnapshot>('app_release_check'),
+      install: () => invoke<AppReleaseSnapshot>('app_release_install'),
+      onState(callback) {
+        let unlisten: UnlistenFn | undefined;
+        let cancelled = false;
+        const pending = listen<AppReleaseSnapshot>('app-update-state', (event) => {
+          callback(event.payload);
+        });
+        void pending.then((stop) => {
+          if (cancelled) stop();
+          else unlisten = stop;
+        });
+        return () => {
+          cancelled = true;
+          if (unlisten) unlisten();
+          else void pending.then((stop) => stop());
+        };
+      },
+    },
   };
 }
 

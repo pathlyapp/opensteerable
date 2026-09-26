@@ -6,6 +6,7 @@ const { save } = vi.hoisted(() => ({ save: vi.fn(async () => {}) }));
 
 vi.mock('@/lib/electron-bridge', () => ({
   isElectron: () => true,
+  getElectronBridge: () => null,
 }));
 
 vi.mock('@/components/settings/LlmSettingsPanel', async () => {

@@ -11,6 +11,7 @@ use tauri::{
     Emitter, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent,
 };
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
+use update::{app_release_check, app_release_install, app_release_snapshot};
 
 /// Product values required by the reusable desktop host.
 pub struct DesktopConfig {
@@ -102,7 +103,10 @@ pub fn run(context: tauri::Context<tauri::Wry>, config: DesktopConfig) {
         .invoke_handler(tauri::generate_handler![
             host_select_directory,
             host_save_text_file,
-            host_capture_screenshot
+            host_capture_screenshot,
+            app_release_snapshot,
+            app_release_check,
+            app_release_install
         ])
         .setup(move |app| {
             install_menu(app)?;

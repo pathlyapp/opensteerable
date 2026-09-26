@@ -25,6 +25,28 @@ export interface AppUpdateState {
   message?: string;
 }
 
+/** 渲染层看到的版本与更新状态。`version` 是当前安装版本。 */
+export interface AppReleaseSnapshot {
+  version: string;
+  enabled: boolean;
+  phase: AppUpdatePhase;
+  availableVersion?: string;
+  percent?: number;
+  message?: string;
+}
+
+export function toAppReleaseSnapshot(currentVersion: string, state: AppUpdateState): AppReleaseSnapshot {
+  const snapshot: AppReleaseSnapshot = {
+    version: currentVersion,
+    enabled: state.phase !== 'disabled',
+    phase: state.phase,
+  };
+  if (state.version) snapshot.availableVersion = state.version;
+  if (state.percent !== undefined) snapshot.percent = state.percent;
+  if (state.message) snapshot.message = state.message;
+  return snapshot;
+}
+
 export interface AppUpdateCheckResult {
   updateInfo: { version: string };
   isUpdateAvailable: boolean;

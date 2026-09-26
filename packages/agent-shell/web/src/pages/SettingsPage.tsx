@@ -4,6 +4,7 @@ import { useOutletContext, useSearchParams } from 'react-router-dom';
 import { isElectron } from '@/lib/electron-bridge';
 import { AgentsSettingsPanel } from '@/components/settings/AgentsSettingsPanel';
 import { AppearanceSettingsPanel } from '@/components/settings/AppearanceSettingsPanel';
+import { AppUpdateSettingsPanel } from '@/components/settings/AppUpdateSettingsPanel';
 import { DiagnoseSettingsPanel } from '@/components/settings/DiagnoseSettingsPanel';
 import { InsightsSettingsPanel } from '@/components/settings/InsightsSettingsPanel';
 import {
@@ -36,7 +37,7 @@ function resolveSection(raw: string | null): SettingsSection {
  *   - `skills`  侧栏「Skill 设置」
  *   - `mcp`     侧栏「MCP 设置」
  *   - `agents`  侧栏「智能体管理」
- *   - 缺省/`general`  侧栏底「设置」（界面 / 模型 / 搜索 / 用量 / 安全 / 洞察 / 遥测）
+ *   - 缺省/`general`  侧栏底「设置」（界面 / 模型 / 搜索 / 用量 / 安全 / 洞察 / 遥测 / 关于）
  *
  * Panel 数据自管理（挂载即拉取），页面本身不持有后端状态。
  */
@@ -216,6 +217,8 @@ export function SettingsPage() {
                   <panel.Component />
                 </section>
               ))}
+
+              <AppUpdateSettingsPanel />
             </>
           )}
         </div>

@@ -88,6 +88,28 @@ export interface TerminalSpawnOptions {
   rows?: number;
 }
 
+export type AppReleasePhase =
+  | 'disabled'
+  | 'idle'
+  | 'checking'
+  | 'downloading'
+  | 'ready'
+  | 'installing'
+  | 'error';
+
+/**
+ * 桌面版本与更新。`version` 是当前安装版本，`availableVersion` 是待安装版本。
+ * 与主进程 `AppReleaseSnapshot` 对齐。
+ */
+export interface AppReleaseSnapshot {
+  version: string;
+  enabled: boolean;
+  phase: AppReleasePhase;
+  availableVersion?: string;
+  percent?: number;
+  message?: string;
+}
+
 export interface HostBridge {
   runtime: 'local';
   platform: NodeJS.Platform;
@@ -245,6 +267,15 @@ export interface HostBridge {
         signal: string | null;
       }) => void,
     ) => () => void;
+  };
+  /**
+   * 桌面版本与更新。Electron / Tauri 提供；浏览器预览没有这一段。
+   */
+  app?: {
+    snapshot: () => Promise<AppReleaseSnapshot>;
+    check: () => Promise<AppReleaseSnapshot>;
+    install: () => Promise<AppReleaseSnapshot>;
+    onState: (callback: (snapshot: AppReleaseSnapshot) => void) => () => void;
   };
   // 场景包的 invoke 命名空间（如包 preload 贡献的 `<pack>` / `<pack>Mock`）
   // 不进本接口——包用自己的结构化收窄访问器（见各包 web/bridge.ts），

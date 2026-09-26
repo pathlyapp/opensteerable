@@ -22,7 +22,7 @@ export function SuggestedReplies({
     >
       <div className="mr-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-agent-muted-foreground/70 select-none">
         <LuSparkles className="h-3 w-3 text-agent-muted-foreground/80" />
-        <span>建议回复</span>
+        <span>建议</span>
       </div>
       {suggestions.map((text) => (
         <button
